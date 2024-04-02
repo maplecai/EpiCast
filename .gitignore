@@ -1,0 +1,21 @@
+# file
+# *.yaml
+*.json
+*.pyc
+*.out
+*.log
+*.png
+*.jpg
+*.npy
+*.html
+*.pth
+
+# for 'data' is a soft link
+data
+
+# folder
+.vscode/
+.idea/
+.history/
+data/
+saved/

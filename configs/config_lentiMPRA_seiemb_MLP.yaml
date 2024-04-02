@@ -1,0 +1,115 @@
+train: True #是否训练
+seed: 0 #随机数种子
+device: cuda:0 #模型使用单卡时的显卡名称
+save_model: False #是否保存模型
+save_dir: saved #保存路径
+num_epochs: 100 #训练的epoch数目
+num_valid_epochs: 1 #每多少个epoch运行valid
+num_log_steps: 1 #每多少个step输出log, 0 means no output
+scheduler_interval: step
+
+load_saved_model: True
+saved_model_path: './MLP_21907*2_state_dict.pth'
+freeze_parameters_list: ['fc2.weight', 'fc2.bias']
+output_channels_list: [20988, 21326]
+# 20977, 21325 是 HepG2/K562 ENCODE DNase channel
+# 20988, 21326 是 HepG2/K562 Roadmap DNase channel
+# 4574,  10728 是 HepG2/K562 相关系数最高的 DNase channel
+
+random_data_split: True #是否随机划分训练集和验证集，True则随机划分，False则不划分（有可能按照下面的filter划分）
+train_valid_test_ratio: [0.8, 0.2, 0.0]
+
+train_dataset_1:
+    type: SeqLabelDataset
+    args:
+        seqs_dir: './data/sei_joint_embedding.npy'
+        table_dir: '../data/lentiMPRA/joint_library_table_s.csv'
+        output_column: 'HepG2'
+
+valid_dataset_1:
+    type: SeqLabelDataset
+    args:
+        seqs_dir: './data/sei_joint_embedding.npy'
+        table_dir: '../data/lentiMPRA/joint_library_table_s.csv'
+        output_column: 'HepG2'
+
+# train_dataset_2:
+#     type: SeqLabelDataset
+#     args:
+#         seqs_dir: './data/sei_joint_embedding.npy'
+#         table_dir: '../data/lentiMPRA/joint_library_table_s.csv'
+#         output_column: 'K562'
+
+valid_dataset_2:
+    type: SeqLabelDataset
+    args:
+        seqs_dir: './data/sei_joint_embedding.npy'
+        table_dir: '../data/lentiMPRA/joint_library_table_s.csv'
+        output_column: 'K562'
+
+data_loader:
+    type: DataLoader
+    args:
+        batch_size: 1024
+        num_workers: 16
+
+model:
+    type: MLP
+    args:
+        input_size: 15360
+        hidden_size: 21907
+        output_size: 2
+
+optimizer: #优化器设置
+    type: Adam #优化器类名
+    args:
+        lr: 1.0e-5
+        weight_decay: 1.0e-4
+
+lr_scheduler:
+    type: CosineAnnealingWarmRestarts
+    args: 
+        T_0: 20
+
+loss_func:
+    type: MSELoss
+
+metric_func_list:
+    - type: Pearson
+
+logger:
+    version: 1
+    disable_existing_loggers: false
+    formatters:
+        simple:
+            format: '%(message)s'
+        complex:
+            format: '%(asctime)s - %(levelname)s - %(message)s'
+    handlers:
+        console_handler:
+            class: logging.StreamHandler
+            level: INFO
+            formatter: complex
+            stream: ext://sys.stdout
+        info_file_handler:
+            class: logging.handlers.RotatingFileHandler
+            level: INFO
+            formatter: complex
+            filename: info.log
+            maxBytes: 10485760
+            backupCount: 10
+            encoding: utf8
+        debug_file_handler:
+            class: logging.handlers.RotatingFileHandler
+            level: DEBUG
+            formatter: complex
+            filename: debug.log
+            maxBytes: 10485760
+            backupCount: 10
+            encoding: utf8
+    root:
+        level: DEBUG
+        handlers:
+            - console_handler
+            - info_file_handler
+            - debug_file_handler
