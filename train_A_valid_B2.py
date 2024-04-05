@@ -116,10 +116,10 @@ def main(config):
     train_data_loader_1 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=train_dataset_1, shuffle=True)
     valid_data_loader_1 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=valid_dataset_1, shuffle=False)
 
-    train_dataset_2 = utils.init_obj(datasets, config['train_dataset_2'], selected_index=train_index_1)
-    valid_dataset_2 = utils.init_obj(datasets, config['valid_dataset_2'], selected_index=valid_index_1)
-    train_data_loader_2 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=train_dataset_2, shuffle=True)
-    valid_data_loader_2 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=valid_dataset_2, shuffle=False)
+    # train_dataset_2 = utils.init_obj(datasets, config['train_dataset_2'], selected_index=train_index_1)
+    # valid_dataset_2 = utils.init_obj(datasets, config['valid_dataset_2'], selected_index=valid_index_1)
+    # train_data_loader_2 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=train_dataset_2, shuffle=True)
+    # valid_data_loader_2 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=valid_dataset_2, shuffle=False)
 
     model = utils.init_obj(models, config['model']).to(device)
     if config.get('load_saved_model', False) is True:
@@ -158,7 +158,7 @@ def main(config):
     x, y = next(iter((train_data_loader_1)))
     logger.info(summary(model, x.shape, verbose=0))
     logger.info(f'len(train_dataset_1) = {len(train_dataset_1)}, len(valid_dataset_1) = {len(valid_dataset_1)}')
-    logger.info(f'len(valid_dataset_2) = {len(valid_dataset_2)}')
+    # logger.info(f'len(valid_dataset_2) = {len(valid_dataset_2)}')
     logger.info(f'num_epochs = {num_epochs}, batch_size = {batch_size}')
     logger.info(f'train_steps = {train_steps}, valid_steps = {valid_steps}')
     logger.info(f'start training')
@@ -167,11 +167,11 @@ def main(config):
         # train
         if epoch != 0:
             train_epoch(config, logger, model, train_data_loader_1, epoch, loss_func, metric_func_list, optimizer, lr_scheduler)
-            train_epoch(config, logger, model, train_data_loader_2, epoch, loss_func, metric_func_list, optimizer, lr_scheduler)
+            # train_epoch(config, logger, model, train_data_loader_2, epoch, loss_func, metric_func_list, optimizer, lr_scheduler)
         # valid
         if (epoch % num_valid_epochs == 0):
             valid_epoch(config, logger, model, valid_data_loader_1, epoch, loss_func, metric_func_list)
-            valid_epoch(config, logger, model, valid_data_loader_2, epoch, loss_func, metric_func_list)
+            # valid_epoch(config, logger, model, valid_data_loader_2, epoch, loss_func, metric_func_list)
 
             if config.get('save_model', False) is True:
                 checkpoint = {

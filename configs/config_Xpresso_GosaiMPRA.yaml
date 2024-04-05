@@ -5,73 +5,67 @@ save_model: False #是否保存模型
 save_dir: saved #保存路径
 num_epochs: 100 #训练的epoch数目
 num_valid_epochs: 1 #每多少个epoch运行valid
-num_log_steps: 1 #每多少个step输出log, 0 means no output
+num_log_steps: 100 #每多少个step输出log, 0 means no output
 scheduler_interval: step
 
-local_rank: 0
-# n_gpu: 2
-# device_ids: [0,1]
-
-load_saved_model: False #是否加载保存的模型
-
-random_data_split: True #是否随机划分训练集和验证集，True则随机划分，False则不划分（有可能按照下面的filter划分）
+DDP: True
+load_saved_model: False
+random_data_split: True
 train_valid_test_ratio: [0.8, 0.2, 0.0]
 
 train_dataset_1:
-    type: SeqLabelDataset
+    type: XpressoDataset
     args:
-        table_dir: '../data/GosaiMPRA/MPRA_data_len200.csv'
-        input_column: 'nt_sequence'
-        output_column: 'HepG2_mean'
-# HepG2_mean,K562_mean,SKNSH_mean
+        bed_exp_path: '/home/hxcai/cell_type_specific_CRE/data/Xpresso/merged_bed_exp.csv'
+        genome_path: '/home/hxcai/genome/hg38.fa'
+        output_column: 'E123'
+        # filter_column: 'chr'
+        # filter_not_in_list: ['chr20', 'chr21', 'chr22', 'chrX', 'chrY', 'chrnan']
+        select_region: [9000, 11000]
 
 valid_dataset_1:
-    type: SeqLabelDataset
+    type: XpressoDataset
     args:
-        table_dir: '../data/GosaiMPRA/MPRA_data_len200.csv'
-        input_column: 'nt_sequence'
-        output_column: 'HepG2_mean'
-
-train_dataset_2:
-    type: SeqLabelDataset
-    args:
-        table_dir: '../data/GosaiMPRA/MPRA_data_len200.csv'
-        input_column: 'nt_sequence'
-        output_column: 'K562_mean'
-
-valid_dataset_2:
-    type: SeqLabelDataset
-    args:
-        table_dir: '../data/GosaiMPRA/MPRA_data_len200.csv'
-        input_column: 'nt_sequence'
-        output_column: 'K562_mean'
-        # filter_column: chr
-        # filter_in_list: ['chr1']
+        bed_exp_path: '/home/hxcai/cell_type_specific_CRE/data/Xpresso/merged_bed_exp.csv'
+        genome_path: '/home/hxcai/genome/hg38.fa'
+        output_column: 'E123'
+        # filter_column: 'chr'
+        # filter_in_list: ['chr20', 'chr21', 'chr22']
+        select_region: [9000, 11000]
 
 data_loader:
     type: DataLoader
     args:
-        batch_size: 1024
-        num_workers: 4
+        batch_size: 128
+        num_workers: 1
+        pin_memory: True
 
 model:
-    type: MyBassetN
+    type: Xpresso
     args:
-        input_length: 200
+        input_length: 2000
         output_dim: 1
-        conv_channels_list: [200,200,200,200,200,200,200,200,200,200,200,200,200,200,200]
-        conv_kernel_size_list: [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
-        pool_kernel_size_list: [1,1,1,1,2,1,1,1,1,2,1,1,1,1,2]
-        linear_channels_list: [1000,100]
-        conv_dropout_rate: 0.1
-        linear_dropout_rate: 0.5
-        augmentation: True
-        augmentation_region: null
+
+# model:
+#     type: MyBassetN
+#     args:
+#         input_length: 1000
+#         output_dim: 1
+#         conv_channels_list: [200,200,200,200,200,200,200,200,200,200,200,200,200,200,200]
+#         conv_kernel_size_list: [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
+#         pool_kernel_size_list: [1,1,1,1,4,1,1,1,1,4,1,1,1,1,4]
+#         linear_channels_list: [1000,1000]
+#         conv_dropout_rate: 0.1
+#         linear_dropout_rate: 0.5
+#         gap_layer: False
+#         # augmentation_region: [15, -15]
+#         sigmoid: True
+
 
 optimizer:
     type: Adam
     args:
-        lr: 3.0e-4
+        lr: 1.0e-4
         weight_decay: 1.0e-4
 
 lr_scheduler:
@@ -82,8 +76,9 @@ lr_scheduler:
 loss_func:
     type: MSELoss
 
-metric_func_list:
-    - type: Pearson
+metric_func_list: [
+    {type: Pearson}
+    ]
 
 logger:
     version: 1

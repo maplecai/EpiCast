@@ -5,11 +5,12 @@ save_model: False #是否保存模型
 save_dir: saved #保存路径
 num_epochs: 100 #训练的epoch数目
 num_valid_epochs: 1 #每多少个epoch运行valid
-num_log_steps: 1 #每多少个step输出log, 0 means no output
+num_log_steps: 100 #每多少个step输出log, 0 means no output
 scheduler_interval: step
 
-local_rank: 0
-# n_gpu: 2
+DDP: True
+# local_rank: 0
+# n_processes: 2
 # device_ids: [0,1]
 
 load_saved_model: False #是否加载保存的模型
@@ -20,7 +21,7 @@ train_valid_test_ratio: [0.8, 0.2, 0.0]
 train_dataset_1:
     type: SeqLabelDataset
     args:
-        table_dir: '../data/GosaiMPRA/MPRA_data_len200.csv'
+        table_dir: '../data/GosaiMPRA/MPRA_data_len200_small.csv'
         input_column: 'nt_sequence'
         output_column: 'HepG2_mean'
 # HepG2_mean,K562_mean,SKNSH_mean
@@ -28,21 +29,21 @@ train_dataset_1:
 valid_dataset_1:
     type: SeqLabelDataset
     args:
-        table_dir: '../data/GosaiMPRA/MPRA_data_len200.csv'
+        table_dir: '../data/GosaiMPRA/MPRA_data_len200_small.csv'
         input_column: 'nt_sequence'
         output_column: 'HepG2_mean'
 
 train_dataset_2:
     type: SeqLabelDataset
     args:
-        table_dir: '../data/GosaiMPRA/MPRA_data_len200.csv'
+        table_dir: '../data/GosaiMPRA/MPRA_data_len200_small.csv'
         input_column: 'nt_sequence'
         output_column: 'K562_mean'
 
 valid_dataset_2:
     type: SeqLabelDataset
     args:
-        table_dir: '../data/GosaiMPRA/MPRA_data_len200.csv'
+        table_dir: '../data/GosaiMPRA/MPRA_data_len200_small.csv'
         input_column: 'nt_sequence'
         output_column: 'K562_mean'
         # filter_column: chr
@@ -52,7 +53,6 @@ data_loader:
     type: DataLoader
     args:
         batch_size: 1024
-        num_workers: 4
 
 model:
     type: MyBassetN
@@ -82,8 +82,9 @@ lr_scheduler:
 loss_func:
     type: MSELoss
 
-metric_func_list:
-    - type: Pearson
+metric_func_list: [
+    {type: Pearson}
+    ]
 
 logger:
     version: 1
