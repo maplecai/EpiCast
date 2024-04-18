@@ -61,34 +61,30 @@ class Trainer_DDP:
         else:
             self.log_func = self.logger.debug
 
+        self.cell_type_list = self.config['train_dataset_1']['args']['output_columns']
 
         if config.get('random_data_split', False) is True:
-            total_dataset_1 = utils.init_obj(datasets, config['train_dataset_1'])
-            index_list_1 = np.arange(len(total_dataset_1))
-            train_index_1, valid_index_1, test_index_1 = utils.split_dataset(index_list_1, train_valid_test_ratio=config['train_valid_test_ratio'])
+            total_dataset = utils.init_obj(datasets, config['train_dataset_1'])
+            indices_list = np.arange(len(total_dataset))
+            train_indices, valid_indices, test_indices = utils.split_dataset(indices_list, train_valid_test_ratio=config['train_valid_test_ratio'])
         else:
-            train_index_1, valid_index_1, test_index_1 = None, None, None
+            train_indices, valid_indices, test_indices = None, None, None
 
-        self.train_dataset_1 = utils.init_obj(datasets, config['train_dataset_1'], selected_index=train_index_1)
-        self.valid_dataset_1 = utils.init_obj(datasets, config['valid_dataset_1'], selected_index=valid_index_1)
-        self.train_sampler_1 = DistributedSampler(self.train_dataset_1)
-        self.valid_sampler_1 = DistributedSampler(self.valid_dataset_1)
-        self.train_data_loader_1 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=self.train_dataset_1, sampler=self.train_sampler_1, shuffle=False)
-        self.valid_data_loader_1 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=self.valid_dataset_1, sampler=self.valid_sampler_1, shuffle=False)
-        # self.valid_data_loader_1 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=self.valid_dataset_1, shuffle=False)
-        # train_dataset_2 = utils.init_obj(datasets, config['train_dataset_2'], selected_index=train_index_1)
-        # valid_dataset_2 = utils.init_obj(datasets, config['valid_dataset_2'], selected_index=valid_index_1)
-        # train_data_loader_2 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=train_dataset_2, shuffle=True)
-        # valid_data_loader_2 = utils.init_obj(torch.utils.data, config['data_loader'], dataset=valid_dataset_2, shuffle=False)
+        self.train_dataset = utils.init_obj(datasets, config['train_dataset_1'], selected_indices=train_indices)
+        self.valid_dataset = utils.init_obj(datasets, config['valid_dataset_1'], selected_indices=valid_indices)
+        self.train_sampler = DistributedSampler(self.train_dataset)
+        self.valid_sampler = DistributedSampler(self.valid_dataset)
+        self.train_loader = utils.init_obj(torch.utils.data, config['data_loader'], dataset=self.train_dataset, sampler=self.train_sampler)
+        self.valid_loader = utils.init_obj(torch.utils.data, config['data_loader'], dataset=self.valid_dataset, sampler=self.valid_sampler)
 
         self.model = utils.init_obj(models, config['model']).to(self.device)
+        self.model = DDP(self.model, device_ids=[self.local_rank])
+
         if config.get('load_saved_model', False) is True:
             self.model.load_state_dict(torch.load(config['saved_model_path']))
             for name, param in self.model.named_parameters():
                 if name in config.get('freeze_parameters_list', []):  # 冻结某层的参数
                     param.requires_grad = False
-
-        self.model = DDP(self.model, device_ids=[self.local_rank])
 
         self.loss_func = utils.init_obj(metrics, config['loss_func'])
         self.metric_func_list = [utils.init_obj(metrics, m) for m in config.get('metric_func_list', [])]
@@ -114,29 +110,31 @@ class Trainer_DDP:
         batch_size = config['data_loader']['args']['batch_size']
         num_valid_epochs = config['num_valid_epochs']
         save_model = config.get('save_model', False)
-        train_steps = len(self.train_data_loader_1)
-        valid_steps = len(self.valid_data_loader_1)
+        train_steps = len(self.train_loader)
+        valid_steps = len(self.valid_loader)
 
         if self.local_rank == 0:
             self.logger.info(yaml.dump(config))
-            x, y = next(iter((self.train_data_loader_1)))
-            self.logger.info(summary(self.model, x.shape, verbose=0))
-            self.logger.info(f'len(train_dataset_1) = {len(self.train_dataset_1)}, len(valid_dataset_1) = {len(self.valid_dataset_1)}')
+            ct, x, y = next(iter((self.train_loader)))
+            self.logger.info(summary(self.model, input_data=[ct, x], verbose=0))
+            self.logger.info(f'len(train_dataset) = {len(self.train_dataset)}, len(valid_dataset) = {len(self.valid_dataset)}')
             self.logger.info(f'num_epochs = {num_epochs}, batch_size = {batch_size}')
             self.logger.info(f'train_steps = {train_steps}, valid_steps = {valid_steps}')
             self.logger.info(f'start training')
 
         for epoch in range(num_epochs):
+            self.train_sampler.set_epoch(epoch)
+            self.valid_sampler.set_epoch(epoch)
             # if (self.local_rank == 0) and (epoch == 0):
             # 训练之前先验证一次
             if (epoch == 0):
-                self.valid_epoch(-1, self.valid_data_loader_1, self.valid_sampler_1)
+                self.valid_epoch(-1, self.valid_loader)
 
-            self.train_epoch(epoch, self.train_data_loader_1, self.train_sampler_1)
+            self.train_epoch(epoch, self.train_loader)
             
             # if (self.local_rank == 0) and (epoch % num_valid_epochs == 0):
             if (epoch % num_valid_epochs == 0):
-                self.valid_epoch(epoch, self.valid_data_loader_1, self.valid_sampler_1)
+                self.valid_epoch(epoch, self.valid_loader)
 
                 if (self.local_rank == 0) and (save_model is True):
                     self.save_model(epoch)
@@ -146,7 +144,6 @@ class Trainer_DDP:
                 #     early_stopper.check(score, model)
                 #     if early_stopper.stop_flag is True:
                 #         break
-            # distributed.barrier()
                     
         if self.local_rank == 0:
             self.logger.info(f'finish training.')
@@ -170,21 +167,21 @@ class Trainer_DDP:
 
 
 
-    def train_epoch(self, epoch, train_data_loader=None, train_sampler=None):
+    def train_epoch(self, epoch, train_loader=None):
         device = self.device
-        train_sampler.set_epoch(epoch)
         scheduler_interval = self.config['scheduler_interval']
         num_log_steps = self.config['num_log_steps']
-        train_steps = len(train_data_loader)
+        train_steps = len(train_loader)
 
         self.model.train()
         train_loss = 0
-        y_true = []
-        y_pred = []
-        for batch_idx, (x, y) in enumerate(tqdm(train_data_loader)):
-            x = x.to(device)
-            y = y.to(device)
-            out = self.model(x)
+        y_true_list = []
+        y_pred_list = []
+        ct_list = []
+        for batch_idx, batch_data in enumerate(tqdm(train_loader)):
+            ct, x, y = batch_data
+            ct, x, y = ct.to(device), x.to(device), y.to(device)
+            out = self.model(ct, x)
             loss = self.loss_func(out, y)
 
             self.optimizer.zero_grad()
@@ -196,8 +193,9 @@ class Trainer_DDP:
                 self.lr_scheduler.step(epoch + batch_idx/train_steps)
             
             train_loss += loss.item()
-            y_true.extend(y.cpu().detach())
-            y_pred.extend(out.cpu().detach())
+            ct_list.extend(ct.cpu().detach())
+            y_true_list.extend(y.cpu().detach())
+            y_pred_list.extend(out.cpu().detach())
             if num_log_steps != 0 and batch_idx % num_log_steps == 0:
                 self.logger.debug(f'local_rank = {self.local_rank}, epoch = {epoch:3}, batch_idx = {batch_idx:3}, train_loss = {loss.item():.6f}')
 
@@ -205,48 +203,61 @@ class Trainer_DDP:
             self.lr_scheduler.step()
 
         train_loss = train_loss / train_steps
-        y_true = torch.cat(y_true)
-        y_pred = torch.cat(y_pred)
+        ct_list = torch.tensor(ct_list)
+        y_true_list = torch.cat(y_true_list)
+        y_pred_list = torch.cat(y_pred_list)
 
         self.log_func(f'local_rank = {self.local_rank}, epoch = {epoch:3}, train_loss = {train_loss:.6f}')
-        for metric_func in self.metric_func_list:
-            score = metric_func(y_pred, y_true)
-            self.log_func(f'local_rank = {self.local_rank}, epoch = {epoch:3}, train_{type(metric_func).__name__} = {score:.6f}')
-
-
-    def valid_epoch(self, epoch, valid_data_loader=None, valid_sampler=None):
-        device = self.device
-        valid_steps = len(valid_data_loader)
-        valid_sampler.set_epoch(epoch)
-
-        with torch.no_grad():
-            self.model.eval()
-            valid_loss = 0
-            y_true = []
-            y_pred = []
-            for batch_idx, (x, y) in enumerate(valid_data_loader):
-                x = x.to(device)
-                y = y.to(device)
-                out = self.model(x)
-                loss = self.loss_func(out, y)
-
-                valid_loss += loss.item()
-                y_true.extend(y.cpu().detach())
-                y_pred.extend(out.cpu().detach())
-                
-                # optimizer.zero_grad()
-                # loss.backward()
-                # optimizer.step()
-            valid_loss = valid_loss / valid_steps
-            y_true = torch.cat(y_true)
-            y_pred = torch.cat(y_pred)
-
-            self.log_func(f'local_rank = {self.local_rank}, epoch = {epoch:3}, valid_loss = {valid_loss:.6f}')
+        
+        for ct_idx, ct in enumerate(self.cell_type_list):
+            y_true_list_0 = y_true_list[torch.where(ct_list == ct_idx)]
+            y_pred_list_0 = y_pred_list[torch.where(ct_list == ct_idx)]
             for metric_func in self.metric_func_list:
-                score = metric_func(y_pred, y_true)
-                self.log_func(f'local_rank = {self.local_rank}, epoch = {epoch:3}, valid_{type(metric_func).__name__} = {score:.6f}')
+                score = metric_func(y_true_list_0, y_pred_list_0)
+                self.log_func(f'local_rank = {self.local_rank}, epoch = {epoch:3}, '
+                              f'ct = {ct}, train_{type(metric_func).__name__} = {score:.6f}')
 
 
+    def valid_epoch(self, epoch, valid_loader=None):
+        torch.set_grad_enabled(False) # 代替with torch.no_grad()，避免缩进，和train缩进一样方便复制
+
+        device = self.device
+        valid_steps = len(valid_loader)
+
+        # with torch.no_grad():
+        self.model.eval()
+        valid_loss = 0
+        y_true_list = []
+        y_pred_list = []
+        ct_list = []
+        for batch_idx, batch_data in enumerate(valid_loader):
+            ct, x, y = batch_data
+            ct, x, y = ct.to(device), x.to(device), y.to(device)
+            out = self.model(ct, x)
+            loss = self.loss_func(out, y)
+
+            valid_loss += loss.item()
+            ct_list.extend(ct.cpu().detach())
+            y_true_list.extend(y.cpu().detach())
+            y_pred_list.extend(out.cpu().detach())
+            
+            # optimizer.zero_grad()
+            # loss.backward()
+            # optimizer.step()
+        valid_loss = valid_loss / valid_steps
+        ct_list = torch.tensor(ct_list)
+        y_true_list = torch.cat(y_true_list)
+        y_pred_list = torch.cat(y_pred_list)
+
+        for ct_idx, ct in enumerate(self.cell_type_list):
+            y_true_list_0 = y_true_list[torch.where(ct_list == ct_idx)]
+            y_pred_list_0 = y_pred_list[torch.where(ct_list == ct_idx)]
+            for metric_func in self.metric_func_list:
+                score = metric_func(y_true_list_0, y_pred_list_0)
+                self.log_func(f'local_rank = {self.local_rank}, epoch = {epoch:3}, '
+                              f'ct = {ct}, valid_{type(metric_func).__name__} = {score:.6f}')
+
+        torch.set_grad_enabled(True)
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
