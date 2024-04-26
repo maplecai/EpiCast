@@ -1,33 +1,36 @@
-DDP: True
+distribute: True
 seed: 0 #随机数种子
 device: cuda:0 #模型使用单卡时的显卡名称
 save_dir: saved #保存路径
 num_epochs: 100 #训练的epoch数目
-num_valid_epochs: 10 #每多少个epoch运行valid
-num_log_steps: 100 #每多少个step输出log, 0 means no output
-save_model: True #是否保存模型
+num_log_steps: 0 #每多少个step输出log, 0 means no output
+num_valid_epochs: 1 #每多少个epoch运行valid
 num_save_epochs: 10
+save_model: True
 scheduler_interval: step
-batch_size: &batch_size 128
+batch_size: &batch_size 256
 
 load_saved_model: False
 random_data_split: False
 
-task_names: ['Xpresso_HepG2', 'Xpresso_K562', 'GosaiMPRA_HepG2', 'GosaiMPRA_K562']
-selected_train_datasets_idx: [0, 1, 2]
-selected_valid_datasets_idx: [0, 1, 2, 3]
+task_names: ['XpressoRNA_HepG2', 'XpressoRNA_K562', 'GosaiMPRA_HepG2', 'GosaiMPRA_K562']
+selected_train_datasets_idx: [1]
+selected_valid_datasets_idx: [1]
 
 1_dataset_basic_config: &1_dataset_basic_config
     bed_exp_path: '/home/hxcai/cell_type_specific_CRE/data/Xpresso/merged_bed_exp.csv'
     genome_path: '/home/hxcai/genome/hg38.fa'
-    input_column: 'seq'
-    select_seq_region: [9500, 10500]
-    load_memory: False
+    use_strand: True
+    use_TSS: True
+    TSS_range: [-500, 500]
+    shift_aug: True
+    shift_aug_range: [-500, 0]
 
 2_dataset_basic_config: &2_dataset_basic_config
-    seq_exp_path: '/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_len_200_subset_diff>1.csv'
+    # seq_exp_path: '/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_upsampled_0.5*2.csv'
+    seq_exp_path: '/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_len=200.csv'
     input_column: 'seq'
-    seq_pad_len: 1000
+    # seq_pad_len: 1000
 
 train_dataset_filter_config: &train_dataset_filter_config
     filter_column: 'chr'
@@ -37,18 +40,17 @@ train_dataset_filter_config: &train_dataset_filter_config
 valid_dataset_filter_config: &valid_dataset_filter_config
     filter_column: 'chr'
     filter_in_list: ['chr1', 'chr2']
-    filter_not_in_list:
-
+    filter_not_in_list: 
 
 train_datasets:
-    -   type: XpressoDatasetNew
+    -   type: BedDataset
         args:
             <<: *1_dataset_basic_config
             <<: *train_dataset_filter_config
             output_column: 'HepG2'
             task_idx: [0, 0, 0]
             
-    -   type: XpressoDatasetNew
+    -   type: BedDataset
         args:
             <<: *1_dataset_basic_config
             <<: *train_dataset_filter_config
@@ -70,48 +72,41 @@ train_datasets:
             task_idx: [3, 1, 1]
 
 
+model:
+    type: MyCNNTransformer
+    args:
+        input_length:   200
+        output_dim:     1
+        # n_seqtype:    2
+        # n_celltype:   2
+
+        conv_channels_list:     [256,256,256]
+        conv_kernel_size_list:  [5,5,5]
+        conv_padding_list:      [2,2,2]
+        pool_kernel_size_list:  [2,2,2]
+        pool_padding_list:      [0,0,0]
+        conv_dropout_rate:      0.2
+
+        num_trans_blocks:   5
+        trans_d_embed:      256
+        trans_n_heads:      8
+        trans_d_mlp:        256
+        trans_dropout_rate: 0.2
+
+        linear_channels_list:   []
+        linear_dropout_rate:    0.5
+        sigmoid:                False
+
+        augmentation:           False
+        augmentation_region:    null
+
 data_loader:
     type: DataLoader
     args:
         batch_size: *batch_size
         num_workers: 1
         pin_memory: True
-
-
-encoder_kwargs: &encoder_kwargs
-    type: ConvLayers
-    args:
-        conv_channels_list: [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
-        conv_kernel_size_list: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-        pool_kernel_size_list: [1, 1, 1, 4, 1, 1, 1, 4, 1, 1, 1, 4]
-
-decoder_kwargs: &decoder_kwargs
-    type: LinearLayers
-    args:
-        output_dim: 1
-        linear_channels_list: []
-        last_linear_layer: True
-        sigmoid_layer: False
-
-shared_processor_kwargs: &shared_processor_kwargs
-    type: LinearLayers
-    args:
-        linear_channels_list: [100, 100]
-
-model:
-    type: MyBassetMultiEncoderSharedProcessorMultiDecoder
-    args:
-        # n_celltype: 2
-        # n_output: 2
-        input_length: 1000
-        encoder_kwargs_list:
-            - *encoder_kwargs
-            - *encoder_kwargs
-        decoder_kwargs_list:
-            - *decoder_kwargs
-            - *decoder_kwargs
-        shared_processor_kwargs: *shared_processor_kwargs
-
+        drop_last: False
 
 optimizer:
     type: Adam
@@ -127,12 +122,19 @@ lr_scheduler:
 loss_func:
     type: MultiTaskLoss
     args:
-        task_to_loss: ['MSELoss', 'MSELoss', 'MSELoss', 'MSELoss']
-
+        loss_list: ['MSELoss', 'MSELoss']
 
 metric_func_list:
     - type: Pearson
-    # - type: Spearman
+    - type: Spearman
+
+early_stopper:
+    type: EarlyStopping
+    args:
+        patience: 30
+        delta: 0
+        target: min
+        verbose: True
 
 logger:
     version: 1
@@ -170,4 +172,3 @@ logger:
             - console_handler
             - info_file_handler
             - debug_file_handler
-

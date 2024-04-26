@@ -1,0 +1,249 @@
+distribute: true
+batch_size: 1024
+data_loader:
+  args:
+    batch_size: 1024
+    drop_last: true
+    num_workers: 1
+    pin_memory: true
+  type: DataLoader
+device: cuda:0
+early_stopper:
+  args:
+    delta: 0
+    patience: 30
+    target: min
+    verbose: true
+  type: EarlyStopping
+load_saved_model: false
+logger:
+  disable_existing_loggers: false
+  formatters:
+    complex:
+      format: '%(asctime)s - %(levelname)s - %(message)s'
+    simple:
+      format: '%(message)s'
+  handlers:
+    console_handler:
+      class: logging.StreamHandler
+      formatter: complex
+      level: INFO
+      stream: ext://sys.stdout
+    debug_file_handler:
+      backupCount: 10
+      class: logging.handlers.RotatingFileHandler
+      encoding: utf8
+      filename: debug.log
+      formatter: complex
+      level: DEBUG
+      maxBytes: 10485760
+    info_file_handler:
+      backupCount: 10
+      class: logging.handlers.RotatingFileHandler
+      encoding: utf8
+      filename: info.log
+      formatter: complex
+      level: INFO
+      maxBytes: 10485760
+  root:
+    handlers:
+    - console_handler
+    - info_file_handler
+    - debug_file_handler
+    level: DEBUG
+  version: 1
+loss_func:
+  args:
+    loss_list:
+    - BCELoss
+    - BCELoss
+  type: MultiTaskLoss
+lr_scheduler:
+  args:
+    T_0: 20
+  type: CosineAnnealingWarmRestarts
+metric_func_list:
+- type: Accuracy
+- type: AUROC
+model:
+  args:
+    augmentation: false
+    augmentation_region: null
+    conv_channels_list:
+    - 256
+    - 256
+    - 256
+    conv_dropout_rate: 0.2
+    conv_kernel_size_list:
+    - 7
+    - 7
+    - 7
+    conv_padding_list:
+    - 3
+    - 3
+    - 3
+    input_length: 200
+    linear_channels_list: []
+    linear_dropout_rate: 0.5
+    n_celltype: 2
+    n_seqtype: 2
+    num_trans_blocks: 3
+    output_dim: 1
+    pool_kernel_size_list:
+    - 2
+    - 2
+    - 2
+    pool_padding_list:
+    - 0
+    - 0
+    - 0
+    pred_tokens: 3
+    sigmoid: true
+    trans_d_embed: 256
+    trans_d_mlp: 256
+    trans_dropout_rate: 0.2
+    trans_n_heads: 8
+  type: MyCNNTransformerMultiTask
+multi_task_data_loader:
+  args:
+    cycle: true
+    mode: min
+  type: MultiTaskDataLoader
+num_epochs: 100
+num_log_steps: 0
+num_save_epochs: 10
+num_valid_epochs: 1
+optimizer:
+  args:
+    lr: 0.0001
+    weight_decay: 0.0001
+  type: Adam
+random_data_split: false
+save_dir: saved
+save_model: true
+scheduler_interval: step
+seed: 0
+selected_train_datasets_idx:
+- 0
+selected_valid_datasets_idx:
+- 0
+task_names:
+- ATAC_HepG2
+- ATAC_K562
+- MPRA_HepG2
+- MPRA_K562
+train_datasets:
+- args:
+    bed_exp_path: /home/hxcai/cell_type_specific_CRE/data/ATAC/windows_balanced_subset.csv
+    filter_column: chr
+    filter_in_list: null
+    filter_not_in_list:
+    - chr1
+    - chrX
+    - chrY
+    - chrnan
+    genome_path: /home/hxcai/genome/hg38.fa
+    output_column: HepG2_b
+    shift_aug: false
+    use_strand: false
+    seq_pad_len: 200
+    task_idx: &id000
+    - 0
+    - 0
+    - 0
+  type: BedDataset
+- args:
+    bed_exp_path: /home/hxcai/cell_type_specific_CRE/data/ATAC/windows_balanced_subset.csv
+    filter_column: chr
+    filter_in_list: null
+    filter_not_in_list:
+    - chr1
+    - chrX
+    - chrY
+    - chrnan
+    genome_path: /home/hxcai/genome/hg38.fa
+    output_column: K562_b
+    shift_aug: false
+    use_strand: false
+    task_idx: &id002
+    - 1
+    - 1
+    - 0
+  type: BedDataset
+- args:
+    filter_column: chr
+    filter_in_list: null
+    filter_not_in_list:
+    - chr1
+    - chrX
+    - chrY
+    - chrnan
+    input_column: seq
+    output_column: HepG2_b
+    seq_exp_path: /home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_balanced_subset.csv
+    task_idx: &id001
+    - 2
+    - 0
+    - 1
+  type: SeqLabelDataset
+- args:
+    filter_column: chr
+    filter_in_list: null
+    filter_not_in_list:
+    - chr1
+    - chrX
+    - chrY
+    - chrnan
+    input_column: seq
+    output_column: K562_b
+    seq_exp_path: /home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_balanced_subset.csv
+    task_idx: &id003
+    - 3
+    - 1
+    - 1
+  type: SeqLabelDataset
+valid_datasets:
+- args:
+    bed_exp_path: /home/hxcai/cell_type_specific_CRE/data/ATAC/windows_balanced_subset.csv
+    filter_column: chr
+    filter_in_list:
+    - chr1
+    filter_not_in_list: null
+    genome_path: /home/hxcai/genome/hg38.fa
+    output_column: HepG2_b
+    shift_aug: false
+    use_strand: false
+    task_idx: *id000
+  type: BedDataset
+- args:
+    bed_exp_path: /home/hxcai/cell_type_specific_CRE/data/ATAC/windows_balanced_subset.csv
+    filter_column: chr
+    filter_in_list:
+    - chr1
+    filter_not_in_list: null
+    genome_path: /home/hxcai/genome/hg38.fa
+    output_column: K562_b
+    shift_aug: false
+    use_strand: false
+    task_idx: *id002
+  type: BedDataset
+- args:
+    filter_column: chr
+    filter_in_list:
+    - chr1
+    filter_not_in_list: null
+    input_column: seq
+    output_column: HepG2_b
+    seq_exp_path: /home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_balanced_subset.csv
+    task_idx: *id001
+  type: SeqLabelDataset
+- args:
+    filter_column: chr
+    filter_in_list:
+    - chr1
+    filter_not_in_list: null
+    input_column: seq
+    output_column: K562_b
+    seq_exp_path: /home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_balanced_subset.csv
+    task_idx: *id003
+  type: SeqLabelDataset
