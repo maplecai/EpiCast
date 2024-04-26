@@ -41,8 +41,7 @@ class Trainer_DDP:
         logging.config.dictConfig(config['logger'])
         self.logger = logging.getLogger()
 
-        if config['DDP'] is True:
-            # local_rank = config['local_rank']
+        if config['distribute'] == True:
             distributed.init_process_group(backend='nccl', init_method='env://')
             self.local_rank = distributed.get_rank()
             torch.cuda.set_device(self.local_rank)
@@ -81,9 +80,9 @@ class Trainer_DDP:
             if config['train_datasets'][i]['args']['task_idx'][0] in config['selected_train_datasets_idx']]
         
         valid_datasets = [
-            utils.init_obj(datasets, config['train_datasets'][i], **config['valid_dataset_filter_config']) 
-            for i in range(len(config['train_datasets']))
-            if config['train_datasets'][i]['args']['task_idx'][0] in config['selected_valid_datasets_idx']]
+            utils.init_obj(datasets, config['valid_datasets'][i]) 
+            for i in range(len(config['valid_datasets']))
+            if config['valid_datasets'][i]['args']['task_idx'][0] in config['selected_valid_datasets_idx']]
 
         train_distributed_samplers = [DistributedSampler(dataset) for dataset in train_datasets]
         valid_distributed_samplers = [DistributedSampler(dataset) for dataset in valid_datasets]
@@ -101,11 +100,25 @@ class Trainer_DDP:
         self.model = utils.init_obj(models, config['model'],).to(self.device)
         self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=True)
 
-        if config.get('load_saved_model', False) is True:
-            self.model.load_state_dict(torch.load(config['saved_model_path']))
-            for name, param in self.model.named_parameters():
-                if name in config.get('freeze_parameters_list', []):  # 冻结某层的参数
-                    param.requires_grad = False
+
+
+        saved_model_name = os.listdir(os.path.join(config['save_dir'], 'checkpoints'))[0]
+        saved_model_path = os.path.join(config['save_dir'], 'checkpoints', saved_model_name)
+        self.log(f"load saved model from {saved_model_path}")
+        self.model.load_state_dict(torch.load(saved_model_path))
+
+        # config['load_saved_model'] = True
+        # if config['load_saved_model'] == True:
+        #     if config['saved_model_path'] is None:
+        #         saved_model_name = os.listdir(os.path.join(config['save_dir'], 'checkpoints'))[0]
+        #         saved_model_path = os.path.join(config['save_dir'], 'checkpoints', saved_model_name)
+        #     else:
+        #         saved_model_path = config['saved_model_path']
+        #     self.log(f"load saved model from {saved_model_path}")
+        #     self.model.load_state_dict(torch.load(saved_model_path))
+            # for name, param in self.model.named_parameters():
+            #     if name in config.get('freeze_parameters_list', []):  # 冻结某层的参数
+            #         param.requires_grad = False
 
         self.loss_func = utils.init_obj(metrics, config['loss_func'])
         self.metric_func_list = [utils.init_obj(metrics, m) for m in config.get('metric_func_list', [])]
@@ -117,10 +130,10 @@ class Trainer_DDP:
         else:
             self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(factor=1.0)
 
-        # if 'early_stopper' in config:
-        #     self.early_stopper = utils.init_obj(utils, config['early_stopper'], trace_func=self.logger.info)
-        # else:
-        #     self.early_stopper = utils.EarlyStopping(patience=np.inf)
+        if 'early_stopper' in config:
+            self.early_stopper = utils.init_obj(utils, config['early_stopper'], save_dir=config['save_dir']+'/checkpoints/', trace_func=self.log)
+        else:
+            self.early_stopper = utils.EarlyStopping(patience=np.inf)
 
 
     def train(self):
@@ -135,7 +148,7 @@ class Trainer_DDP:
         if self.local_rank == 0:
             self.logger.debug(yaml.dump(config))
             (task_idx, cell_idx, output_idx), (x, y) = next(iter((self.train_loader)))
-            self.logger.debug(summary(self.model, input_data=[x, cell_idx, output_idx], verbose=0, depth=5))
+            self.logger.info(summary(self.model, input_data=[x, cell_idx, output_idx], verbose=0, depth=5))
             self.logger.info(f'len(train_dataset) = {self.len_train_dataset}, len(valid_dataset) = {self.len_valid_dataset}')
             self.logger.info(f'len(train_loader) = {len(self.train_loader)}, len(valid_loader) = {len(self.valid_loader)}')
             self.logger.info(f'num_epochs = {num_epochs}, batch_size = {batch_size}')
@@ -148,28 +161,28 @@ class Trainer_DDP:
 
             # 训练之前先验证一次
             if (epoch == 0):
-                self.log(f'valid_on_train_dataset')
-                self.valid_epoch(self.train_loader)
+                # self.log(f'valid_on_train_dataset')
+                # self.valid_epoch(self.train_loader)
                 self.log(f'valid_on_valid_dataset')
                 self.valid_epoch(self.valid_loader)
 
-            self.train_epoch(self.train_loader)
+            # self.train_epoch(self.train_loader)
             
-            if ((epoch+1) % num_valid_epochs == 0):
-                self.log(f'valid_on_train_dataset')
-                self.valid_epoch(self.train_loader)
-                self.log(f'valid_on_valid_dataset')
-                self.valid_epoch(self.valid_loader)
+            # if ((epoch+1) % num_valid_epochs == 0):
+            #     # self.log(f'valid_on_train_dataset')
+            #     # self.valid_epoch(self.train_loader)
+            #     self.log(f'valid_on_valid_dataset')
+            #     valid_loss = self.valid_epoch(self.valid_loader)
             
-            if (self.local_rank == 0) and (save_model is True) and ((epoch+1) % num_save_epochs == 0):
-                self.save_model()
+            # # if (self.local_rank == 0) and (save_model == True) and ((epoch+1) % num_save_epochs == 0):
+            # #     self.save_model()
 
-                # if early_stopper is not None:
-                #     # early_stopper.check(valid_loss, model)
-                #     early_stopper.check(score, model)
-                #     if early_stopper.stop_flag is True:
-                #         break
-                    
+            #     if (self.early_stopper is not None):
+            #         # early_stopper.check(valid_loss, model)
+            #         self.early_stopper.check(valid_loss, self.model, save=(self.local_rank == 0))
+            #         if self.early_stopper.stop_flag == True:
+            #             break
+
         self.log(f'local_rank = {self.local_rank:1}, finish training.')
         dist.destroy_process_group()
 
@@ -205,6 +218,7 @@ class Trainer_DDP:
         train_loss = train_loss / train_steps
         self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, train_loss = {train_loss:.6f}')
 
+        return train_loss
 
     def valid_epoch(self, valid_loader=None):
         torch.set_grad_enabled(False) # 代替with torch.no_grad()，避免缩进，和train缩进一样方便复制
@@ -230,7 +244,7 @@ class Trainer_DDP:
             y_pred_list.append(out)
 
         dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
-        valid_loss = valid_loss / (valid_steps * dist.get_world_size())
+        valid_loss = valid_loss.item() / (valid_steps * dist.get_world_size())
         task_idx_list = torch.cat(task_idx_list)
         y_true_list = torch.cat(y_true_list)
         y_pred_list = torch.cat(y_pred_list)
@@ -251,24 +265,29 @@ class Trainer_DDP:
                     score = metric_func(y_pred_list_0, y_true_list_0)
                     log_message += f', {type(metric_func).__name__} = {score:.6f}'
                 self.log(log_message)
-
+        
+        np.save(os.path.join(self.config['save_dir'], f'task_idx_list.npy'), task_idx_list.numpy())
+        np.save(os.path.join(self.config['save_dir'], f'y_pred_list.npy'), y_pred_list.numpy())
+        np.save(os.path.join(self.config['save_dir'], f'y_true_list.npy'), y_true_list.numpy())
+        
         torch.set_grad_enabled(True)
 
+        return valid_loss
 
 
-    def save_model(self):
-        checkpoint_dir = self.config.get('checkpoint_dir', None)
+    # def save_model(self):
+    #     checkpoint_dir = self.config.get('checkpoint_dir', None)
 
-        checkpoint = {
-            'config': self.config,
-            'epoch': self.epoch,
-            'model_state_dict': self.model.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            }
+    #     checkpoint = {
+    #         'config': self.config,
+    #         'epoch': self.epoch,
+    #         'model_state_dict': self.model.state_dict(),
+    #         'optimizer_state_dict': self.optimizer.state_dict(),
+    #         }
 
-        checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
-        torch.save(checkpoint, checkpoint_path)
-        self.logger.debug(f'save model at {checkpoint_path}')
+    #     checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
+    #     torch.save(checkpoint, checkpoint_path)
+    #     self.logger.debug(f'save model at {checkpoint_path}')
 
 
 
@@ -280,9 +299,7 @@ if __name__ == '__main__':
     config_path = args.config_path
 
     config = utils.load_config(config_path)
-    config = utils.process_config(config)
+    # config = utils.process_config(config)
 
     trainer = Trainer_DDP(config)
     trainer.train()
-    # mp.spawn(main, args=(config, ), nprocs=config['n_gpu'])
-    # main(config)

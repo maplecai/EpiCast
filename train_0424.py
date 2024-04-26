@@ -32,29 +32,16 @@ def dist_all_gather(tensor):
 class Trainer_DDP:
     def __init__(self, config):
 
-        # os.environ['MASTER_ADDR'] = 'localhost'
-        # os.environ['MASTER_PORT'] = '23456'
-
         self.config = config
-        
         utils.set_seed(config['seed'])
         logging.config.dictConfig(config['logger'])
         self.logger = logging.getLogger()
 
-        if config['DDP'] is True:
+        if config['distribute'] == True:
             distributed.init_process_group(backend='nccl', init_method='env://')
             self.local_rank = distributed.get_rank()
             torch.cuda.set_device(self.local_rank)
             self.device = torch.device(f'cuda:{self.local_rank}')
-
-            # self.n_gpu = config['n_gpu']
-            # if config.get('device_ids') is not None:
-            #     self.device = config['device_ids'][local_rank]
-            # else:
-            #     self.device = self.local_rank
-            # distributed.init_process_group(backend="nccl", init_method="env://", world_size=self.n_gpu, rank=self.local_rank)
-            # torch.cuda.set_device(self.device)
-            # self.logging.info(f"Start DDP on rank {self.local_rank}, cuda {self.device}.")
             
         else:
             self.local_rank = 0
@@ -74,37 +61,45 @@ class Trainer_DDP:
         self.selected_train_datasets_idx = config['selected_train_datasets_idx']
         self.selected_valid_datasets_idx = config['selected_valid_datasets_idx']
 
-        train_datasets = [
+        self.log(f'selected_train_datasets_idx = {self.selected_train_datasets_idx}')
+        self.log(f'selected_valid_datasets_idx = {self.selected_valid_datasets_idx}')
+
+        self.train_datasets = [
             utils.init_obj(datasets, config['train_datasets'][i]) 
             for i in range(len(config['train_datasets']))
             if config['train_datasets'][i]['args']['task_idx'][0] in config['selected_train_datasets_idx']]
         
-        valid_datasets = [
-            utils.init_obj(datasets, config['train_datasets'][i], **config['valid_dataset_filter_config']) 
-            for i in range(len(config['train_datasets']))
-            if config['train_datasets'][i]['args']['task_idx'][0] in config['selected_valid_datasets_idx']]
+        self.valid_datasets = [
+            utils.init_obj(datasets, config['valid_datasets'][i]) 
+            for i in range(len(config['valid_datasets']))
+            if config['valid_datasets'][i]['args']['task_idx'][0] in config['selected_valid_datasets_idx']]
 
-        train_distributed_samplers = [DistributedSampler(dataset) for dataset in train_datasets]
-        valid_distributed_samplers = [DistributedSampler(dataset) for dataset in valid_datasets]
-        train_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], dataset=train_datasets[i], sampler=train_distributed_samplers[i])
-                                            for i in range(len(train_datasets))]
-        valid_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
-                                            dataset=valid_datasets[i], sampler=valid_distributed_samplers[i]) 
-                                            for i in range(len(valid_datasets))]
-        self.train_loader = datasets.MultiTaskDataLoader(train_loaders)
-        self.valid_loader = datasets.MultiTaskDataLoader(valid_loaders)
+        self.train_distributed_samplers = [DistributedSampler(dataset) for dataset in self.train_datasets]
+        self.valid_distributed_samplers = [DistributedSampler(dataset) for dataset in self.valid_datasets]
 
-        self.len_train_dataset = sum([len(train_datasets[i]) for i in range(len(train_datasets))])
-        self.len_valid_dataset = sum([len(valid_datasets[i]) for i in range(len(valid_datasets))])
+        self.train_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
+            dataset=self.train_datasets[i], sampler=self.train_distributed_samplers[i])
+            for i in range(len(self.train_datasets))]
+        self.valid_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
+            dataset=self.valid_datasets[i], sampler=self.valid_distributed_samplers[i]) 
+            for i in range(len(self.valid_datasets))]
+        
+        self.train_loader = utils.init_obj(datasets, config['multi_task_data_loader'], dataloaders=self.train_loaders)
+        self.valid_loader = utils.init_obj(datasets, config['multi_task_data_loader'], dataloaders=self.valid_loaders)
 
-        self.model = utils.init_obj(models, config['model'],).to(self.device)
+        self.logger.info(f'len(train_dataset) = {[len(dataset) for dataset in self.train_datasets]}')
+        self.logger.info(f'len(valid_dataset) = {[len(dataset) for dataset in self.valid_datasets]}')
+        self.logger.info(f'len(train_loader) = {len(self.train_loader)}')
+        self.logger.info(f'len(valid_loader) = {len(self.valid_loader)}')
+
+        self.model = utils.init_obj(models, config['model']).to(self.device)
         self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=True)
 
-        if config.get('load_saved_model', False) is True:
+        if config.get('load_saved_model', False) == True:
             self.model.load_state_dict(torch.load(config['saved_model_path']))
-            for name, param in self.model.named_parameters():
-                if name in config.get('freeze_parameters_list', []):  # 冻结某层的参数
-                    param.requires_grad = False
+            # for name, param in self.model.named_parameters():
+            #     if name in config.get('freeze_parameters_list', []):  # 冻结某层的参数
+            #         param.requires_grad = False
 
         self.loss_func = utils.init_obj(metrics, config['loss_func'])
         self.metric_func_list = [utils.init_obj(metrics, m) for m in config.get('metric_func_list', [])]
@@ -112,12 +107,14 @@ class Trainer_DDP:
         self.optimizer = utils.init_obj(torch.optim, config['optimizer'], trainable_params)
 
         if 'lr_scheduler' in config:
-            self.lr_scheduler = utils.init_obj(torch.optim.lr_scheduler, config['lr_scheduler'], self.optimizer)#constant lr
+            #constant lr
+            self.lr_scheduler = utils.init_obj(torch.optim.lr_scheduler, config['lr_scheduler'], self.optimizer)
         else:
             self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(factor=1.0)
 
         if 'early_stopper' in config:
-            self.early_stopper = utils.init_obj(utils, config['early_stopper'], save_dir=config['save_dir']+'/checkpoints/', trace_func=self.log)
+            self.early_stopper = utils.init_obj(utils, config['early_stopper'], 
+                                                save_dir=config['save_dir']+'/checkpoints/', trace_func=self.log)
         else:
             self.early_stopper = utils.EarlyStopping(patience=np.inf)
 
@@ -134,10 +131,9 @@ class Trainer_DDP:
         if self.local_rank == 0:
             self.logger.debug(yaml.dump(config))
             (task_idx, cell_idx, output_idx), (x, y) = next(iter((self.train_loader)))
-            self.logger.debug(summary(self.model, input_data=[x, cell_idx, output_idx], verbose=0, depth=5))
-            self.logger.info(f'len(train_dataset) = {self.len_train_dataset}, len(valid_dataset) = {self.len_valid_dataset}')
-            self.logger.info(f'len(train_loader) = {len(self.train_loader)}, len(valid_loader) = {len(self.valid_loader)}')
-            self.logger.info(f'num_epochs = {num_epochs}, batch_size = {batch_size}')
+            self.logger.info(summary(self.model, input_data=[x, cell_idx, output_idx], verbose=0, depth=5))
+            self.logger.info(f'num_epochs = {num_epochs}')
+            self.logger.info(f'batch_size = {batch_size}')
             self.logger.info(f'start training')
 
         for epoch in range(num_epochs):
@@ -147,9 +143,9 @@ class Trainer_DDP:
 
             # 训练之前先验证一次
             if (epoch == 0):
-                self.log(f'valid_on_train_dataset')
-                self.valid_epoch(self.train_loader)
-                self.log(f'valid_on_valid_dataset')
+                # self.log(f'train_dataset')
+                # self.valid_epoch(self.train_loader)
+                self.log(f'valid_dataset')
                 self.valid_epoch(self.valid_loader)
 
             self.train_epoch(self.train_loader)
@@ -157,24 +153,22 @@ class Trainer_DDP:
             if ((epoch+1) % num_valid_epochs == 0):
                 # self.log(f'valid_on_train_dataset')
                 # self.valid_epoch(self.train_loader)
-                self.log(f'valid_on_valid_dataset')
+                self.log(f'valid_dataset')
                 valid_loss = self.valid_epoch(self.valid_loader)
-            
-            # if (self.local_rank == 0) and (save_model is True) and ((epoch+1) % num_save_epochs == 0):
-            #     self.save_model()
 
-                if (self.local_rank == 0) and (self.early_stopper is not None):
+                if (self.early_stopper is not None):
                     # early_stopper.check(valid_loss, model)
-                    self.early_stopper.check(valid_loss, self.model)
-                    if self.early_stopper.stop_flag is True:
+                    self.early_stopper.check(valid_loss, self.model, save=(self.local_rank == 0))
+                    if self.early_stopper.stop_flag == True:
                         break
-                    
+
         self.log(f'local_rank = {self.local_rank:1}, finish training.')
         dist.destroy_process_group()
 
 
     def train_epoch(self, train_loader=None):
         train_loader.set_cycle(True)
+        train_loader.set_mode('min')
         device = self.device
         scheduler_interval = self.config['scheduler_interval']
         train_steps = len(train_loader)
@@ -196,7 +190,8 @@ class Trainer_DDP:
             
             train_loss += loss.item()
             # if num_log_steps != 0 and batch_idx % num_log_steps == 0:
-            #     self.logger.debug(f'local_rank = {self.local_rank}, epoch = {epoch:3}, batch_idx = {batch_idx:3}, train_loss = {loss.item():.6f}')
+            #     self.logger.debug(f'local_rank = {self.local_rank}, epoch = {epoch:3}, 
+            # batch_idx = {batch_idx:3}, train_loss = {loss.item():.6f}')
 
         if scheduler_interval == 'epoch':
             self.lr_scheduler.step()
@@ -209,44 +204,53 @@ class Trainer_DDP:
     def valid_epoch(self, valid_loader=None):
         torch.set_grad_enabled(False) # 代替with torch.no_grad()，避免缩进，和train缩进一样方便复制
         valid_loader.set_cycle(False)
+        valid_loader.set_mode('min')
 
         device = self.device
         valid_steps = len(valid_loader)
         valid_loss = 0
+        loss_list = []
         task_idx_list = []
         y_true_list = []
         y_pred_list = []
 
         self.model.eval()
-        for batch_idx, batch_data in enumerate(valid_loader):
+        for batch_idx, batch_data in enumerate(tqdm(valid_loader, disable=(self.local_rank != 0))):
             (task_idx, cell_idx, output_idx), (x, y) = batch_data
-            task_idx, cell_idx, output_idx, x, y = task_idx.to(device), cell_idx.to(device), output_idx.to(device), x.to(device), y.to(device)
+            task_idx, cell_idx, output_idx, x, y = \
+                task_idx.to(device), cell_idx.to(device), output_idx.to(device), x.to(device), y.to(device)
             out = self.model(x, cell_idx, output_idx)
             loss = self.loss_func(out, y, output_idx)
 
             valid_loss += loss
-            task_idx_list.append(task_idx)
-            y_true_list.append(y)
-            y_pred_list.append(out)
+            loss_list.append(self.loss_func(out, y, output_idx, reduction='none').detach())
+            task_idx_list.append(task_idx.detach())
+            y_true_list.append(y.detach())
+            y_pred_list.append(out.detach())
 
         dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
-        valid_loss = valid_loss / (valid_steps * dist.get_world_size())
+        valid_loss = valid_loss.item() / (valid_steps * dist.get_world_size())
+        self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
+        
+        loss_list = torch.cat(loss_list)
         task_idx_list = torch.cat(task_idx_list)
         y_true_list = torch.cat(y_true_list)
         y_pred_list = torch.cat(y_pred_list)
 
-        task_idx_list = dist_all_gather(task_idx_list).cpu()
-        y_true_list = dist_all_gather(y_true_list).cpu()
-        y_pred_list = dist_all_gather(y_pred_list).cpu()
-        
-        self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
-        
         if self.local_rank == 0:
+            loss_list = dist_all_gather(loss_list).cpu()
+            task_idx_list = dist_all_gather(task_idx_list).cpu()
+            y_true_list = dist_all_gather(y_true_list).cpu()
+            y_pred_list = dist_all_gather(y_pred_list).cpu()
+
             for task_idx in self.selected_valid_datasets_idx:
                 task_name = self.task_names[task_idx]
+                loss_list_0 = loss_list[torch.where(task_idx_list == task_idx)]
                 y_true_list_0 = y_true_list[torch.where(task_idx_list == task_idx)]
                 y_pred_list_0 = y_pred_list[torch.where(task_idx_list == task_idx)]
-                log_message = f'task_name = {task_name:16}'
+                log_message = f'task_name = {task_name:10}, loss = {loss_list_0.mean():.6f}'
+                # self.log(log_message)
+                # log_message = ''
                 for metric_func in self.metric_func_list:
                     score = metric_func(y_pred_list_0, y_true_list_0)
                     log_message += f', {type(metric_func).__name__} = {score:.6f}'
