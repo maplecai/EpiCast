@@ -14,8 +14,8 @@ load_saved_model: false
 random_data_split: false
 
 task_names: ['ATAC_HepG2', 'ATAC_K562', 'MPRA_HepG2', 'MPRA_K562']
-selected_train_datasets_idx: [0,1]
-selected_valid_datasets_idx: [0,1]
+selected_train_datasets_idx: [0,1,2]
+selected_valid_datasets_idx: [0,1,2]
 
 train_datasets:
     -   type: BedDataset
@@ -123,68 +123,43 @@ valid_datasets:
 
 
 model:
-    type: MyCNNTransformerMultiTask
+    type: MyBassetMultiEncoderMultiDecoder
     args:
         input_length:   200
-        output_dim:     1
-        n_seqtype:      2
-        n_celltype:     2
-        pred_tokens:    3
+        output_dim: 1
+        n_cells:    2
+        n_tasks:    2
 
-        conv_channels_list:     [256,256,256]
-        conv_kernel_size_list:  [7,7,7]
-        conv_padding_list:      [3,3,3]
-        pool_kernel_size_list:  [2,2,2]
-        pool_padding_list:      [0,0,0]
-        conv_dropout_rate:      0.2
+        encoder_kwargs:
+            type: MyBassetEncoder
+            args:
+                conv_channels_list:     [256,256,256]
+                conv_kernel_size_list:  [7,7,7]
+                conv_padding_list:      [3,3,3]
+                pool_kernel_size_list:  [2,2,2]
+                pool_padding_list:      [0,0,0]
+                conv_dropout_rate:      0.2
+        
+        processor_kwargs:
+            type: MyBassetDecoder
+            args:
+                linear_channels_list:   [256, 256]
+                linear_dropout_rate:    0.5
+                last_linear:            false
+                sigmoid:                false
+    
+        decoder_kwargs:
+            type: MyBassetDecoder
+            args:
+                linear_channels_list:   []
+                linear_dropout_rate:    0.5
+                last_linear:            true
+                sigmoid:                true
 
-        num_trans_blocks:       6
-        trans_d_embed:          256
-        trans_n_heads:          8
-        trans_d_mlp:            256
-        trans_dropout_rate:     0.2
-
-        linear_channels_list:   []
-        linear_dropout_rate:    0.5
-        sigmoid:                true
-
-        augmentation:           false
-        augmentation_region:    null
-
-
-
-# model:
-#     type: MyBasset
-#     args:
-#         input_length:   1000
-#         output_dim:     1
-
-#         conv_channels_list:     [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]
-#         conv_kernel_size_list:  [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-#         conv_padding_list:      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-#         pool_kernel_size_list:  [1, 1, 1, 4, 1, 1, 1, 5, 1, 1, 1, 5]
-#         pool_padding_list:      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-#         conv_dropout_rate:      0.2
-
-#         linear_channels_list:   [100,100]
-#         linear_dropout_rate:    0.5
+        # augmentation:           false
+        # augmentation_region:    null
 
 
-
-# model:
-#     type: MyBasset
-#     args:
-#         input_length:   10500
-#         output_dim:     1
-
-#         conv_channels_list:     [300,200,200]
-#         conv_kernel_size_list:  [19,11,7]
-#         conv_padding_list:      [9,5,3]
-#         pool_kernel_size_list:  [3,4,4]
-#         conv_dropout_rate:      0.2
-
-#         linear_channels_list:   [1000,1000]
-#         linear_dropout_rate:    0.5
 
 multi_task_data_loader:
     type: MultiTaskDataLoader

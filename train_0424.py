@@ -37,23 +37,26 @@ class Trainer_DDP:
         logging.config.dictConfig(config['logger'])
         self.logger = logging.getLogger()
 
+        self.distribute = config['distribute']
+
         if config['distribute'] == True:
             distributed.init_process_group(backend='nccl', init_method='env://')
             self.local_rank = distributed.get_rank()
             torch.cuda.set_device(self.local_rank)
             self.device = torch.device(f'cuda:{self.local_rank}')
+
+            if self.local_rank == 0:
+                self.log = self.logger.info
+            else:
+                self.log = self.logger.debug
+            self.log(f"Start DDP on rank {self.local_rank}, {self.device}.")
             
         else:
             self.local_rank = 0
             self.device = config['device']
-            self.logger.info(f"Start training on cuda {self.device}.")
-            
-        if self.local_rank == 0:
             self.log = self.logger.info
-        else:
-            self.log = self.logger.debug
+            self.log(f"Start non-distribute training on cuda {self.device}.")
 
-        self.log(f"Start DDP on rank {self.local_rank}, cuda {self.device}.")
 
         self.task_names = config['task_names']
         self.num_tasks = len(self.task_names)
@@ -73,16 +76,25 @@ class Trainer_DDP:
             utils.init_obj(datasets, config['valid_datasets'][i]) 
             for i in range(len(config['valid_datasets']))
             if config['valid_datasets'][i]['args']['task_idx'][0] in config['selected_valid_datasets_idx']]
+        
+        if self.distribute:
+            self.train_distributed_samplers = [DistributedSampler(dataset) for dataset in self.train_datasets]
+            self.valid_distributed_samplers = [DistributedSampler(dataset) for dataset in self.valid_datasets]
 
-        self.train_distributed_samplers = [DistributedSampler(dataset) for dataset in self.train_datasets]
-        self.valid_distributed_samplers = [DistributedSampler(dataset) for dataset in self.valid_datasets]
-
-        self.train_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
-            dataset=self.train_datasets[i], sampler=self.train_distributed_samplers[i])
-            for i in range(len(self.train_datasets))]
-        self.valid_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
-            dataset=self.valid_datasets[i], sampler=self.valid_distributed_samplers[i]) 
-            for i in range(len(self.valid_datasets))]
+            self.train_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
+                dataset=self.train_datasets[i], sampler=self.train_distributed_samplers[i])
+                for i in range(len(self.train_datasets))]
+            self.valid_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
+                dataset=self.valid_datasets[i], sampler=self.valid_distributed_samplers[i]) 
+                for i in range(len(self.valid_datasets))]
+        
+        else:
+            self.train_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
+                dataset=self.train_datasets[i])
+                for i in range(len(self.train_datasets))]
+            self.valid_loaders = [utils.init_obj(torch.utils.data, config['data_loader'], 
+                dataset=self.valid_datasets[i]) 
+                for i in range(len(self.valid_datasets))]
         
         self.train_loader = utils.init_obj(datasets, config['multi_task_data_loader'], dataloaders=self.train_loaders)
         self.valid_loader = utils.init_obj(datasets, config['multi_task_data_loader'], dataloaders=self.valid_loaders)
@@ -93,13 +105,17 @@ class Trainer_DDP:
         self.logger.info(f'len(valid_loader) = {len(self.valid_loader)}')
 
         self.model = utils.init_obj(models, config['model']).to(self.device)
-        self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=True)
+
+        if self.distribute:
+            self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=True)
 
         if config.get('load_saved_model', False) == True:
-            self.model.load_state_dict(torch.load(config['saved_model_path']))
-            # for name, param in self.model.named_parameters():
-            #     if name in config.get('freeze_parameters_list', []):  # 冻结某层的参数
-            #         param.requires_grad = False
+            state_dict = torch.load(config['saved_model_path'])
+            if self.distribute:
+                self.model.module.load_state_dict(state_dict)
+            else:
+                self.model.load_state_dict(state_dict)
+            # self.model.load_state_dict(torch.load(config['saved_model_path']))
 
         self.loss_func = utils.init_obj(metrics, config['loss_func'])
         self.metric_func_list = [utils.init_obj(metrics, m) for m in config.get('metric_func_list', [])]
@@ -114,7 +130,7 @@ class Trainer_DDP:
 
         if 'early_stopper' in config:
             self.early_stopper = utils.init_obj(utils, config['early_stopper'], 
-                                                save_dir=config['save_dir']+'/checkpoints/', trace_func=self.log)
+                                                save_dir=os.path.join(config['save_dir'], 'checkpoints'), trace_func=self.log)
         else:
             self.early_stopper = utils.EarlyStopping(patience=np.inf)
 
@@ -131,7 +147,7 @@ class Trainer_DDP:
         if self.local_rank == 0:
             self.logger.debug(yaml.dump(config))
             (task_idx, cell_idx, output_idx), (x, y) = next(iter((self.train_loader)))
-            self.logger.info(summary(self.model, input_data=[x, cell_idx, output_idx], verbose=0, depth=5))
+            self.logger.info(summary(self.model, input_data=[x.to(self.device), cell_idx.to(self.device), output_idx.to(self.device)], verbose=0, depth=5))
             self.logger.info(f'num_epochs = {num_epochs}')
             self.logger.info(f'batch_size = {batch_size}')
             self.logger.info(f'start training')
@@ -143,27 +159,27 @@ class Trainer_DDP:
 
             # 训练之前先验证一次
             if (epoch == 0):
-                # self.log(f'train_dataset')
-                # self.valid_epoch(self.train_loader)
                 self.log(f'valid_dataset')
                 self.valid_epoch(self.valid_loader)
 
             self.train_epoch(self.train_loader)
             
             if ((epoch+1) % num_valid_epochs == 0):
-                # self.log(f'valid_on_train_dataset')
-                # self.valid_epoch(self.train_loader)
                 self.log(f'valid_dataset')
                 valid_loss = self.valid_epoch(self.valid_loader)
 
                 if (self.early_stopper is not None):
-                    # early_stopper.check(valid_loss, model)
-                    self.early_stopper.check(valid_loss, self.model, save=(self.local_rank == 0))
+                    if self.distribute:
+                        self.early_stopper.check(valid_loss, self.model.module, save=(self.local_rank == 0))
+                    else:
+                        self.early_stopper.check(valid_loss, self.model, save=(self.local_rank == 0))
                     if self.early_stopper.stop_flag == True:
                         break
 
         self.log(f'local_rank = {self.local_rank:1}, finish training.')
-        dist.destroy_process_group()
+
+        if self.distribute:
+            dist.destroy_process_group()
 
 
     def train_epoch(self, train_loader=None):
@@ -228,9 +244,9 @@ class Trainer_DDP:
             y_true_list.append(y.detach())
             y_pred_list.append(out.detach())
 
-        dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
-        valid_loss = valid_loss.item() / (valid_steps * dist.get_world_size())
-        self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
+        # dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
+        # valid_loss = valid_loss.item() / (valid_steps * dist.get_world_size())
+        # self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
         
         loss_list = torch.cat(loss_list)
         task_idx_list = torch.cat(task_idx_list)
@@ -238,10 +254,20 @@ class Trainer_DDP:
         y_pred_list = torch.cat(y_pred_list)
 
         if self.local_rank == 0:
-            loss_list = dist_all_gather(loss_list).cpu()
-            task_idx_list = dist_all_gather(task_idx_list).cpu()
-            y_true_list = dist_all_gather(y_true_list).cpu()
-            y_pred_list = dist_all_gather(y_pred_list).cpu()
+            if self.distribute:
+                loss_list = dist_all_gather(loss_list).cpu()
+                task_idx_list = dist_all_gather(task_idx_list).cpu()
+                y_true_list = dist_all_gather(y_true_list).cpu()
+                y_pred_list = dist_all_gather(y_pred_list).cpu()
+            else:
+                loss_list = loss_list.cpu()
+                task_idx_list = task_idx_list.cpu()
+                y_true_list = y_true_list.cpu()
+                y_pred_list = y_pred_list.cpu()
+            
+            valid_loss = loss_list.mean()
+
+            self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
 
             for task_idx in self.selected_valid_datasets_idx:
                 task_name = self.task_names[task_idx]
@@ -257,7 +283,6 @@ class Trainer_DDP:
                 self.log(log_message)
 
         torch.set_grad_enabled(True)
-
         return valid_loss
 
 
