@@ -66,7 +66,8 @@ class Trainer_DDP:
 
         if self.local_rank == 0:
             self.log = self.logger.info
-            self.log(f"Start non-distribute training on cuda {self.device}.")
+        else:
+            self.log = self.logger.debug
 
         self.task_names = config['task_names']
         self.num_tasks = len(self.task_names)
@@ -168,12 +169,16 @@ class Trainer_DDP:
 
             # 训练之前先验证一次
             if (epoch == 0):
+                # self.log(f'train_dataset')
+                # self.valid_epoch(self.train_loader)
                 self.log(f'valid_dataset')
                 self.valid_epoch(self.valid_loader)
 
             self.train_epoch(self.train_loader)
             
             if ((epoch+1) % num_valid_epochs == 0):
+                # self.log(f'valid_on_train_dataset')
+                # self.valid_epoch(self.train_loader)
                 self.log(f'valid_dataset')
                 valid_loss = self.valid_epoch(self.valid_loader)
 
