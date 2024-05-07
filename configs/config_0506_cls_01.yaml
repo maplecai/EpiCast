@@ -1,12 +1,13 @@
-seed: 0 #随机数种子
 distribute: false #是否使用分布式训练
-device: cuda:0 #模型使用单卡时的显卡名称
+
+seed: 0 #随机数种子
+# device: cuda:0 #模型使用单卡时的显卡名称
 save_dir: saved #保存路径
 num_epochs: 100 #训练的epoch数目
-num_log_steps: 0 #每多少个step输出log, 0 means no output
+num_log_steps: 10 #每多少个step输出log, 0 means no output
 num_valid_epochs: 1 #每多少个epoch运行valid
-num_save_epochs: 10
-save_model: true
+# num_save_epochs: 10
+# save_model: true
 scheduler_interval: step
 batch_size: &batch_size 1024
 
@@ -14,13 +15,13 @@ load_saved_model: false
 random_data_split: false
 
 task_names: ['ATAC_HepG2', 'ATAC_K562', 'MPRA_HepG2', 'MPRA_K562']
-selected_train_datasets_idx: [0,1,2]
-selected_valid_datasets_idx: [0,1,2]
+selected_train_datasets_idx: [0,1]
+selected_valid_datasets_idx: [0,1]
 
 train_datasets:
     -   type: BedDataset
         args: &train_dataset0_args
-            bed_exp_path: '/home/hxcai/cell_type_specific_CRE/data/ATAC/windows_balanced_subset.csv'
+            bed_exp_path: '/home/hxcai/cell_type_specific_CRE/data/ATAC/windows_balanced_subset_160k.csv'
             genome_path: '/home/hxcai/genome/hg38.fa'
             use_strand: false
             use_TSS: false
@@ -28,7 +29,7 @@ train_datasets:
 
             rc_aug: true
             shift_aug: true
-            shift_aug_range: [-10, 10]
+            shift_aug_range: [-20, 20]
             filter_column: 'chr'
             filter_in_list: null
             filter_not_in_list: ['chr1', 'chrX', 'chrY', 'chrnan']
@@ -39,7 +40,7 @@ train_datasets:
 
     -   type: BedDataset
         args: &train_dataset1_args
-            bed_exp_path: '/home/hxcai/cell_type_specific_CRE/data/ATAC/windows_balanced_subset.csv'
+            bed_exp_path: '/home/hxcai/cell_type_specific_CRE/data/ATAC/windows_balanced_subset_160k.csv'
             genome_path: '/home/hxcai/genome/hg38.fa'
             use_strand: false
             use_TSS: false
@@ -47,7 +48,7 @@ train_datasets:
 
             rc_aug: true
             shift_aug: true
-            shift_aug_range: [-10, 10]
+            shift_aug_range: [-20, 20]
             filter_column: 'chr'
             filter_in_list: null
             filter_not_in_list: ['chr1', 'chrX', 'chrY', 'chrnan']
@@ -58,7 +59,7 @@ train_datasets:
 
     -   type: SeqLabelDataset
         args: &train_dataset2_args
-            seq_exp_path: '/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_balanced_subset.csv'
+            seq_exp_path: '/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_balanced_subset_160k.csv'
             input_column: 'seq'
             seq_pad_len: 200
 
@@ -71,7 +72,7 @@ train_datasets:
 
     -   type: SeqLabelDataset
         args: &train_dataset3_args
-            seq_exp_path: '/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_balanced_subset.csv'
+            seq_exp_path: '/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_balanced_subset_160k.csv'
             input_column: 'seq'
             seq_pad_len: 200
 
@@ -136,14 +137,14 @@ model:
                 conv_channels_list:     [256,256,256]
                 conv_kernel_size_list:  [7,7,7]
                 conv_padding_list:      [3,3,3]
-                pool_kernel_size_list:  [2,2,2]
+                pool_kernel_size_list:  [4,5,1]
                 pool_padding_list:      [0,0,0]
                 conv_dropout_rate:      0.2
         
         processor_kwargs:
             type: MyBassetDecoder
             args:
-                linear_channels_list:   [256, 256]
+                linear_channels_list:   [256,256]
                 linear_dropout_rate:    0.5
                 last_linear:            false
                 sigmoid:                false

@@ -1,12 +1,13 @@
-seed: 0 #随机数种子
 distribute: false #是否使用分布式训练
-device: cuda:0 #模型使用单卡时的显卡名称
+
+seed: 0 #随机数种子
+# device: cuda:0 #模型使用单卡时的显卡名称
 save_dir: saved #保存路径
 num_epochs: 100 #训练的epoch数目
 num_log_steps: 10 #每多少个step输出log, 0 means no output
 num_valid_epochs: 1 #每多少个epoch运行valid
 # num_save_epochs: 10
-save_model: true
+# save_model: true
 scheduler_interval: step
 batch_size: &batch_size 1024
 
@@ -14,8 +15,8 @@ load_saved_model: false
 random_data_split: false
 
 task_names: ['ATAC_HepG2', 'ATAC_K562', 'MPRA_HepG2', 'MPRA_K562']
-selected_train_datasets_idx: [0]
-selected_valid_datasets_idx: [0]
+selected_train_datasets_idx: [2,3]
+selected_valid_datasets_idx: [2,3]
 
 train_datasets:
     -   type: BedDataset
@@ -121,24 +122,44 @@ valid_datasets:
             filter_not_in_list: null
 
 
+
 model:
-    type: MyBasset
+    type: MyBassetMultiEncoderMultiDecoder
     args:
         input_length:   200
-        output_dim:     1
+        output_dim: 1
+        n_cells:    2
+        n_tasks:    2
 
-        conv_channels_list:     [256,256,256]
-        conv_kernel_size_list:  [7,7,7]
-        conv_padding_list:      [3,3,3]
-        # pool_kernel_size_list:  [4,5,5]
-        pool_kernel_size_list:  [4,5,1]
-        pool_padding_list:      [0,0,0]
-        conv_dropout_rate:      0.2
+        encoder_kwargs:
+            type: MyBassetEncoder
+            args:
+                conv_channels_list:     [256,256,256]
+                conv_kernel_size_list:  [7,7,7]
+                conv_padding_list:      [3,3,3]
+                pool_kernel_size_list:  [4,5,1]
+                pool_padding_list:      [0,0,0]
+                conv_dropout_rate:      0.2
+        
+        processor_kwargs:
+            type: MyBassetDecoder
+            args:
+                linear_channels_list:   [256,256]
+                linear_dropout_rate:    0.5
+                last_linear:            false
+                sigmoid:                false
+    
+        decoder_kwargs:
+            type: MyBassetDecoder
+            args:
+                linear_channels_list:   []
+                linear_dropout_rate:    0.5
+                last_linear:            true
+                sigmoid:                true
 
-        linear_channels_list:   [256,256]
-        linear_dropout_rate:    0.5
+        # augmentation:           false
+        # augmentation_region:    null
 
-        sigmoid:        true
 
 
 multi_task_data_loader:
