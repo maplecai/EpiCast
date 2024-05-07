@@ -186,7 +186,6 @@ class Trainer_DDP:
                         break
 
         self.log(f'local_rank = {self.local_rank:1}, finish training.')
-
         if self.distribute:
             dist.destroy_process_group()
 

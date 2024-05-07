@@ -145,6 +145,7 @@ class Trainer_DDP:
             self.early_stopper = utils.EarlyStopping(patience=np.inf)
 
 
+
     def train(self):
         config = self.config
 
