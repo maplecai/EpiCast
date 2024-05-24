@@ -5,7 +5,7 @@ import yaml
 if __name__ == '__main__':
 
     python_path = 'train_0506.py'
-    config_path = 'configs/config_0506_cls_23.yaml'
+    config_path = 'configs/config_0506_cls_3_boolean_300k.yaml'
 
     with open(config_path, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)

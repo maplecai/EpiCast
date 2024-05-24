@@ -104,16 +104,21 @@ class Trainer:
         else:
             self.model = self.model.to(self.device)
 
-        if config.get('load_saved_model', False) == True:
-            state_dict = torch.load(config['saved_model_path'])
-            if self.distribute:
-                self.model.module.load_state_dict(state_dict)
-            else:
-                self.model.load_state_dict(state_dict)
+        chechpoint_dir = os.path.join(config['save_dir'], 'checkpoints')
+        saved_model_path_list = [os.path.join(chechpoint_dir, f) for f in os.listdir(chechpoint_dir)]
+        latest_model = max(saved_model_path_list, key=os.path.getmtime)
+        self.log(f"load saved model from {latest_model}")
+        state_dict = torch.load(latest_model)
+        if self.distribute:
+            self.model.module.load_state_dict(state_dict)
+        else:
+            self.model.load_state_dict(state_dict)
+
+
+
 
         self.loss_func = utils.init_obj(metrics, config['loss_func'])
-        # self.loss_funcs = [utils.init_obj(metrics, l) for l in config.get('loss_funcs', [])]
-        self.metric_funcs = [utils.init_obj(metrics, m) for m in config.get('metric_funcs', [])]
+        self.metric_func_list = [utils.init_obj(metrics, m) for m in config.get('metric_func_list', [])]
         trainable_params = filter(lambda p: p.requires_grad, self.model.parameters())
         self.optimizer = utils.init_obj(torch.optim, config['optimizer'], trainable_params)
 
@@ -140,8 +145,8 @@ class Trainer:
 
         if self.local_rank == 0:
             self.logger.debug(yaml.dump(config))
-            (task_idx, cell_idx, mode_idx), (x, y) = next(iter((self.train_loader)))
-            self.logger.info(summary(self.model, input_data=[x.to(self.device), cell_idx.to(self.device), mode_idx.to(self.device)], verbose=0, depth=5))
+            (task_idx, cell_idx, output_idx), (x, y) = next(iter((self.train_loader)))
+            self.logger.info(summary(self.model, input_data=[x.to(self.device), cell_idx.to(self.device), output_idx.to(self.device)], verbose=0, depth=5))
             self.logger.info(f'num_epochs = {num_epochs}')
             self.logger.info(f'batch_size = {batch_size}')
             self.logger.info(f'start training')
@@ -158,24 +163,29 @@ class Trainer:
                 self.log(f'valid_dataset')
                 self.valid_epoch(self.valid_loader)
 
-            self.train_epoch(self.train_loader)
+            # self.train_epoch(self.train_loader)
             
-            if ((epoch+1) % num_valid_epochs == 0):
-                # self.log(f'valid_on_train_dataset')
-                # self.valid_epoch(self.train_loader)
-                self.log(f'valid_dataset')
-                self.valid_epoch(self.valid_loader)
-                # print(self.score_dict)
+            # if ((epoch+1) % num_valid_epochs == 0):
+            #     # self.log(f'valid_on_train_dataset')
+            #     # self.valid_epoch(self.train_loader)
+            #     self.log(f'valid_dataset')
+            #     self.valid_epoch(self.valid_loader)
+            #     # print(self.score_dict)
 
-                if (self.early_stopper is not None):
-                    self.early_stopper.check(self.valid_loss)
+            #     if (self.early_stopper is not None):
+            #         # if self.distribute:
+            #         #     self.early_stopper.check(valid_loss, self.model.module, save=(self.local_rank == 0))
+            #         # else:
+            #         #     self.early_stopper.check(valid_loss, self.model, save=(self.local_rank == 0))
 
-                    if self.early_stopper.update_flag == True:
-                        if self.local_rank == 0:
-                            self.save_model()
+            #         self.early_stopper.check(self.average_score_dict)
 
-                    if self.early_stopper.stop_flag == True:
-                        break
+            #         if self.early_stopper.update_flag == True:
+            #             if self.local_rank == 0:
+            #                 self.save_model()
+
+            #         if self.early_stopper.stop_flag == True:
+            #             break
 
         self.log(f'local_rank = {self.local_rank:1}, finish training.')
 
@@ -194,10 +204,10 @@ class Trainer:
 
         self.model.train()
         for batch_idx, batch_data in enumerate(tqdm(train_loader, disable=(self.local_rank != 0))):
-            (task_idx, cell_idx, mode_idx), (x, y) = batch_data
-            cell_idx, mode_idx, x, y = cell_idx.to(device), mode_idx.to(device), x.to(device), y.to(device)
-            out = self.model(x, cell_idx, mode_idx)
-            loss = self.loss_func(out, y, mode_idx)
+            (task_idx, cell_idx, output_idx), (x, y) = batch_data
+            cell_idx, output_idx, x, y = cell_idx.to(device), output_idx.to(device), x.to(device), y.to(device)
+            out = self.model(x, cell_idx, output_idx)
+            loss = self.loss_func(out, y, output_idx)
             self.optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
@@ -235,21 +245,19 @@ class Trainer:
 
         self.model.eval()
         for batch_idx, batch_data in enumerate(tqdm(valid_loader, disable=(self.local_rank != 0))):
-            (task_idx, cell_idx, mode_idx), (x, y) = batch_data
-            task_idx, cell_idx, mode_idx, x, y = \
-                task_idx.to(device), cell_idx.to(device), mode_idx.to(device), x.to(device), y.to(device)
-            out = self.model(x, cell_idx, mode_idx)
-            loss = self.loss_func(out, y, mode_idx)
+            (task_idx, cell_idx, output_idx), (x, y) = batch_data
+            task_idx, cell_idx, output_idx, x, y = \
+                task_idx.to(device), cell_idx.to(device), output_idx.to(device), x.to(device), y.to(device)
+            out = self.model(x, cell_idx, output_idx)
+            loss = self.loss_func(out, y, output_idx)
 
             valid_loss += loss
-            loss_list.append(self.loss_func(out, y, mode_idx, reduction='none').detach())
+            loss_list.append(self.loss_func(out, y, output_idx, reduction='none').detach())
             task_idx_list.append(task_idx.detach())
             y_true_list.append(y.detach())
             y_pred_list.append(out.detach())
 
-        self.valid_loss = valid_loss / valid_steps
-        if self.local_rank == 0:
-            self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {self.valid_loss:.6f}')
+        # valid_loss = valid_loss / valid_steps
         # dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
         # valid_loss = valid_loss.item() / (valid_steps * dist.get_world_size())
         # self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
@@ -260,20 +268,18 @@ class Trainer:
         y_pred_list = torch.cat(y_pred_list)
 
         if self.distribute:
-            loss_list = self.dist_all_gather(loss_list)
-            task_idx_list = self.dist_all_gather(task_idx_list)
-            y_true_list = self.dist_all_gather(y_true_list)
-            y_pred_list = self.dist_all_gather(y_pred_list)
-
-        loss_list = loss_list.cpu()
-        task_idx_list = task_idx_list.cpu()
-        y_true_list = y_true_list.cpu()
-        y_pred_list = y_pred_list.cpu()
+            loss_list = self.dist_all_gather(loss_list).cpu()
+            task_idx_list = self.dist_all_gather(task_idx_list).cpu()
+            y_true_list = self.dist_all_gather(y_true_list).cpu()
+            y_pred_list = self.dist_all_gather(y_pred_list).cpu()
+        else:
+            loss_list = loss_list.cpu()
+            task_idx_list = task_idx_list.cpu()
+            y_true_list = y_true_list.cpu()
+            y_pred_list = y_pred_list.cpu()
 
         if self.local_rank == 0:
-            # print(loss_list)
-            # valid_loss = np.mean(loss_list)
-            # self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, loss_mean = {valid_loss:.6f}')
+            self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {loss_list.mean():.6f}')
 
             self.task_score_dict = {}
 
@@ -285,7 +291,7 @@ class Trainer:
                 log_message = f'task_name = {task_name:10}, loss = {loss_list_0.mean():.6f}'
                 
                 self.score_dict = {}
-                for metric_func in self.metric_funcs:
+                for metric_func in self.metric_func_list:
                     metric_name = type(metric_func).__name__
                     score = metric_func(y_pred_list_0, y_true_list_0)
                     log_message += f', {metric_name} = {score:.6f}'
@@ -299,6 +305,12 @@ class Trainer:
                 self.average_score_dict[metric_name] = np.mean([self.task_score_dict[task_name][metric_name] for task_name in self.task_score_dict])
 
         torch.set_grad_enabled(True)
+
+        save_dir = self.config['save_dir']
+        np.save(os.path.join(save_dir, f'loss_list.npy'), loss_list.numpy())
+        np.save(os.path.join(save_dir, f'task_idx_list.npy'), task_idx_list.numpy())
+        np.save(os.path.join(save_dir, f'y_pred_list.npy'), y_pred_list.numpy())
+        np.save(os.path.join(save_dir, f'y_true_list.npy'), y_true_list.numpy())
 
         return None
     
@@ -335,8 +347,7 @@ class Trainer:
         #     }
         checkpoint = self.model.module.state_dict() if self.distribute else self.model.state_dict()
 
-        # checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
-        checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint.pth')
+        checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
         torch.save(checkpoint, checkpoint_path)
         self.logger.debug(f'save model at {checkpoint_path}')
 
@@ -350,7 +361,7 @@ if __name__ == '__main__':
     config_path = args.config_path
 
     config = utils.load_config(config_path)
-    config = utils.process_config(config)
+    # config = utils.process_config(config)
 
     trainer = Trainer(config)
     trainer.train()
