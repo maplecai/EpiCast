@@ -20,3 +20,6 @@ data
 data/
 saved/
 old/
+enformer_pretrained/
+sei_pretrained/
+figures/
