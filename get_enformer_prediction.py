@@ -40,7 +40,7 @@ def get_embedding(model, test_data_loader, device='cuda'):
     return y_true, y_pred, embedding
 
 
-trained_model_path = '/home/hxcai/cell_type_specific_CRE/Enformer/enformer_pretrained'
+trained_model_path = 'enformer_pretrained'
 model = from_pretrained(trained_model_path, target_length=2).cuda()
 
 dataset = SeqLabelDataset(table_dir='/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/MPRA_data_len200.csv',
