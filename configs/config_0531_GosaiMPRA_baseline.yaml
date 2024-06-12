@@ -7,7 +7,7 @@ num_valid_epochs: 1 #每多少个epoch运行valid
 # num_save_epochs: 10
 # save_model: true
 scheduler_interval: step
-batch_size: &batch_size 2048
+batch_size: &batch_size 1024
 
 load_saved_model: false
 random_data_split: false
@@ -34,14 +34,20 @@ valid_dataset:
         filter_in_list: ['chr1']
         filter_not_in_list: null
 
-
+test_dataset:
+    type: SeqLabelDataset
+    args:
+        <<: *train_dataset_args
+        filter_column: null
+        filter_in_list: null
+        filter_not_in_list: null
 
 model:
     type: MyBasset
     args:
-        input_length: 200
-        output_dim: 3
-        squeeze: false
+        input_length:           200
+        output_dim:             3
+        squeeze:                false
 
         conv_channels_list:     [256,256,256,256,256,256,256,256,256,256,256,256]
         conv_kernel_size_list:  [3,3,3,3,3,3,3,3,3,3,3,3]
@@ -55,15 +61,15 @@ model:
         last_linear_layer:      true
         sigmoid:                false
 
-        augmentation:           false
-        augmentation_region:    null
+        rc_augmentation:        true
+        rc_region:              null
 
 
 data_loader:
     type: DataLoader
     args:
         batch_size: *batch_size
-        num_workers: 8
+        num_workers: 16
         pin_memory: true
         drop_last: false
 
