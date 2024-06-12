@@ -57,7 +57,7 @@ class Trainer:
 
 
         self.test_dataset = utils.init_obj(datasets, config['test_dataset'])
-        self.test_loader = utils.init_obj(torch.utils.data, config['data_loader'], dataset=self.test_dataset, shuffle=True)
+        self.test_loader = utils.init_obj(torch.utils.data, config['data_loader'], dataset=self.test_dataset, shuffle=False)
         self.logger.info(f'len(test_dataset) = {len(self.test_dataset)}')
         self.logger.info(f'len(test_loader) = {len(self.test_loader)}')
 
