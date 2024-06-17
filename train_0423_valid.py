@@ -17,10 +17,10 @@ from torch.utils.data.distributed import DistributedSampler
 from torchinfo import summary
 
 sys.path.append('/home/hxcai/cell_type_specific_CRE')
-import MPRA_exp.models as models
-import MPRA_exp.datasets as datasets
-import MPRA_exp.metrics as metrics
-import MPRA_exp.utils as utils
+import models as models
+import datasets as datasets
+import metrics as metrics
+import utils as utils
 
 def dist_all_gather(tensor):
     tensor_list = [torch.zeros_like(tensor, device=tensor.device) for _ in range(dist.get_world_size())]

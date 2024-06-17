@@ -18,11 +18,12 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
 from torchinfo import summary
 
-sys.path.append('/home/hxcai/cell_type_specific_CRE')
-import MPRA_exp.models as models
-import MPRA_exp.datasets as datasets
-import MPRA_exp.metrics as metrics
-import MPRA_exp.utils as utils
+# sys.path.append('/home/hxcai/cell_type_specific_CRE')
+from MPRA_exp import models
+from MPRA_exp import datasets
+from MPRA_exp import metrics
+from MPRA_exp import utils
+from MPRA_exp.utils import *
 
 
 class Trainer:

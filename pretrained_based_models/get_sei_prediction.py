@@ -1,14 +1,6 @@
-import torch
-import torch.nn.functional as F
-import sys
-import numpy as np
-from tqdm import tqdm
-from torch.utils.data import DataLoader
-
-sys.path.append('/home/hxcai/cell_type_specific_CRE')
 from MPRA_exp.datasets import SeqLabelDataset
 from MPRA_exp.utils import *
-from sei_pretrained.sei import Sei
+from MPRA_exp.models import Sei
 
 
 def get_pred(model, test_data_loader, device='cuda'):

@@ -1,13 +1,7 @@
-import torch
-import torch.nn.functional as F
-import sys
-import numpy as np
-from tqdm import tqdm
 from torch.utils.data import DataLoader
-
-sys.path.append('/home/hxcai/cell_type_specific_CRE')
-from MPRA_exp.datasets import SeqLabelDataset
 from MPRA_exp.utils import *
+from MPRA_exp.datasets import SeqLabelDataset
+
 from enformer_pytorch import Enformer, from_pretrained
 
 
@@ -27,10 +21,9 @@ def get_pred(model, test_data_loader, device='cuda'):
     return y_pred
 
 
-trained_model_path = 'enformer_pretrained'
-model = from_pretrained(trained_model_path, target_length=2).cuda()
-model.eval()
-dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_total.csv',
+trained_model_path = 'pretrained_models/enformer'
+model = from_pretrained(trained_model_path, target_length=2).cuda().eval()
+dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_designed.csv',
                           input_column='seq', seq_pad_len=196_608, N_fill_value=0)
 test_data_loader = DataLoader(dataset, batch_size=8, shuffle=False, num_workers=4)
 y_pred = get_pred(model, test_data_loader)

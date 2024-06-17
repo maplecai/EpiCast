@@ -20,7 +20,6 @@ data
 data/
 saved/
 old/
-enformer_pretrained/
-sei_pretrained/
+pretrained_models/
 figures/
-TF_scan/
+TF_scan/data/
