@@ -47,7 +47,7 @@ class DeepSEA(nn.Module):
 
 
 
-
+# from https://github.com/kipoi/models/blob/master/DeepSEA/beluga/model.py
 
 class LambdaBase(nn.Sequential):
     def __init__(self, fn, *args):
@@ -101,9 +101,11 @@ class Beluga(nn.Module):
     # def forward(self, x):
     #     return self.model(x)
 
-    # ACGT->AGCT
+    # need ACGT->AGCT
     def forward(self, x):
-        return self.model(x.permute(0, 2, 1).contiguous().unsqueeze(2))
+        # input shape = (batch_size, input_length, 4)
+        return self.model(x[:, :, [0, 2, 1, 3]].permute(0, 2, 1).unsqueeze(2).contiguous())
+
 
 
 class Xpresso(nn.Module):

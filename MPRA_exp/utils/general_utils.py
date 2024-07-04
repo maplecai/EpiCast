@@ -10,10 +10,9 @@ import logging.config
 import numpy as np
 import pandas as pd
 import subprocess
-import matplotlib
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
+import warnings
 
 from tqdm import tqdm
 from typing import Callable
@@ -21,6 +20,30 @@ from datetime import datetime
 from torch.utils.data import DataLoader, Subset, random_split
 from collections import Counter
 from torchinfo import summary
+
+
+def load_txt(file_dir: str) -> list:
+    with open(file_dir, 'r') as f:
+        lines = f.readlines()
+        lines = [line.strip() for line in lines]
+    return lines
+
+def save_txt(file_dir: str, data: list) -> None:
+    with open(file_dir, 'w') as f:
+        for d in data:
+            f.write(f"{d}\n")
+    return
+
+def load_pickle(file_dir: str):
+    with open(file_dir, 'rb') as f:
+        data = pickle.load(f)
+    return data
+
+def save_pickle(file_dir: str, data) -> None:
+    with open(file_dir, 'wb') as f:
+        data = pickle.dump(data, f)
+    return
+
 
 def init_obj(module, obj_dict:dict, *args, **kwargs):
         """
@@ -84,8 +107,6 @@ def process_config(config: dict) -> dict:
     return config
 
 
-
-
 def set_seed(seed:int = 42) -> None:
     '''
     设置随机数种子
@@ -99,7 +120,6 @@ def set_seed(seed:int = 42) -> None:
     # torch.backends.cudnn.benchmark = False
 
 
-
 def get_nums_trainable_params(model:nn.Module) -> int:
     '''
     计算模型的可训练参数数量
@@ -109,26 +129,23 @@ def get_nums_trainable_params(model:nn.Module) -> int:
     return params
 
 
+# def load_and_trim_parameters_from_Sei(trained_model_path, output_channels_list=[]):
+#     '''
+#     加载Sei模型的参数到MLP模型中并选择部分channels作为输出
+#     '''
+#     state_dict = torch.load(trained_model_path) 
+#     new_state_dict = {k.replace('module.model.', ''): v for k, v in state_dict.items()}
 
+#     mlp_state_dict = {}
+#     mlp_state_dict['fc1.weight'] = new_state_dict['classifier.0.weight']
+#     mlp_state_dict['fc1.bias'] = new_state_dict['classifier.0.bias']
+#     mlp_state_dict['fc2.weight'] = new_state_dict['classifier.2.weight']
+#     mlp_state_dict['fc2.bias'] = new_state_dict['classifier.2.bias']
 
+#     # # 20977, 21325 是 HepG2/K562 ENCODE DNase channel
+#     # # 20988, 21326 是 HepG2/K562 Roadmap DNase channel
+#     # # 4574,  10728 是 HepG2/K562 相关系数最高的 DNase channel
+#     mlp_state_dict['fc2.weight'] = mlp_state_dict['fc2.weight'][output_channels_list]
+#     mlp_state_dict['fc2.bias'] = mlp_state_dict['fc2.bias'][output_channels_list]
 
-def load_and_trim_parameters_from_Sei(trained_model_path, output_channels_list=[]):
-    '''
-    加载Sei模型的参数到MLP模型中并选择部分channels作为输出
-    '''
-    state_dict = torch.load(trained_model_path) 
-    new_state_dict = {k.replace('module.model.', ''): v for k, v in state_dict.items()}
-
-    mlp_state_dict = {}
-    mlp_state_dict['fc1.weight'] = new_state_dict['classifier.0.weight']
-    mlp_state_dict['fc1.bias'] = new_state_dict['classifier.0.bias']
-    mlp_state_dict['fc2.weight'] = new_state_dict['classifier.2.weight']
-    mlp_state_dict['fc2.bias'] = new_state_dict['classifier.2.bias']
-
-    # # 20977, 21325 是 HepG2/K562 ENCODE DNase channel
-    # # 20988, 21326 是 HepG2/K562 Roadmap DNase channel
-    # # 4574,  10728 是 HepG2/K562 相关系数最高的 DNase channel
-    mlp_state_dict['fc2.weight'] = mlp_state_dict['fc2.weight'][output_channels_list]
-    mlp_state_dict['fc2.bias'] = mlp_state_dict['fc2.bias'][output_channels_list]
-
-    return mlp_state_dict
+#     return mlp_state_dict

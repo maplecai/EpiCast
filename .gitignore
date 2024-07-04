@@ -17,9 +17,9 @@ data
 .vscode/
 .idea/
 .history/
+
 data/
+figures/
 saved/
 old/
-pretrained_models/
-figures/
-TF_scan/data/
+pretrained_models/*/

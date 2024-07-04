@@ -1,7 +1,8 @@
-from MPRA_exp.datasets import SeqLabelDataset
+import sys
+sys.path.append('..')
 from MPRA_exp.utils import *
-from MPRA_exp.models import Sei
-
+from MPRA_exp.datasets import SeqLabelDataset
+from MPRA_exp.models import Beluga, Sei
 
 def get_pred(model, test_data_loader, device='cuda'):
     model = model.to(device)
@@ -18,21 +19,18 @@ def get_pred(model, test_data_loader, device='cuda'):
     y_pred = np.array(y_pred)
     return y_pred
 
-
-trained_model_path = 'sei_pretrained/sei.pth'
+trained_model_path = '../pretrained_models/Sei/sei.pth'
 model = Sei()
-model.eval()
-state_dict = torch.load(trained_model_path) 
+state_dict = torch.load(trained_model_path)
 new_state_dict = {k.replace('module.model.', ''): v for k, v in state_dict.items()}
 model.load_state_dict(new_state_dict)
 
-dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_len200.csv',
-                          input_column='seq', seq_pad_len=4096)
-test_data_loader = DataLoader(dataset, batch_size=512, shuffle=False, num_workers=4)
+seq_exp_path = '/home/hxcai/cell_type_specific_CRE/data/AgarwalMPRA/Agarwal_joint.csv'
+dataset = SeqLabelDataset(seq_exp_path=seq_exp_path, input_column='seq', seq_pad_len=4096)
+test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=0)
 
 y_pred = get_pred(model, test_data_loader)
-
-np.save(f'data/Sei_Siraj_pred.npy', y_pred)
+np.save(f'../pretrained_models/Sei/Sei_Agarwal_joint_pred.npy', y_pred)
 
 
 # def get_embedding(model, test_data_loader, device='cuda'):

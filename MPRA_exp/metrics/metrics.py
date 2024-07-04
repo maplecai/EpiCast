@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from scipy.stats import pearsonr
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score
 from scipy import stats
+from ..utils import *
 
 # class Pearson(nn.Module):
 #     def __init__(self):
@@ -44,8 +45,10 @@ class Pearson():
     def __init__(self):
         super().__init__()
     
-    def __call__(self, x, y):
+    def __call__(self, x, y, allow_nan=True):
         x, y = np.array(x), np.array(y)
+        if allow_nan:
+            x, y = remove_nan(x, y)
         score = np.corrcoef(x, y)[0, 1]
         return score
 
@@ -54,8 +57,10 @@ class Spearman():
     def __init__(self):
         super().__init__()
     
-    def __call__(self, x, y):
+    def __call__(self, x, y, allow_nan=True):
         x, y = np.array(x), np.array(y)
+        if allow_nan:
+            x, y = remove_nan(x, y)
         x_rank = x.argsort().argsort().astype(float)
         y_rank = y.argsort().argsort().astype(float)
         score = np.corrcoef(x_rank, y_rank)[0, 1]
@@ -249,7 +254,6 @@ class AUPRC():
 #         y_pred = (output > 0.5).float()
 #         f1 = f1_score(y_true, y_pred)
 #         return f1
-        
 
 
 

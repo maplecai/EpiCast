@@ -1,30 +1,12 @@
-import os
-import yaml
-import random
-import pickle
-import logging
-import logging.config
-import torch
-import torch.nn as nn
 import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
-
-from tqdm import tqdm
-from typing import Callable
-from datetime import datetime
-from torch.utils.data import random_split, Subset
-from collections import Counter
-from scipy import stats
-from scipy.stats import pearsonr
-
 import seaborn as sns
-# sns.set(style="whitegrid", context="talk")
 sns.set_theme(context="talk", style="whitegrid")
 
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning, module="seaborn")
+# import warnings
+# warnings.filterwarnings("ignore", category=FutureWarning, module="seaborn")
 
 color_list = np.delete(matplotlib.colormaps.get_cmap('Set3')(np.arange(12)), 1, axis=0)
 
@@ -38,20 +20,19 @@ mpl_params = {
     
     # 图像参数
     'figure.dpi': 100,
-    'figure.figsize': (6, 4.5),
+    'figure.figsize': (8, 6),
 
     # 保存字体可编辑
     'pdf.fonttype': 42,
-    'ps.fonttype': 42,
 }
 
 plt.rcParams.update(mpl_params)
 
-# 保存图像的参数
-savefig_kwargs = {
-    'bbox_inches': 'tight',
-    #'transparent': True,
-}
+def init_fig(figsize=(8, 6), dpi=100):
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    left, right, bottom, top = 0.15, 0.95, 0.15, 0.95
+    ax.set_position([left, bottom, right - left, top - bottom])
+    return fig, ax
 
 # def plot_scatter(x, y, fname='0', **kwargs):
 #     # 使用 scipy.stats 计算回归线系数和 R^2 值
