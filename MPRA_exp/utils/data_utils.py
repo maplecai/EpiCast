@@ -12,6 +12,18 @@ from sklearn.metrics import mean_squared_error
 
 
 
+
+def to_device(data, device):
+    if isinstance(data, (list, tuple)):
+        return [to_device(x, device) for x in data]
+    elif isinstance(data, dict):
+        return {k: to_device(v, device) for k, v in data.items()}
+    else:
+        return data.to(device)
+
+
+
+
 def split_dataset(index_list, train_valid_test_ratio):
     """
     Split the dataset into train, valid, and test sets.
@@ -50,8 +62,8 @@ def filter_by_column(table, filter_column, filter_in_list=None, filter_not_in_li
 
 
 
-def remove_nan(x, y):
-    assert len(x) == len(y), 'Warning: in function remove_nan, len(x) must be equal to len(y)'
+def remove_nan(x, y, verbose=False):
+    assert len(x) == len(y), 'len(x) must be equal to len(y)'
     x_mask = ~np.isnan(x)
     if len(x.shape) == 2:
         x_mask = x_mask.all(axis=1)
@@ -60,9 +72,9 @@ def remove_nan(x, y):
     x = x[mask]
     y = y[mask]
 
-    if len(mask) == 0:
-        print('Warning: in function remove_nan, len(x) = 0')
-    elif mask.sum() / len(mask) < 0.1:
+    # if len(mask) == 0:
+    #     print('len(x) = 0')
+    if mask.sum() / len(mask) < 0.1 and verbose:
         print(f'{mask.sum()} of {len(mask)} values are non-nan.')
     return x, y
 
