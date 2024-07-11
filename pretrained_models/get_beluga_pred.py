@@ -1,8 +1,8 @@
 import sys
 sys.path.append('..')
-from MPRA_exp.utils import *
-from MPRA_exp.datasets import SeqLabelDataset
-from MPRA_exp.models import Beluga
+from MPRA_predict.utils import *
+from MPRA_predict.datasets import SeqLabelDataset
+from MPRA_predict.models import Beluga
 
 def get_pred(model, test_data_loader, device='cuda'):
     model = model.to(device)

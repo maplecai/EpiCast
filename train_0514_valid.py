@@ -19,10 +19,10 @@ from torch.utils.data.distributed import DistributedSampler
 from torchinfo import summary
 
 # sys.path.append('/home/hxcai/cell_type_specific_CRE/MPRA_exp/MPRA_exp')
-import MPRA_exp.models as models
-import MPRA_exp.datasets as datasets
-import MPRA_exp.metrics as metrics
-import MPRA_exp.utils as utils
+import MPRA_predict.models as models
+import MPRA_predict.datasets as datasets
+import MPRA_predict.metrics as metrics
+import MPRA_predict.utils as utils
 
 
 class Trainer:

@@ -1,6 +1,6 @@
 from torch.utils.data import DataLoader
-from MPRA_exp.utils import *
-from MPRA_exp.datasets import SeqLabelDataset
+from MPRA_predict.utils import *
+from MPRA_predict.datasets import SeqLabelDataset
 
 from enformer_pytorch import Enformer, from_pretrained
 

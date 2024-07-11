@@ -15,11 +15,8 @@ from torch.utils.data.distributed import DistributedSampler
 import torch.utils.data
 import torchinfo
 
-from .MPRA_exp import models
-from .MPRA_exp import datasets
-from .MPRA_exp import metrics
-from .MPRA_exp import utils
-from .MPRA_exp.utils import *
+from MPRA_predict import models, datasets, metrics, utils
+from MPRA_predict.utils import *
 
 
 class Trainer:
@@ -54,21 +51,14 @@ class Trainer:
         # setup dataloader
         self.train_cell_types = config['train_cell_types']
         self.valid_cell_types = config['valid_cell_types']
-        # self.logger.info(f'train_cell_types = {self.train_cell_types}')
-        # self.logger.info(f'valid_cell_types = {self.valid_cell_types}')
+        # self.total_cell_types = self.train_cell_types + self.valid_cell_types
 
         self.train_dataset = utils.init_obj(
             datasets, 
-            config['train_dataset'], 
-            cell_types=self.train_cell_types)
+            config['train_dataset'])
         self.valid_dataset = utils.init_obj(
             datasets, 
-            config['valid_dataset'], 
-            cell_types=self.train_cell_types)
-        self.valid_dataset_2 = utils.init_obj(
-            datasets, 
-            config['valid_dataset'], 
-            cell_types=self.valid_cell_types)
+            config['valid_dataset'])
         
         if not self.distribute:
             self.train_loader = utils.init_obj(
@@ -80,11 +70,6 @@ class Trainer:
                 torch.utils.data, 
                 config['data_loader'], 
                 dataset=self.valid_dataset, 
-                shuffle=False)
-            self.valid_loader_2 = utils.init_obj(
-                torch.utils.data, 
-                config['data_loader'], 
-                dataset=self.valid_dataset_2, 
                 shuffle=False)
         else:
             self.train_loader = utils.init_obj(
@@ -98,12 +83,6 @@ class Trainer:
                 config['data_loader'], 
                 dataset=self.valid_dataset, 
                 sampler=DistributedSampler(self.valid_dataset), 
-                shuffle=False)
-            self.valid_loader_2 = utils.init_obj(
-                torch.utils.data, 
-                config['data_loader'], 
-                dataset=self.valid_dataset_2, 
-                sampler=DistributedSampler(self.valid_dataset_2), 
                 shuffle=False)
             
         # setup model and metric
@@ -130,7 +109,7 @@ class Trainer:
         self.metric_names = [
             m['type'] for m in config.get('metric_func_list', [])]
         self.metric_df = pd.DataFrame(
-            index=[self.train_cell_types + self.valid_cell_types], 
+            index=self.valid_cell_types, 
             columns=self.metric_names)
 
         if 'lr_scheduler' in config:
@@ -172,10 +151,8 @@ class Trainer:
         self.log(f'valid_cell_types = {self.valid_cell_types}')
         self.log(f'len(train_dataset) = {len(self.train_dataset)}')
         self.log(f'len(valid_dataset) = {len(self.valid_dataset)}')
-        self.log(f'len(valid_dataset_2) = {len(self.valid_dataset_2)}')
         self.log(f'len(train_loader) = {len(self.train_loader)}')
         self.log(f'len(valid_loader) = {len(self.valid_loader)}')
-        self.log(f'len(valid_loader_2) = {len(self.valid_loader_2)}')
         self.log(f'num_epochs = {num_epochs}')
         self.log(f'batch_size = {batch_size}')
         self.log(f'start training')
@@ -186,26 +163,21 @@ class Trainer:
                 self.train_loader.set_epoch(epoch)
                 self.valid_loader.set_epoch(epoch)
 
-            # 训练之前先验证一次
+            # valid one epoch before training
             if (epoch == 0):
-                self.valid_epoch(self.valid_dataset, self.valid_loader)
-                self.valid_epoch(self.valid_dataset_2, self.valid_loader_2)
+                self.valid_epoch(self.valid_loader)
 
             self.log(f'train on epoch {epoch}')
             self.train_epoch(self.train_loader)
             
             if ((epoch+1) % num_valid_epochs == 0):
                 self.log(f'valid on epoch {epoch}')
-                self.valid_epoch(self.valid_dataset, self.valid_loader)
-                self.valid_epoch(self.valid_dataset_2, self.valid_loader_2)
+                self.valid_epoch(self.valid_loader)
 
                 if (self.early_stopper is not None):
                     valid_pearson = self.metric_df.loc[self.train_cell_types, 'Pearson'].mean()
-                    valid_pearson_valid = self.metric_df.loc[self.valid_cell_types, 'Pearson'].mean()
-                    valid_pearson_total = self.metric_df.loc[:, 'Pearson'].mean()
                     self.log(f'epoch = {epoch}, valid_pearson = {valid_pearson:.6f}, check for early stopping')
-                    self.log(f'epoch = {epoch}, valid_pearson_valid = {valid_pearson_valid:.6f}')
-                    self.log(f'epoch = {epoch}, valid_pearson_total = {valid_pearson_total:.6f}')
+                    # should not use valid_loss to check early stopping
                     self.early_stopper.check(valid_pearson)
 
                     if self.early_stopper.update_flag == True:
@@ -253,7 +225,7 @@ class Trainer:
         self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, train_loss = {train_loss:.6f}')
 
 
-    def valid_epoch(self, valid_dataset, valid_loader):
+    def valid_epoch(self, valid_loader):
         torch.set_grad_enabled(False)
         # 代替with torch.no_grad()，避免多一层缩进，和train缩进一样，方便复制
 
@@ -284,26 +256,27 @@ class Trainer:
         else:
             y_pred_list = y_pred_list.cpu()
 
-        y_true_list = valid_dataset.labels
+        y_true_list = self.valid_dataset.labels
+        assert y_pred_list.shape == y_true_list.shape
 
-        if self.local_rank == 0:
-            for idx, cell_type in enumerate(valid_dataset.cell_types):
-                log_message = f'cell_type = {cell_type:6}'
-                if self.config.get('concat', False):
-                    indice = (valid_dataset.df['cell_type'] == cell_type)
-                    # y_true_list_0 = self.valid_dataset.df.loc[indice, 'label'].values
-                    y_true_list_0 = y_true_list[indice]
-                    y_pred_list_0 = y_pred_list[indice]
-                else:
-                    y_true_list_0 = y_true_list[:, idx]
-                    y_pred_list_0 = y_pred_list[:, idx]
-                
-                for metric_func in self.metric_func_list:
-                    metric_name = type(metric_func).__name__
-                    score = metric_func(y_pred_list_0, y_true_list_0)
-                    log_message += f', {metric_name} = {score:.6f}'
-                    self.metric_df.loc[cell_type, metric_name] = score
-                self.log(log_message)
+        for idx, cell_type in enumerate(self.valid_cell_types):
+            log_message = f'cell_type = {cell_type:6}'
+            if len(y_true_list.shape) == 1:
+                indice = (self.valid_dataset.df['cell_type'] == cell_type)
+                y_true_list_0 = y_true_list[indice]
+                y_pred_list_0 = y_pred_list[indice]
+            elif len(y_true_list.shape) == 2:
+                y_true_list_0 = y_true_list[:, idx]
+                y_pred_list_0 = y_pred_list[:, idx]
+            else:
+                raise ValueError(f'y_true_list.shape = {y_true_list.shape}')
+            
+            for metric_func in self.metric_func_list:
+                metric_name = type(metric_func).__name__
+                score = metric_func(y_pred_list_0, y_true_list_0)
+                log_message += f', {metric_name} = {score:.6f}'
+                self.metric_df.loc[cell_type, metric_name] = score
+            self.log(log_message)
         torch.set_grad_enabled(True)
 
 
@@ -323,9 +296,9 @@ class Trainer:
         #     'model_state_dict': self.model.state_dict(),
         #     'optimizer_state_dict': self.optimizer.state_dict(),
         #     }
-        checkpoint = self.model.module.state_dict() if self.distribute else self.model.state_dict()
-
         # checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
+        
+        checkpoint = self.model.module.state_dict() if self.distribute else self.model.state_dict()
         checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint.pth')
         torch.save(checkpoint, checkpoint_path)
         self.logger.debug(f'save model at {checkpoint_path}')

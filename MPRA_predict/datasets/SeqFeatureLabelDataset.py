@@ -8,18 +8,17 @@ from ..utils import *
 MPRA_UPSTREAM  = 'ACGAAAATGTTGGATGCTCATACTCGTCCTTTTTCAATATTATTGAAGCATTTATCAGGGTTACTAGTACGTCTCTCAAGGATAAGTAAGTAATATTAAGGTACGGGAGGTATTGGACAGGCCGCAATAAAATATCTTTATTTTCATTACATCTGTGTGTTGGTTTTTTGTGTGAATCGATAGTACTAACATACGCTCTCCATCAAAACAAAACGAAACAAAACAAACTAGCAAAATAGGCTGTCCCCAGTGCAAGTGCAGGTGCCAGAACATTTCTCTGGCCTAACTGGCCGCTTGACG'
 MPRA_DOWNSTREAM= 'CACTGCGGCTCCTGCGATCTAACTGGCCGGTACCTGAGCTCGCTAGCCTCGAGGATATCAAGATCTGGCCTCGGCGGCCAAGCTTAGACACTAGAGGGTATATAATGGAAGCTCGACTTCCAGCTTGGCAATCCGGTACTGTTGGTAAAGCCACCATGGTGAGCAAGGGCGAGGAGCTGTTCACCGGGGTGGTGCCCATCCTGGTCGAGCTGGACGGCGACGTAAACGGCCACAAGTTCAGCGTGTCCGGCGAGGGCGAGGGCGATGCCACCTACGGCAAGCTGACCCTGAAGTTCATCT'
 
-class SeqFeatureExpDataset(Dataset):
+class SeqFeatureLabelDataset(Dataset):
     def __init__(
         self,
         data_path = None,
         seq_column = None,
         feature_column = None,
-        exp_column = None,
-        
+        label_column = None,
         cell_types = None,
+
         shuffle = False,
         subset_range = None,
-
         filter_column = None,
         filter_in_list = None,
         filter_not_in_list = None,
@@ -36,7 +35,7 @@ class SeqFeatureExpDataset(Dataset):
         self.data_path = data_path
         self.seq_column = seq_column
         self.feature_column = feature_column
-        self.exp_column = exp_column
+        self.label_column = label_column
         self.cell_types = cell_types
 
         self.shuffle = shuffle
@@ -44,9 +43,9 @@ class SeqFeatureExpDataset(Dataset):
         self.filter_column = filter_column
         self.filter_in_list = filter_in_list
         self.filter_not_in_list = filter_not_in_list
+
         self.seq_pad_len = seq_pad_len
         self.N_fill_value = N_fill_value
-
         self.padding = padding
         self.padding_mode = padding_mode
         self.padding_upstream = padding_upstream
@@ -78,11 +77,11 @@ class SeqFeatureExpDataset(Dataset):
 
         self.seqs = self.df[seq_column].to_numpy().astype(str)
         self.features = torch.tensor(np.array(self.df[feature_column]), dtype=torch.float)
-        self.labels = torch.tensor(np.array(self.df[exp_column]), dtype=torch.float)
+        self.labels = torch.tensor(np.array(self.df[label_column]), dtype=torch.float)
 
-        # if not hasattr(self, 'labels'):
-        #     print('not assigned labels, initial with zeros')
-        #     self.labels = np.zeros(shape=len(self.seqs))
+        if len(self.labels) == 0:
+            print('empty labels, set labels to zeros')
+            self.labels = np.zeros(shape=len(self.seqs))
 
         # if self.seqs.dtype.kind in {'U', 'S', 'O'}:
         #     self.seqs = self.seqs.astype(str)
@@ -111,7 +110,7 @@ class SeqFeatureExpDataset(Dataset):
 
 
 if __name__ == '__main__':
-    dataset = SeqFeatureExpDataset(
+    dataset = SeqFeatureLabelDataset(
         data_path='/home/hxcai/cell_type_specific_CRE/MPRA_exp/pretrained_based_models/data/Sei_Siraj_features_concat.csv',
         seq_column='seq',
         feature_column=['DNase', 'H3K4me1', 'H3K4me3', 'H3K9me3', 'H3K27me3', 'H3K27ac', 'H3K36me3', 'CTCF'],

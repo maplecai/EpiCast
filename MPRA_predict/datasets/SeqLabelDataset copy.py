@@ -62,15 +62,6 @@ class SeqLabelDataset(Dataset):
             self.seqs = self.df[input_column].to_numpy()
         if output_column is not None:
             self.labels = self.df[output_column].to_numpy()
-    
-        # if seqs is not None:
-        #     self.seqs = seqs
-        # if seqs_path is not None:
-        #     self.seqs = np.load(seqs_path, allow_pickle=True)
-        # if labels is not None:
-        #     self.labels = labels
-        # if labels_path is not None:
-        #     self.labels = np.load(labels_path)
 
         if not hasattr(self, 'seqs'):
             raise ValueError('must assign seqs by seqs or seqs_path or table_path + input_column')
@@ -111,8 +102,8 @@ class SeqLabelDataset(Dataset):
             elif self.pad_content == 'given':
                 seq = pad_seq(seq, self.seq_pad_len, MPRA_UPSTREAM, MPRA_DOWNSTREAM)
 
-        # seq = str2onehot(seq)
-        seq = torch.tensor(str2onehot(seq), dtype=torch.float)
+        seq = str2onehot(seq)
+        seq = torch.tensor(seq, dtype=torch.float)
         label = self.labels[index]
 
         if self.task_idx is not None:

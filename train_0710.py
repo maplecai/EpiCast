@@ -22,7 +22,7 @@ from MPRA_exp import models
 from MPRA_exp import datasets
 from MPRA_exp import metrics
 from MPRA_exp import utils
-from MPRA_exp.utils import *
+from MPRA_predict.utils import *
 
 
 class Trainer:
