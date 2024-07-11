@@ -1,11 +1,13 @@
-from torch.utils.data import DataLoader
+import sys
+sys.path.append('..')
 from MPRA_exp.utils import *
 from MPRA_exp.datasets import SeqLabelDataset
+from torch.utils.data import DataLoader
 
 from enformer_pytorch import Enformer, from_pretrained
 
 
-def get_pred(model, test_data_loader, device='cuda'):
+def get_pred(model, test_data_loader, device):
     model = model.to(device)
     y_pred = []
     with torch.no_grad():
@@ -21,14 +23,16 @@ def get_pred(model, test_data_loader, device='cuda'):
     return y_pred
 
 
-trained_model_path = 'pretrained_models/enformer'
+trained_model_path = 'Enformer'
 model = from_pretrained(trained_model_path, target_length=2).cuda().eval()
-dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_designed.csv',
-                          input_column='seq', seq_pad_len=196_608, N_fill_value=0)
-test_data_loader = DataLoader(dataset, batch_size=8, shuffle=False, num_workers=4)
-y_pred = get_pred(model, test_data_loader)
+dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_total.csv',
+                          input_column='seq', seq_pad_len=196_608, N_fill_value=0, subset_range=[0.5, 1])
+test_data_loader = DataLoader(dataset, batch_size=16, shuffle=False, num_workers=4)
+y_pred = get_pred(model, test_data_loader, device='cuda:3')
 
-np.save(f'data/enformer_y_pred.npy', y_pred)
+np.save(f'data/Enformer_Siraj_pred_part3.npy', y_pred)
+
+
 
 
 # def get_embedding(model, test_data_loader, device='cuda'):
