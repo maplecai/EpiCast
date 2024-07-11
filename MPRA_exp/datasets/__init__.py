@@ -10,3 +10,4 @@ from torch.utils.data import ConcatDataset
 from .MultiTaskDataLoader import MultiTaskDataLoader
 from .SeqInterval import SeqInterval
 from .XpressoDatasetNew import XpressoDatasetNew
+from .SeqFeatureExpDataset import SeqFeatureExpDataset

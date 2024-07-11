@@ -242,7 +242,7 @@ class MyBasset(nn.Module):
     """
     def __init__(
             self, 
-            input_length=230,
+            input_length=200,
             output_dim=1,
             squeeze=True,
 
@@ -327,33 +327,53 @@ class MyBasset(nn.Module):
             self.linear_layers.add_module(f'sigmoid', nn.Sigmoid())
 
 
-    def _forward(self, x):
-        x = self.conv_layers(x)
+    def forward(self, inputs):
+        if isinstance(inputs, dict):
+            seq = inputs['seq']
+        elif isinstance(inputs, (list, tuple)):
+            seq = inputs[0]
+        elif isinstance(inputs, torch.Tensor):
+            seq = inputs
+        else:
+            raise ValueError('Unsupported input type')
+        
+        if seq.shape[2] == 4:
+            seq = seq.permute(0, 2, 1)
+        x = self.conv_layers(seq)
         x = x.view(x.size(0), -1)
         x = self.linear_layers(x)
-        return x
-    
-
-    def forward(self, x, *args, **kwargs):
-        if x.shape[2] == 4:
-            x = x.permute(0, 2, 1)
-
-        if self.rc_augmentation == False:
-            x = self._forward(x)
-
-        else:
-            if self.rc_region is None:
-                x_aug = torch.flip(x, dims=[1,2])
-            else:
-                left, right = self.rc_region
-                x_aug = torch.flip(x[:, :, left:right], dims=[1,2])
-                x_aug = torch.cat((x[:, :, :left], x_aug, x[:, :, right:]), dim=2)
-            x = (self._forward(x) + self._forward(x_aug)) / 2
-
         if self.squeeze:
             x = x.squeeze(-1)
-
         return x
+
+
+    # def _forward(self, x):
+    #     x = self.conv_layers(x)
+    #     x = x.view(x.size(0), -1)
+    #     x = self.linear_layers(x)
+    #     return x
+    
+
+    # def forward(self, x):
+    #     if x.shape[2] == 4:
+    #         x = x.permute(0, 2, 1)
+
+    #     if self.rc_augmentation == False:
+    #         x = self._forward(x)
+
+    #     else:
+    #         if self.rc_region is None:
+    #             x_aug = torch.flip(x, dims=[1,2])
+    #         else:
+    #             left, right = self.rc_region
+    #             x_aug = torch.flip(x[:, :, left:right], dims=[1,2])
+    #             x_aug = torch.cat((x[:, :, :left], x_aug, x[:, :, right:]), dim=2)
+    #         x = (self._forward(x) + self._forward(x_aug)) / 2
+
+    #     if self.squeeze:
+    #         x = x.squeeze(-1)
+
+    #     return x
 
 
 if __name__ == '__main__':

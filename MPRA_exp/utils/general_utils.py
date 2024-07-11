@@ -149,3 +149,15 @@ def get_nums_trainable_params(model:nn.Module) -> int:
 #     mlp_state_dict['fc2.bias'] = mlp_state_dict['fc2.bias'][output_channels_list]
 
 #     return mlp_state_dict
+
+
+def get_free_gpu_id():
+    # 执行nvidia-smi命令获取GPU状态
+    result = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
+                            capture_output=True, text=True)
+    memory_info = result.stdout.strip().split('\n')
+    free_gpu_id = np.argmax([int(free_memory) for free_memory in memory_info])
+
+    # index_free_memory = [re.split(r'\s*,\s*', info) for info in memory_info]
+    # free_gpu_id = np.argmax([int(free_memory) for index, free_memory in index_free_memory])
+    return free_gpu_id
