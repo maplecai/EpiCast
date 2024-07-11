@@ -78,7 +78,7 @@ class SeqFeatureExpDataset(Dataset):
 
         self.seqs = self.df[seq_column].to_numpy().astype(str)
         self.features = torch.tensor(np.array(self.df[feature_column]), dtype=torch.float)
-        self.exps = torch.tensor(np.array(self.df[exp_column]), dtype=torch.float)
+        self.labels = torch.tensor(np.array(self.df[exp_column]), dtype=torch.float)
 
         # if not hasattr(self, 'labels'):
         #     print('not assigned labels, initial with zeros')
@@ -101,15 +101,9 @@ class SeqFeatureExpDataset(Dataset):
         seq = torch.tensor(seq, dtype=torch.float)
 
         feature = self.features[index]
-        exp = self.exps[index]
-        inputs = {'seq': seq, 'feature': feature}
-        labels = exp
-        return inputs, labels
-    
-        # sample = {
-        #     'inputs': {'seq': seq, 'feature': feature}, 
-        #     'labels': exp}
-        # return sample
+        label = self.labels[index]
+        input = {'seq': seq, 'feature': feature}
+        return input, label
     
     def __len__(self) -> int:
         return len(self.df)

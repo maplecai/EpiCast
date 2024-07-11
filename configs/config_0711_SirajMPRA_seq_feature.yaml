@@ -13,7 +13,7 @@ load_saved_model: false
 random_data_split: false
 
 train_cell_types: ['HepG2', 'K562']
-valid_cell_types: ['HepG2', 'K562', 'A549', 'HCT116']
+valid_cell_types: ['A549', 'HCT116']
 
 train_dataset:
     type: &type SeqFeatureExpDataset
@@ -40,6 +40,9 @@ total_dataset:
         filter_column: null
         filter_in_list: null
         filter_not_in_list: null
+
+
+
 
 model:
     type: MyBassetFeature
@@ -70,7 +73,7 @@ data_loader:
     args:
         batch_size: *batch_size
         num_workers: 1
-        pin_memory: true
+        pin_memory: false
         drop_last: false
 
 optimizer:
