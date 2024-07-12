@@ -12,7 +12,7 @@ batch_size: &batch_size 1024
 load_saved_model: false
 random_data_split: false
 
-train_cell_types: &train_cell_types ['HepG2']
+train_cell_types: &train_cell_types ['HepG2', 'K562', 'A549', 'HCT116']
 valid_cell_types: *train_cell_types
 
 train_dataset:
@@ -42,7 +42,7 @@ model:
     type: MyBasset
     args:
         input_length:           200
-        output_dim:             1
+        output_dim:             4
         squeeze:                false
 
         conv_channels_list:     [256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256]
@@ -52,7 +52,7 @@ model:
         conv_dropout_rate:      0.2
         gap_layer:              false
 
-        linear_channels_list:   [1024, 1024]
+        linear_channels_list:   [256, 256]
         linear_dropout_rate:    0.5
         last_linear_layer:      true
         sigmoid:                false

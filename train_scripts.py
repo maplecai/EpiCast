@@ -20,8 +20,8 @@ def change_config(load_dir, save_dir, key, value):
 
 if __name__ == '__main__':
 
-    python_path = 'train_0424.py'
-    config_path_list = ['configs/config_0425_cls.yaml']
+    python_path = 'train_0712.py'
+    config_path_list = ['configs/config_0712_SirajMPRA_seq.yaml']
 
     for config_path in config_path_list:
         subprocess.run(
