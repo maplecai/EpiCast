@@ -51,7 +51,6 @@ class Trainer:
         # setup dataloader
         self.train_cell_types = config['train_cell_types']
         self.valid_cell_types = config['valid_cell_types']
-        # self.total_cell_types = self.train_cell_types + self.valid_cell_types
 
         self.train_dataset = utils.init_obj(
             datasets, 
@@ -89,16 +88,19 @@ class Trainer:
         self.model = utils.init_obj(models, config['model'])
 
         if config.get('load_saved_model', False) == True:
-            state_dict = torch.load(config['saved_model_path'])
+            saved_model_path = config['saved_model_path']
+            state_dict = torch.load(saved_model_path)
+            
+            self.log(f"load saved model from {saved_model_path}")
             self.model.load_state_dict(state_dict)
 
-        if self.distribute:
+        if self.distribute is False:
+            self.model = self.model.to(self.device)
+        else:
             self.model = DDP(
                 self.model, 
                 device_ids=[self.local_rank], 
                 find_unused_parameters=False)
-        else:
-            self.model = self.model.to(self.device)
 
         self.loss_func = utils.init_obj(metrics, config['loss_func'])
         trainable_params = filter(lambda p: p.requires_grad, self.model.parameters())
@@ -280,6 +282,25 @@ class Trainer:
         torch.set_grad_enabled(True)
 
 
+    def test(self, test_loader):
+        torch.set_grad_enabled(False)
+        # 代替with torch.no_grad()，避免多一层缩进，和train缩进一样，方便复制
+
+        y_pred_list = []
+
+        self.model.eval()
+        for batch_idx, (inputs, labels) in enumerate(tqdm(test_loader, disable=(self.local_rank != 0))):
+            inputs = to_device(inputs, self.device)
+            labels = to_device(labels, self.device)
+            out = self.model(inputs)
+            y_pred_list.append(out.detach())
+
+        y_pred_list = torch.cat(y_pred_list).cpu().numpy()
+        save_file_path = self.config['save_file_path']
+        np.save(save_file_path, y_pred_list)
+        torch.set_grad_enabled(True)
+
+
     def dist_all_gather(self, tensor):
         tensor_list = [torch.zeros_like(tensor, device=tensor.device) for _ in range(dist.get_world_size())]
         dist.all_gather(tensor_list, tensor)
@@ -302,7 +323,6 @@ class Trainer:
         checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint.pth')
         torch.save(checkpoint, checkpoint_path)
         self.logger.debug(f'save model at {checkpoint_path}')
-
 
 
 if __name__ == '__main__':

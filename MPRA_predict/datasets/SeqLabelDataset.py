@@ -17,6 +17,7 @@ class SeqLabelDataset(Dataset):
 
         shuffle = False,
         subset_range = None,
+        apply_filter = True,
         filter_column = None,
         filter_in_list = None,
         filter_not_in_list = None,
@@ -36,6 +37,7 @@ class SeqLabelDataset(Dataset):
 
         self.shuffle = shuffle
         self.subset_range = subset_range
+        self.apply_filter = self.apply_filter
         self.filter_column = filter_column
         self.filter_in_list = filter_in_list
         self.filter_not_in_list = filter_not_in_list
@@ -49,7 +51,7 @@ class SeqLabelDataset(Dataset):
         
         self.df = pd.read_csv(data_path)
 
-        if filter_column is not None:
+        if apply_filter is True:
             if filter_in_list is not None:
                 self.df = self.df[self.df[filter_column].isin(filter_in_list)]
             if filter_not_in_list is not None:
