@@ -11,6 +11,17 @@ from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import mean_squared_error
 
 
+def set_seed(seed:int = 42) -> None:
+    '''
+    设置随机数种子
+    '''
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
 
 
 def to_device(data, device):
@@ -20,8 +31,6 @@ def to_device(data, device):
         return {k: to_device(v, device) for k, v in data.items()}
     else:
         return data.to(device)
-
-
 
 
 def split_dataset(index_list, train_valid_test_ratio):

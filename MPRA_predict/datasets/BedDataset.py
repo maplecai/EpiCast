@@ -61,7 +61,8 @@ class BedDataset(Dataset):
         self.df = pd.read_csv(bed_exp_path, sep='\t', header=0)
 
         if shuffle == True:
-            self.df = self.df.sample(frac=1).reset_index(drop=True)
+            shuffle_index = np.random.permutation(len(self.df))
+            self.df = self.df.iloc[shuffle_index].reset_index(drop=True)
 
         if filter_column is not None:
             self.df = filter_by_column(self.df, filter_column, filter_in_list, filter_not_in_list)

@@ -54,6 +54,7 @@ def onehot2str(onehot: np.ndarray) -> str:
     '''onehot矩阵->序列'''
     dic = {0:'A', 1:'C', 2:'G', 3:'T'}
     seq = ''
+    onehot = np.array(onehot)
     num = np.argmax(onehot, axis=-1)
     for i in num:
         seq += dic[i]
