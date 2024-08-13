@@ -37,7 +37,7 @@ class SeqLabelDataset(Dataset):
 
         self.shuffle = shuffle
         self.subset_range = subset_range
-        self.apply_filter = self.apply_filter
+        self.apply_filter = apply_filter
         self.filter_column = filter_column
         self.filter_in_list = filter_in_list
         self.filter_not_in_list = filter_not_in_list
@@ -98,7 +98,6 @@ class SeqLabelDataset(Dataset):
     
     def __len__(self) -> int:
         return len(self.df)
-
 
 
 

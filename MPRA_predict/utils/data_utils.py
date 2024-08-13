@@ -21,7 +21,7 @@ def set_seed(seed:int = 42) -> None:
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.benchmark = False
 
 
 def to_device(data, device):
@@ -31,6 +31,53 @@ def to_device(data, device):
         return {k: to_device(v, device) for k, v in data.items()}
     else:
         return data.to(device)
+
+
+
+def load_partial_parameters(target_model, source_model_path, prefix_list=None, print_func=print):
+    """
+    Load parameters with specific prefix from a source model file into a target model.
+
+    Args:
+        target_model (torch.nn.Module): The target model instance to initialize.
+        source_model_path (str): Path to the source model's state_dict.
+        prefix_list (list of str, optional): List of prefixes to filter parameters to load. Default is None, which loads all common parameters.
+        print_func (callable, optional): Function to print log messages. Default is print.
+    """
+
+    # Load source model parameters
+    source_state_dict = torch.load(source_model_path)
+    
+    # Get target model parameters
+    target_state_dict = target_model.state_dict()
+    
+    # Initialize parameters
+    common_params = {k: v for k, v in source_state_dict.items() 
+                     if k in target_state_dict and v.size() == target_state_dict[k].size()}
+    
+    if prefix_list is None:
+        new_state_dict = common_params
+    else:
+        new_state_dict = {}
+        for k, v in common_params.items():
+            for prefix in prefix_list:
+                if k.startswith(prefix):
+                    new_state_dict[k] = v
+                    break
+
+        if new_state_dict:
+            print_func(f'Loading parameters: {list(new_state_dict.keys())} from {source_model_path}')
+        else:
+            print_func(f'No matching parameters found with prefixes {prefix_list}')
+        
+    # Update target state dict with the new parameters
+    target_state_dict.update(new_state_dict)
+    
+    # Load the updated state dict into the target model
+    target_model.load_state_dict(target_state_dict)
+
+
+
 
 
 def split_dataset(index_list, train_valid_test_ratio):

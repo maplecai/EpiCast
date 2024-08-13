@@ -13,8 +13,8 @@ class SeqFeatureLabelDataset(Dataset):
         self,
         data_path = None,
         seq_column = None,
-        feature_column = None,
         label_column = None,
+        feature_column = None,
         cell_types = None,
 
         shuffle = False,
@@ -35,8 +35,8 @@ class SeqFeatureLabelDataset(Dataset):
 
         self.data_path = data_path
         self.seq_column = seq_column
-        self.feature_column = feature_column
         self.label_column = label_column
+        self.feature_column = feature_column
         self.cell_types = cell_types
 
         self.shuffle = shuffle

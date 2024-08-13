@@ -5,6 +5,8 @@ import torch.nn.functional as F
 import torchinfo
 
 
+# from https://github.com/kipoi
+
 class DeepSEA(nn.Module):
     """
     DeepSEA model architecture.
@@ -45,9 +47,6 @@ class DeepSEA(nn.Module):
         return x
 
 
-
-
-# from https://github.com/kipoi/models/blob/master/DeepSEA/beluga/model.py
 
 class LambdaBase(nn.Sequential):
     def __init__(self, fn, *args):

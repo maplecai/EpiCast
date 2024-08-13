@@ -73,31 +73,57 @@ def load_config(config_path: str) -> dict:
     config['task_name'] = config_path.split('_', 1)[1].split('.')[0]
     return config
 
+# def process_config(config: dict) -> dict:
+#     task_name = config['task_name']
+#     # root_dir = config['root_dir']
+#     save_dir = config['save_dir']
+#     run_id = config.get('run_id', datetime.now().strftime(r'%m%d_%H%M%S')) 
+
+#     # make directory for saving checkpoints and log.
+#     save_dir = os.path.join(save_dir, task_name, run_id)
+#     # log_dir = os.path.join(save_dir, 'logs')
+#     log_dir = save_dir
+#     checkpoint_dir = os.path.join(save_dir, 'checkpoints')
+#     os.makedirs(save_dir, exist_ok=True)
+#     # os.makedirs(log_dir, exist_ok=False)
+#     os.makedirs(checkpoint_dir, exist_ok=True)
+
+#     # update config_dict after write it
+#     config['save_dir'] = save_dir
+#     config['log_dir'] = log_dir
+#     config['checkpoint_dir'] = checkpoint_dir
+
+#     # update logging
+#     loggingConfigDict = config['logger']
+#     for _, handler in loggingConfigDict['handlers'].items():
+#         if 'filename' in handler.keys():
+#             handler['filename'] = os.path.join(log_dir, handler['filename'])
+#     logging.config.dictConfig(loggingConfigDict)
+    
+#     # save new config file
+#     with open(os.path.join(save_dir, 'config.yaml'), 'w') as f:
+#         f.write(yaml.dump(config))
+    
+#     return config
+
+
 def process_config(config: dict) -> dict:
     task_name = config['task_name']
-    # root_dir = config['root_dir']
     save_dir = config['save_dir']
     run_id = config.get('run_id', datetime.now().strftime(r'%m%d_%H%M%S')) 
 
     # make directory for saving checkpoints and log.
     save_dir = os.path.join(save_dir, task_name, run_id)
-    # log_dir = os.path.join(save_dir, 'logs')
-    log_dir = save_dir
-    checkpoint_dir = os.path.join(save_dir, 'checkpoints')
     os.makedirs(save_dir, exist_ok=True)
-    # os.makedirs(log_dir, exist_ok=False)
-    os.makedirs(checkpoint_dir, exist_ok=True)
 
     # update config_dict after write it
     config['save_dir'] = save_dir
-    config['log_dir'] = log_dir
-    config['checkpoint_dir'] = checkpoint_dir
 
     # update logging
     loggingConfigDict = config['logger']
     for _, handler in loggingConfigDict['handlers'].items():
         if 'filename' in handler.keys():
-            handler['filename'] = os.path.join(log_dir, handler['filename'])
+            handler['filename'] = os.path.join(save_dir, handler['filename'])
     logging.config.dictConfig(loggingConfigDict)
     
     # save new config file
@@ -105,9 +131,6 @@ def process_config(config: dict) -> dict:
         f.write(yaml.dump(config))
     
     return config
-
-
-
 
 
 def get_nums_trainable_params(model:nn.Module) -> int:
@@ -141,13 +164,24 @@ def get_nums_trainable_params(model:nn.Module) -> int:
 #     return mlp_state_dict
 
 
-def get_free_gpu_id():
-    # 执行nvidia-smi命令获取GPU状态
-    result = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
-                            capture_output=True, text=True)
-    memory_info = result.stdout.strip().split('\n')
-    free_gpu_id = np.argmax([int(free_memory) for free_memory in memory_info])
+# def get_free_gpu_id():
+#     # 执行nvidia-smi命令获取GPU状态
+#     result = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
+#                             capture_output=True, text=True)
+#     memory_info = result.stdout.strip().split('\n')
+#     free_gpu_id = np.argmax([int(free_memory) for free_memory in memory_info])
 
-    # index_free_memory = [re.split(r'\s*,\s*', info) for info in memory_info]
-    # free_gpu_id = np.argmax([int(free_memory) for index, free_memory in index_free_memory])
-    return free_gpu_id
+#     # index_free_memory = [re.split(r'\s*,\s*', info) for info in memory_info]
+#     # free_gpu_id = np.argmax([int(free_memory) for index, free_memory in index_free_memory])
+#     return free_gpu_id
+
+
+def get_free_gpu_ids(min_memory_mb=40000):
+    """Return a list of GPU ids with more than min_memory MB free memory."""
+    free_gpus = []
+    for i in range(torch.cuda.device_count()):
+        free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
+        free_memory_mb = free_memory / (1024 ** 2)  # Convert to MB
+        if free_memory_mb > min_memory_mb:
+            free_gpus.append(i)
+    return free_gpus

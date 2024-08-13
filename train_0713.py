@@ -233,7 +233,6 @@ class Trainer:
 
         valid_steps = len(valid_loader)
         valid_loss = 0
-        # y_true_list = []
         y_pred_list = []
 
         self.model.eval()
@@ -243,7 +242,6 @@ class Trainer:
             out = self.model(inputs)
             loss = self.loss_func(out, labels)
             valid_loss += loss
-            # y_true_list.append(labels.detach())
             y_pred_list.append(out.detach())
 
         valid_loss = valid_loss / valid_steps

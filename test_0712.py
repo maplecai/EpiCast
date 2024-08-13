@@ -54,27 +54,30 @@ class Trainer:
 
         self.test_dataset = utils.init_obj(
             datasets, 
-            config['test_dataset'])
+            config['total_dataset'])
         
         self.test_loader = utils.init_obj(
             torch.utils.data, 
             config['data_loader'], 
             dataset=self.test_dataset, 
-            shuffle=True)
+            shuffle=False)
+            
         self.model = utils.init_obj(models, config['model'])
 
         if config.get('load_saved_model', False) == True:
             saved_model_path = config['saved_model_path']
             state_dict = torch.load(saved_model_path)
-            
-            self.log(f"load saved model from {saved_model_path}")
             self.model.load_state_dict(state_dict)
+            self.log(f"load saved model from {saved_model_path}")
 
         self.model = self.model.to(self.device)
 
-    def test(self, test_loader):
+    def test(self, test_loader=None):
         torch.set_grad_enabled(False)
         # 代替with torch.no_grad()，避免多一层缩进，和train缩进一样，方便复制
+
+        if test_loader is None:
+            test_loader = self.test_loader
 
         y_pred_list = []
 
@@ -86,9 +89,11 @@ class Trainer:
             y_pred_list.append(out.detach())
 
         y_pred_list = torch.cat(y_pred_list).cpu().numpy()
-        save_file_path = self.config['save_file_path']
-        np.save(save_file_path, y_pred_list)
+        output_file_name = self.config.get('output_file_name', 'test_pred.npy')
+        output_file_path = os.path.join(self.config['save_dir'], output_file_name)
+        np.save(output_file_path, y_pred_list)
         torch.set_grad_enabled(True)
+        return y_pred_list
 
 
 if __name__ == '__main__':
