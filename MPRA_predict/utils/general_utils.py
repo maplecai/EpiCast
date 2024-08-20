@@ -45,26 +45,32 @@ def save_pickle(file_dir: str, data) -> None:
     return
 
 
-def init_obj(module, obj_dict:dict, *args, **kwargs):
-        """
-        Finds a function handle with the name given as 'type' in config, and returns the
-        instance initialized with corresponding arguments given.
+def init_obj_2(module, module_name: str, *args, **kwargs):
+    return getattr(module, module_name)(*args, **kwargs)
 
-        `object = init_obj(module, obj_dict, a, b=1)`
-        is equivalent to
-        `object = module.obj_dict['type'](a, b=1)`
-        """
-        if obj_dict is None:
-            return None
-        assert isinstance(obj_dict, dict), "invalid init object dict"
-        module_name = obj_dict['type']
-        module_args = dict(obj_dict.get('args', {}))
-        for k in kwargs:
-            if k in module_args:
-                logging.debug(f'overwriting kwargs [{k}] in config')
-        # assert all([k not in module_args for k in kwargs]), 'Overwriting kwargs given in config file is not allowed'
-        module_args.update(kwargs)
-        return getattr(module, module_name)(*args, **module_args)
+
+def init_obj(module, obj_dict:dict, *args, **kwargs):
+    """
+    Finds a function handle with the name given as 'type' in config, and returns the
+    instance initialized with corresponding arguments given.
+
+    `object = init_obj(module, obj_dict, a, b=1)`
+    is equivalent to
+    `object = module.obj_dict['type'](a, b=1)`
+    """
+    if obj_dict is None:
+        return None
+    assert isinstance(obj_dict, dict), "invalid init object dict"
+    module_name = obj_dict['type']
+    module_args = dict(obj_dict.get('args', {}))
+    for k in kwargs:
+        if k in module_args:
+            logging.debug(f'overwriting kwargs [{k}] in config')
+    # assert all([k not in module_args for k in kwargs]), 'Overwriting kwargs given in config file is not allowed'
+    module_args.update(kwargs)
+    return getattr(module, module_name)(*args, **module_args)
+
+
 
 def load_config(config_path: str) -> dict:
     with open(config_path, 'r') as f:
@@ -178,10 +184,21 @@ def get_nums_trainable_params(model:nn.Module) -> int:
 
 def get_free_gpu_ids(min_memory_mb=40000):
     """Return a list of GPU ids with more than min_memory MB free memory."""
-    free_gpus = []
+    free_memorys = []
     for i in range(torch.cuda.device_count()):
         free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
         free_memory_mb = free_memory / (1024 ** 2)  # Convert to MB
-        if free_memory_mb > min_memory_mb:
-            free_gpus.append(i)
+        free_memorys.append(free_memory_mb)
+    
+    free_gpus = [i for i in range(len(free_memorys)) if free_memorys[i] > min_memory_mb]
     return free_gpus
+
+
+def get_free_gpu_id():
+    free_memorys = []
+    for i in range(torch.cuda.device_count()):
+        free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
+        free_memory_mb = free_memory / (1024 ** 2)  # Convert to MB
+        free_memorys.append(free_memory_mb)
+    free_gpu_id = np.argmax(free_memorys)
+    return free_gpu_id

@@ -53,8 +53,7 @@ class Trainer:
             self.log = self.logger.debug
 
         # setup dataloader
-        self.train_cell_types = config['train_cell_types']
-        self.valid_cell_types = config['valid_cell_types']
+        self.cell_types = config['cell_types']
 
         if config.get('train', False):
             self.train_dataset = utils.init_obj(
@@ -69,31 +68,33 @@ class Trainer:
                     torch.utils.data, 
                     config['data_loader'], 
                     dataset=self.train_dataset, 
-                    shuffle=True)
+                    shuffle=True,
+                    worker_init_fn=seed_worker,
+                    generator=torch.Generator().manual_seed(0),)
+                self.valid_loader = utils.init_obj(
+                    torch.utils.data, 
+                    config['data_loader'], 
+                    dataset=self.valid_dataset, 
+                    shuffle=False,)
             else:
                 config['data_loader']['args']['batch_size'] = config['global_batch_size']  // self.world_size
                 self.train_sampler = DistributedSampler(
                     self.train_dataset,
                     num_replicas=len(self.gpu_ids),
                     rank=self.rank,
-                    shuffle=True)
-                # self.train_loader = DataLoader(
-                #     dataset=self.train_dataset,
-                #     batch_size=config['batch_size'],
-                #     shuffle=False,
-                #     sampler=self.train_sampler,
-                # )
+                    shuffle=True,)
                 self.train_loader = utils.init_obj(
                     torch.utils.data, 
                     config['data_loader'], 
                     dataset=self.train_dataset, 
-                    sampler=self.train_sampler,)
-            self.valid_loader = utils.init_obj(
-                torch.utils.data, 
-                config['data_loader'], 
-                dataset=self.valid_dataset, 
-                shuffle=False,)
-                # persistent_workers=True,)
+                    sampler=self.train_sampler,
+                    worker_init_fn=seed_worker,
+                    generator=torch.Generator().manual_seed(0),)
+                self.valid_loader = utils.init_obj(
+                    torch.utils.data, 
+                    config['data_loader'], 
+                    dataset=self.valid_dataset, 
+                    shuffle=False,)
             
         else:
             self.test_dataset = utils.init_obj(
@@ -147,7 +148,7 @@ class Trainer:
         self.metric_names = [
             m['type'] for m in config.get('metric_func_list', [])]
         self.metric_df = pd.DataFrame(
-            index=self.valid_cell_types, 
+            index=self.cell_types, 
             columns=self.metric_names)
         
         self.lr_scheduler = utils.init_obj(
@@ -163,21 +164,11 @@ class Trainer:
 
     def train(self):
         config = self.config
-
         num_epochs = config['num_epochs']
         batch_size = config['data_loader']['args']['batch_size']
         num_valid_epochs = config['num_valid_epochs']
-        
-        inputs, labels = next(iter(self.train_loader))
-        inputs = to_device(inputs, self.device)
-        self.log(torchinfo.summary(
-            self.model, 
-            input_data=[inputs], 
-            verbose=0, 
-            depth=5))
             
-        self.log(f'train_cell_types = {self.train_cell_types}')
-        self.log(f'valid_cell_types = {self.valid_cell_types}')
+        self.log(f'cell_types = {self.cell_types}')
         self.log(f'len(train_dataset) = {len(self.train_dataset)}')
         self.log(f'len(valid_dataset) = {len(self.valid_dataset)}')
         self.log(f'len(train_loader) = {len(self.train_loader)}')
@@ -186,6 +177,14 @@ class Trainer:
         self.log(f'batch_size = {batch_size}')
         self.log(f'learnrate = {config["optimizer"]["args"]["lr"]}')
         self.log(f'start training')
+
+        inputs, labels = next(iter(self.train_loader))
+        inputs = to_device(inputs, self.device)
+        self.log(torchinfo.summary(
+            self.model, 
+            input_data=[inputs], 
+            verbose=0, 
+            depth=10,))
 
         for epoch in range(num_epochs):
             self.epoch = epoch
@@ -204,7 +203,7 @@ class Trainer:
                 self.valid_epoch(self.valid_loader)
 
                 if (self.early_stopper is not None):
-                    valid_pearson = self.metric_df.loc[self.train_cell_types, 'Pearson'].mean()
+                    valid_pearson = self.metric_df.loc[self.cell_types, 'Pearson'].mean()
                     self.log(f'epoch = {epoch}, valid_pearson = {valid_pearson:.6f}, check for early stopping')
                     # we should not use valid_loss to check early stopping
                     self.early_stopper.check(valid_pearson)
@@ -278,7 +277,7 @@ class Trainer:
         y_true_list = self.valid_dataset.labels
         assert y_pred_list.shape == y_true_list.shape, f'y_pred_list.shape = {y_pred_list.shape}, y_true_list.shape = {y_true_list.shape}'
 
-        for idx, cell_type in enumerate(self.valid_cell_types):
+        for idx, cell_type in enumerate(self.cell_types):
             log_message = f'cell_type = {cell_type:6}'
             if len(y_true_list.shape) == 1:
                 indice = (self.valid_dataset.df['cell_type'] == cell_type)
@@ -298,14 +297,14 @@ class Trainer:
             self.log(log_message)
         torch.set_grad_enabled(True)
 
-    def test(self):
+    def test(self, test_loader):
         torch.set_grad_enabled(False)
         # 代替with torch.no_grad()，避免多一层缩进，和train缩进一样，方便复制
 
         y_pred_list = []
 
         self.model.eval()
-        for batch_idx, (inputs, labels) in enumerate(tqdm(self.test_loader, disable=(self.rank != 0))):
+        for batch_idx, (inputs, labels) in enumerate(tqdm(test_loader, disable=(self.rank != 0))):
             inputs = to_device(inputs, self.device)
             labels = to_device(labels, self.device)
             out = self.model(inputs)
@@ -340,25 +339,23 @@ def dist_all_gather(tensor):
     return tensor_list
 
 def main_worker(rank, config):
-    # Initialize trainer and start training/testing
     trainer = Trainer(config, rank)
     trainer.train()
+
 
 def main():
     args = argparse.ArgumentParser()
     args.add_argument('-c', '--config_path', type=str, default=None,
                       help='config file path',)
     args = args.parse_args()
-    config_path = args.config_path
 
-    config = utils.load_config(config_path)
+    config = utils.load_config(args.config_path)
     config = utils.process_config(config)
     
     if config['distribute'] == True:
-        gpu_ids = config['gpu_ids']
         # mp.spawn(main_worker, args=(config,), nprocs=len(gpu_ids))
         processes = []
-        for rank in range(len(gpu_ids)):
+        for rank in range(len(config['gpu_ids'])):
             p = mp.Process(target=main_worker, args=(rank, config))
             p.start()     
             processes.append(p)

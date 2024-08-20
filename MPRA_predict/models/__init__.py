@@ -12,4 +12,5 @@ from .MyMTLucifer import MyMTLucifer
 from .MyCNNTransformer import MyCNNTransformer
 # from .MyBassetConcat import *
 from .Sei import Sei
-from .MyBassetFeature import MyBassetFeature
+from .MyBassetFeature import MyBassetFeature, MyBassetFusion
+from .MyBassetResidual import MyBassetResidual

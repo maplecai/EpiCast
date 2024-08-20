@@ -38,7 +38,7 @@ class SelfAttention(nn.Module):
 
 
 class CrossAttention(nn.Module):
-    def __init__(self, n_heads, d_embed, d_cross, in_proj_bias=True, out_proj_bias=True, batch_first=True):
+    def __init__(self, n_heads, d_embed, d_cross, in_proj_bias=True, out_proj_bias=True):
         super().__init__()
         self.n_heads = n_heads
         self.d_embed = d_embed
