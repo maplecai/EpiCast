@@ -127,9 +127,10 @@ def filter_by_column(table, filter_column, filter_in_list=None, filter_not_in_li
 
 def remove_nan(x, y, verbose=False):
     assert len(x) == len(y), 'len(x) must be equal to len(y)'
-    x_mask = ~np.isnan(x)
     if len(x.shape) == 2:
-        x_mask = x_mask.all(axis=1)
+        x_mask = (~np.isnan(x)).all(axis=1)
+    else:
+        x_mask = ~np.isnan(x)
     y_mask = ~np.isnan(y)
     mask = x_mask & y_mask
     x = x[mask]
@@ -151,7 +152,6 @@ def logit(x):
 
 def pearson(x, y, allow_nan=True):
     assert len(x) == len(y)
-
     x, y = remove_nan(x, y)
     if len(x) == 0 or len(y) == 0:
         return np.nan

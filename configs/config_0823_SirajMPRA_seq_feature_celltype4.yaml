@@ -1,83 +1,74 @@
-distribute: false #是否使用分布式训练
-seed: 0 #随机数种子
-save_dir: saved #保存路径
-num_epochs: 100 #训练的epoch数目
-num_log_steps: 10 #每多少个step输出log, 0 means no output
-num_valid_epochs: 1 #每多少个epoch运行valid
+train: True # 是训练还是测试
+distribute: False # 是否使用分布式训练
+gpu_ids: [0] # 训练使用的gpu id
+seed: 0 # 随机数种子
+save_dir: saved # 保存的根路径
+num_epochs: 1000 # 训练的epoch总数
+num_log_steps: 10 # 每多少个step输出log, 0 means no output
+num_valid_epochs: 1 # 每多少个epoch运行valid
 scheduler_interval: step
-batch_size: &batch_size 2048
+global_batch_size: 4096
+load_saved_model: false
 
-# load_partial_saved_model: true
-# saved_model_path: '/home/hxcai/cell_type_specific_CRE/MPRA_exp/saved/0712_SirajMPRA_seq_4/0711_173327/checkpoints/checkpoint.pth'
-
-train_cell_types: &train_cell_types ['HepG2', 'K562', 'HCT116']
-valid_cell_types: &valid_cell_types ['HepG2', 'K562', 'A549', 'HCT116']
+cell_types: &cell_types ['HepG2', 'K562', 'A549', 'HCT116']
 
 train_dataset:
     type: &type SeqFeatureLabelDataset
     args: &args
-        data_path: '/home/hxcai/cell_type_specific_CRE/MPRA_exp/pretrained_based_models/data/Sei_Siraj_features_concat.csv'
+        data_path: '/home/hxcai/cell_type_specific_CRE/MPRA_exp/pretrained_based_models/data/Sei_Siraj_features_concat_2.csv'
         seq_column: 'seq'
         feature_column: ['DNase', 'H3K4me1', 'H3K4me3', 'H3K9me3', 'H3K27me3', 'H3K27ac', 'H3K36me3', 'CTCF']
-        # feature_column: []
         label_column: 'exp'
-        cell_types: *train_cell_types
+        cell_types: *cell_types
         apply_filter: true
         filter_column: 'chr'
         filter_in_list: ['chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11', 'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21', 'chr22']
-        filter_not_in_list: null
 
 valid_dataset:
     type: *type
     args:
         <<: *args
-        cell_types: *valid_cell_types
+        cell_types: *cell_types
         filter_in_list: ['chr1']
-        filter_not_in_list: null
 
-total_dataset:
+test_dataset:
     type: *type
     args:
         <<: *args
-        cell_types: *valid_cell_types
+        cell_types: ['HepG2', 'K562', 'A549', 'HCT116']
         apply_filter: false
 
 model:
-    type: MyBassetFeature
+    type: MyBassetFusion
     args:
         input_length:           200
         input_feature_dim:      8
         output_dim:             1
-        squeeze:                true
+        sigmoid:                False
+        squeeze:                True
 
-        conv_channels_list:     [256,256,256,256,256,256,256,256,256,256,256,256]
-        conv_kernel_size_list:  [3,3,3,3,3,3,3,3,3,3,3,3]
-        conv_padding_list:      [0,0,0,0,0,0,0,0,0,0,0,0]
-        pool_kernel_size_list:  [1,1,1,2,1,1,1,2,1,1,1,2]
+        fusion_type:            'concat'
+
+        conv_channels_list:     [256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256]
+        conv_kernel_size_list:  [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
+        conv_padding_list:      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        pool_kernel_size_list:  [1,1,2,1,1,2,1,1,2,1,1,2,1,1,2,1,1,2]
         conv_dropout_rate:      0.2
-        gap_layer:              false
 
-        linear_channels_list:   [256, 256]
+        linear_channels_list:   [1024, 1024]
         linear_dropout_rate:    0.5
-        last_linear_layer:      true
-        sigmoid:                false
-
-        rc_augmentation:        false
-        rc_region:              null
 
 
-data_loader:
-    type: DataLoader
-    args:
-        batch_size: *batch_size 
-        num_workers: 1
-        pin_memory: false
-        drop_last: false
+# data_loader:
+#     type: DataLoader
+#     args:
+#         batch_size: *global_batch_size
+#         num_workers: 1
 
 optimizer:
     type: Adam
     args:
-        lr: 3.0e-4
+        lr: 1.0e-3
         weight_decay: 1.0e-4
 
 lr_scheduler:
@@ -106,7 +97,7 @@ early_stopper:
     type: EarlyStopping
     args:
         monitor: 'Pearson'
-        patience: 20
+        patience: 30
         delta: 0
         mode: 'max'
         verbose: true
@@ -119,7 +110,6 @@ logger:
             format: '%(message)s'
         complex:
             format: '%(asctime)s - %(levelname)s - %(message)s'
-            datefmt: '%Y-%m-%d %H:%M:%S'
     handlers:
         console_handler:
             class: logging.StreamHandler

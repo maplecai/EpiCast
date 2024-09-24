@@ -7,7 +7,8 @@ num_epochs: 500 # 训练的epoch总数
 num_log_steps: 10 # 每多少个step输出log, 0 means no output
 num_valid_epochs: 1 # 每多少个epoch运行valid
 scheduler_interval: step
-global_batch_size: &global_batch_size 4096
+global_batch_size: 4096
+batch_size: &global_batch_size
 load_saved_model: false
 
 cell_types: &cell_types ['HepG2', 'K562', 'A549', 'HCT116']
@@ -39,33 +40,32 @@ model:
     args:
         input_length:       200
         output_dim:         4
-        residual:           True
-        shortcut_interval:  2
         sigmoid:            False
         squeeze:            True
+
+        residual:           True
+        conv_num:           12
+        conv_per_shortcut:  2
+        pool_interval:      2
+        linear_num:         2
         
-        conv_num:           6
         conv_channels:      256
         conv_kernel_size:   3
         conv_stride:        1
         conv_padding:       1
         conv_dropout_rate:  0.2
 
-        pool_interval:      1
         pool_kernel_size:   2
         pool_padding:       0
-        
-        linear_num:         2
+
         linear_channels:    1024
         linear_dropout_rate: 0.5
 
-
-
-data_loader:
-    type: DataLoader
-    args:
-        batch_size: *global_batch_size
-        num_workers: 1
+# data_loader:
+#     type: DataLoader
+#     args:
+#         batch_size: *global_batch_size
+#         num_workers: 1
 
 optimizer:
     type: Adam

@@ -26,7 +26,7 @@ new_state_dict = {k.replace('module.model.', ''): v for k, v in state_dict.items
 model.load_state_dict(new_state_dict)
 
 seq_exp_path = '/home/hxcai/cell_type_specific_CRE/data/AgarwalMPRA/Agarwal_joint.csv'
-dataset = SeqLabelDataset(seq_exp_path=seq_exp_path, input_column='seq', seq_pad_len=4096)
+dataset = SeqLabelDataset(seq_exp_path=seq_exp_path, input_column='seq', padded_len=4096)
 test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=0)
 
 y_pred = get_pred(model, test_data_loader)
@@ -66,7 +66,7 @@ np.save(f'../pretrained_models/Sei/Sei_Agarwal_joint_pred.npy', y_pred)
 # new_state_dict = {k.replace('module.model.', ''): v for k, v in state_dict.items()}
 # model.load_state_dict(new_state_dict)
 
-# dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_len200.csv', input_column='seq', seq_pad_len=4096)
+# dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_len200.csv', input_column='seq', padded_len=4096)
 # test_data_loader = DataLoader(dataset, batch_size=512, shuffle=False, num_workers=4)
 
 # y_true, y_pred, embedding = get_embedding(model, test_data_loader)

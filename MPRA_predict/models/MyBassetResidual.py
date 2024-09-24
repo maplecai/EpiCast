@@ -62,21 +62,6 @@ class LinearBlock(nn.Module):
 #         return out
 
 
-# class Residual(nn.Module):
-#     def __init__(self, module):
-#         super().__init__()
-#         self.module = module
-#         if self.module.in_channels == self.module.out_channels:
-#             self.shortcut = nn.Identity()
-#         else:
-#             self.shortcut = nn.Conv1d(self.module.in_channels, self.module.out_channels, 1, 1, 0)
-
-#     def forward(self, x):
-#         out = self.module(x) + self.shortcut(x)
-#         return out
-
-
-
 class MultiConvBlock(nn.Module):
     def __init__(self, num_layers, in_channels, out_channels, kernel_size, stride, padding):
         super().__init__()
@@ -94,11 +79,23 @@ class MultiConvBlock(nn.Module):
         return x
 
 
+# class Residual(nn.Module):
+#     def __init__(self, module):
+#         super().__init__()
+#         self.module = module
+#         self.in_channels = module.in_channels
+#         self.out_channels = module.out_channels
+#         if self.in_channels == self.out_channels:
+#             self.shortcut = nn.Identity()
+#         else:
+#             self.shortcut = nn.Conv1d(self.in_channels, self.out_channels, 1, 1, 0)
+            
+#     def forward(self, x):
+#         out = self.module(x) + self.shortcut(x)
+#         return out
+
 class Residual(nn.Module):
-    def __init__(
-        self, 
-        layer,
-    ):
+    def __init__(self, layer):
         super().__init__()
         self.layer = layer
         self.in_channels = layer.in_channels
@@ -113,38 +110,6 @@ class Residual(nn.Module):
         return out
 
 
-# class Residual(nn.Module):
-#     def __init__(
-#         self, 
-#         num_layers,
-#         layer=None,
-#         layer_type=None,
-#         **layer_kwargs,
-#     ):
-#         super().__init__()
-
-#         self.layers = nn.ModuleList()
-#         for i in range(num_layers):
-#             self.layers.append(layer_type(**layer_kwargs))
-        
-#         self.in_channels = self.layers[0].in_channels
-#         self.out_channels = self.layers[-1].out_channels
-
-#         if self.in_channels == self.out_channels:
-#             self.shortcut = nn.Identity()
-#         else:
-#             self.shortcut = nn.Conv1d(self.in_channels, self.out_channels, 1, 1, 0)
-            
-#     def forward(self, x):
-#         x0 = x
-#         for i, layer in enumerate(self.layers):
-#             x = layer(x)
-#         out = x + self.shortcut(x0)
-#         return out
-
-
-
-
 
 
 class MyBassetResidual(nn.Module):
@@ -153,7 +118,7 @@ class MyBassetResidual(nn.Module):
         input_length=200,
         output_dim=1,
         residual=True,
-        shortcut_interval=2,
+        conv_per_shortcut=2,
         sigmoid=False,
         squeeze=True,
 
@@ -181,7 +146,7 @@ class MyBassetResidual(nn.Module):
         self.input_length       = input_length
         self.output_dim         = output_dim
         self.residual           = residual
-        self.shortcut_interval  = shortcut_interval
+        self.conv_per_shortcut  = conv_per_shortcut
         self.sigmoid            = sigmoid
         self.squeeze            = squeeze
         self.rc_augmentation    = rc_augmentation
@@ -198,25 +163,23 @@ class MyBassetResidual(nn.Module):
                 stride=conv_stride, 
                 padding=conv_padding,))
 
+        if residual:
+            assert conv_num % conv_per_shortcut == 0, 'conv_num should be divisible by conv_per_shortcut'
+            assert pool_interval % conv_per_shortcut == 0, 'pool_interval should be divisible by conv_per_shortcut'
+            conv_num = conv_num // conv_per_shortcut
+            pool_interval = pool_interval // conv_per_shortcut
+
         for i in range(1, conv_num+1):
             if residual:
                 self.conv_layers.add_module(
                     f'res_conv_block_{i}', 
                     Residual(MultiConvBlock(
-                        num_layers=shortcut_interval,
+                        num_layers=conv_per_shortcut,
                         in_channels=conv_channels,
                         out_channels=conv_channels,
                         kernel_size=conv_kernel_size, 
                         stride=conv_stride, 
                         padding=conv_padding,)))
-                        # num_layers=shortcut_interval,
-                        # layer_type=ConvBlock,
-                        # in_channels=conv_channels,
-                        # out_channels=conv_channels,
-                        # kernel_size=conv_kernel_size, 
-                        # stride=conv_stride, 
-                        # padding=conv_padding,))
-
             else:
                 self.conv_layers.add_module(
                     f'conv_block_{i}', 
@@ -234,7 +197,7 @@ class MyBassetResidual(nn.Module):
                         kernel_size=pool_kernel_size, 
                         padding=pool_padding,
                         ceil_mode = True))
-        
+                
             self.conv_layers.add_module(
                 f'conv_dropout_{i}', 
                 nn.Dropout(p=conv_dropout_rate))
@@ -277,9 +240,9 @@ class MyBassetResidual(nn.Module):
             raise ValueError('Unsupported input type')
         
         if seq.shape[2] == 4:
-            x = seq.permute(0, 2, 1)
+            seq = seq.permute(0, 2, 1)
 
-        x = self.conv_layers(x)
+        x = self.conv_layers(seq)
         x = x.view(x.size(0), -1)
         x = self.linear_layers(x)
         x = self.last_linear_layer(x)
@@ -326,19 +289,19 @@ model:
         output_dim:         1
 
         residual:           False
-        shortcut_interval:  2
+        conv_per_shortcut:  2
 
         sigmoid:            False
         squeeze:            True
         
-        conv_num:           6
+        conv_num:           12
         conv_channels:      256
         conv_kernel_size:   3
         conv_stride:        1
         conv_padding:       1
         conv_dropout_rate:  0.2
 
-        pool_interval:      1
+        pool_interval:      2
         pool_kernel_size:   2
         pool_padding:       0
         

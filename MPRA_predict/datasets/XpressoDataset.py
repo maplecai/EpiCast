@@ -16,14 +16,14 @@ from pyfaidx import Fasta
 #         filter_column = None,
 #         filter_in_list = None,
 #         filter_not_in_list = None,
-#         seq_pad_len = None,
+#         padded_len = None,
 #         N_fill_value = 0.25,
 #         select_seq_region = None,
 #         ) -> None:
 #         super().__init__()
 
 #         self.output_columns = output_columns
-#         self.seq_pad_len = seq_pad_len
+#         self.padded_len = padded_len
 #         self.N_fill_value = N_fill_value
 #         self.select_seq_region = select_seq_region
 #         self.genome = Fasta(genome_path)
@@ -94,7 +94,7 @@ class XpressoDataset(Dataset):
         filter_column = None,
         filter_in_list = None,
         filter_not_in_list = None,
-        seq_pad_len = None,
+        padded_len = None,
         N_fill_value = 0.25,
         select_seq_region = None,
         ) -> None:
@@ -102,7 +102,7 @@ class XpressoDataset(Dataset):
 
         self.task_idx = task_idx
 
-        self.seq_pad_len = seq_pad_len
+        self.padded_len = padded_len
         self.N_fill_value = N_fill_value
         self.select_seq_region = select_seq_region
 
