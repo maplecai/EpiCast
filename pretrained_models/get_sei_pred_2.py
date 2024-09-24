@@ -25,7 +25,7 @@ new_state_dict = {k.replace('module.model.', ''): v for k, v in state_dict.items
 model.load_state_dict(new_state_dict)
 
 dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/AgarwalMPRA/SirajMPRA_total.csv',
-                          input_column='seq', seq_pad_len=4096)
+                          input_column='seq', padded_len=4096)
 test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=0)
 
 output_file = '../pretrained_models/Sei/Sei_Siraj_pred_2.npy'

@@ -114,7 +114,7 @@ class MyBassetFusion(nn.Module):
         elif self.fusion_type == 'cross_attention':
             self.fusion_layer = CrossAttention(
                 n_heads=n_heads,
-                d_embed=hidden_shape[1],
+                d_embed=hidden_shape[0],
                 d_cross=input_feature_dim,
             )
 
@@ -153,6 +153,9 @@ class MyBassetFusion(nn.Module):
             x = x.view(x.size(0), -1)
             x = torch.cat([x, feature], dim=1)
         elif self.fusion_type == 'cross_attention':
+            # x.shape = (batch_size, n_channels, length)
+            x = x.permute(0, 2, 1)
+            # x.shape = (batch_size, length, n_channels)
             feature = feature.view(feature.size(0), 1, -1)
             x = self.fusion_layer(x, feature)
             x = x.view(x.size(0), -1)
@@ -311,22 +314,22 @@ if __name__ == '__main__':
         type: 
             MyBassetFusion
         args:
-            fusion_type:    'concat'
-            n_heads:        1
+            fusion_type:            'cross_attention'
+            n_heads:                1
 
-            input_length:   200
-            input_feature_dim: 8
-            output_dim:     1
-            squeeze:         True
+            input_length:           200
+            input_feature_dim:      8
+            output_dim:             1
+            squeeze:                True
 
-            conv_channels_list:     [256, 256, 256, 256, 256]
-            conv_kernel_size_list:  [7, 7, 7, 7, 7]
-            conv_padding_list:      [3, 3, 3, 3, 3]
-            pool_kernel_size_list:  [2, 2, 2, 2, 2]
-            pool_padding_list:      [0, 0, 0, 0, 0]
+            conv_channels_list:     [256,256,256,256,256,256]
+            conv_kernel_size_list:  [5,5,5,5,5,5]
+            conv_padding_list:      [2,2,2,2,2,2]
+            pool_kernel_size_list:  [2,2,2,2,2,2]
+            pool_padding_list:      [0,0,0,0,0,0]
             conv_dropout_rate:      0.2
 
-            linear_channels_list:   [256, 256]
+            linear_channels_list:   [1024]
             linear_dropout_rate:    0.5
 
             sigmoid: False

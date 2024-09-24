@@ -10,16 +10,17 @@
 *.html
 *.pth
 
-# for 'data' is a soft link
-data
-
 # folder
 .vscode/
 .idea/
 .history/
 
+old/
 data/
 figures/
 saved/
-configs/old/
-pretrained_models/*/
+# configs/old/
+pretrained_models/
+
+!*.ipynb
+!*.py

@@ -56,55 +56,81 @@ class Trainer:
         self.cell_types = config['cell_types']
 
         if config.get('train', False):
+            config['batch_size'] = config['global_batch_size'] // self.world_size
+
             self.train_dataset = utils.init_obj(
                 datasets, 
                 config['train_dataset'])
-            self.valid_dataset = utils.init_obj(
-                datasets, 
-                config['valid_dataset'])
-            
             if self.distribute == False:
-                self.train_loader = utils.init_obj(
-                    torch.utils.data, 
-                    config['data_loader'], 
-                    dataset=self.train_dataset, 
-                    shuffle=True,
+                self.train_loader = DataLoader(
+                    self.train_dataset, 
+                    batch_size=config['batch_size'], 
+                    shuffle=True, 
+                    num_workers=1, 
                     worker_init_fn=seed_worker,
                     generator=torch.Generator().manual_seed(0),)
-                self.valid_loader = utils.init_obj(
-                    torch.utils.data, 
-                    config['data_loader'], 
-                    dataset=self.valid_dataset, 
-                    shuffle=False,)
+                # self.train_loader = utils.init_obj(
+                #     torch.utils.data, 
+                #     config['data_loader'], 
+                #     dataset=self.train_dataset, 
+                #     shuffle=True,
+                #     worker_init_fn=seed_worker,
+                #     generator=torch.Generator().manual_seed(0),)
+                # self.valid_loader = utils.init_obj(
+                #     torch.utils.data, 
+                #     config['data_loader'], 
+                #     dataset=self.valid_dataset, 
+                #     shuffle=False,
+                #     worker_init_fn=seed_worker,
+                #     generator=torch.Generator().manual_seed(0),)
             else:
-                config['data_loader']['args']['batch_size'] = config['global_batch_size']  // self.world_size
                 self.train_sampler = DistributedSampler(
                     self.train_dataset,
                     num_replicas=len(self.gpu_ids),
                     rank=self.rank,
                     shuffle=True,)
-                self.train_loader = utils.init_obj(
-                    torch.utils.data, 
-                    config['data_loader'], 
-                    dataset=self.train_dataset, 
+                self.train_loader = DataLoader(
+                    self.train_dataset,
                     sampler=self.train_sampler,
+                    batch_size=config['batch_size'],
+                    num_workers=1, 
                     worker_init_fn=seed_worker,
                     generator=torch.Generator().manual_seed(0),)
-                self.valid_loader = utils.init_obj(
-                    torch.utils.data, 
-                    config['data_loader'], 
-                    dataset=self.valid_dataset, 
-                    shuffle=False,)
-            
+                # self.train_loader = utils.init_obj(
+                #     torch.utils.data, 
+                #     config['data_loader'], 
+                #     dataset=self.train_dataset, 
+                #     sampler=self.train_sampler,
+                #     worker_init_fn=seed_worker,
+                #     generator=torch.Generator().manual_seed(0),)
+                # self.valid_loader = utils.init_obj(
+                #     torch.utils.data, 
+                #     config['data_loader'], 
+                #     dataset=self.valid_dataset, 
+                #     shuffle=False,
+                #     worker_init_fn=seed_worker,
+                #     generator=torch.Generator().manual_seed(0),)
+            self.valid_dataset = utils.init_obj(
+                datasets, 
+                config['valid_dataset'])
+            self.valid_loader = DataLoader(
+                self.valid_dataset, 
+                batch_size=config['global_batch_size'], 
+                shuffle=False, 
+                num_workers=1, 
+                worker_init_fn=seed_worker,
+                generator=torch.Generator().manual_seed(0),)
         else:
             self.test_dataset = utils.init_obj(
                 datasets, 
                 config['test_dataset'])
-            self.test_loader = utils.init_obj(
-                torch.utils.data, 
-                config['data_loader'], 
-                dataset=self.test_dataset, 
-                shuffle=False)
+            self.test_loader = DataLoader(
+                self.test_dataset, 
+                batch_size=config['global_batch_size'], 
+                shuffle=False,
+                num_workers=1, 
+                worker_init_fn=seed_worker,
+                generator=torch.Generator().manual_seed(0),)
             
         self.model = utils.init_obj(models, config['model'])
 
@@ -131,11 +157,12 @@ class Trainer:
                     param.requires_grad = True
                 else:
                     param.requires_grad = True
-
-        self.model = self.model.to(self.device)
-        if self.distribute == True:
+        if not self.distribute:
+            self.model = self.model.to(self.device)
+        else:
+            self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
             self.model = DDP(
-                self.model, 
+                self.model.to(self.device), 
                 device_ids=[self.gpu_ids[self.rank]], 
                 find_unused_parameters=False)
 
@@ -165,7 +192,8 @@ class Trainer:
     def train(self):
         config = self.config
         num_epochs = config['num_epochs']
-        batch_size = config['data_loader']['args']['batch_size']
+        # batch_size = config['data_loader']['args']['batch_size']
+        batch_size = config['batch_size']
         num_valid_epochs = config['num_valid_epochs']
             
         self.log(f'cell_types = {self.cell_types}')

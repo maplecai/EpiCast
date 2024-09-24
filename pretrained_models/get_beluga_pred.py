@@ -28,7 +28,7 @@ new_state_dict = {k.replace('module.model.', ''): v for k, v in state_dict.items
 model.load_state_dict(new_state_dict)
 
 dataset = SeqLabelDataset(seq_exp_path='/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_total.csv',
-                          input_column='seq', seq_pad_len=2000)
+                          input_column='seq', padded_len=2000)
 # test_data_loader = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=2)
 # y_pred = get_pred(model, test_data_loader)
 # np.save(f'../pretrained_models/Beluga/Beluga_Siraj_pred_b64.npy', y_pred)

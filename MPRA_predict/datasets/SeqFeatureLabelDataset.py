@@ -24,7 +24,7 @@ class SeqFeatureLabelDataset(Dataset):
         filter_in_list = None,
         filter_not_in_list = None,
 
-        seq_pad_len = None,
+        padded_len = None,
         N_fill_value = 0.25,
         padding = False,
         padding_mode = 'N',
@@ -46,7 +46,7 @@ class SeqFeatureLabelDataset(Dataset):
         self.filter_in_list = filter_in_list
         self.filter_not_in_list = filter_not_in_list
 
-        self.seq_pad_len = seq_pad_len
+        self.padded_len = padded_len
         self.N_fill_value = N_fill_value
         self.padding = padding
         self.padding_mode = padding_mode
@@ -94,9 +94,9 @@ class SeqFeatureLabelDataset(Dataset):
         seq = self.seqs[index]
         if self.padding is True:
             if self.padding_mode == 'N':
-                seq = pad_seq(seq, self.seq_pad_len)
+                seq = pad_seq(seq, self.padded_len)
             elif self.padding_mode == 'given':
-                seq = pad_seq(seq, self.seq_pad_len, MPRA_UPSTREAM, MPRA_DOWNSTREAM)
+                seq = pad_seq(seq, self.padded_len, MPRA_UPSTREAM, MPRA_DOWNSTREAM)
         seq = str2onehot(seq)
         seq = torch.tensor(seq, dtype=torch.float)
 

@@ -27,7 +27,7 @@ class BedDataset(Dataset):
         use_pos=False,
         select_seq_range=None,
 
-        seq_pad_len = None,
+        padded_len = None,
         use_strand=False,
         rc_aug=False,
         shift_aug=False,
@@ -49,7 +49,7 @@ class BedDataset(Dataset):
 
         self.seq_interval = SeqInterval(
             genome_path=genome_path,
-            window_length=seq_pad_len,
+            window_length=padded_len,
             rc_aug=rc_aug,
             shift_aug=shift_aug,
             shift_aug_range=shift_aug_range,

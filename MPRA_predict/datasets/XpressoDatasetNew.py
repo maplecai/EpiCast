@@ -19,7 +19,7 @@ class XpressoDatasetNew(Dataset):
         filter_column = None,
         filter_in_list = None,
         filter_not_in_list = None,
-        seq_pad_len = None,
+        padded_len = None,
         N_fill_value = 0.25,
         select_seq_region = None,
         load_memory=False,
@@ -36,7 +36,7 @@ class XpressoDatasetNew(Dataset):
 
         self.seq_interval = SeqInterval(
             genome_path=genome_path,
-            window_length=seq_pad_len,
+            window_length=padded_len,
             rc_aug=False,
             shift_aug=False,
             shift_aug_range=None,

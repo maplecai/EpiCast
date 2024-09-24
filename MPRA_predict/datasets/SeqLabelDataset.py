@@ -22,7 +22,7 @@ class SeqLabelDataset(Dataset):
         filter_in_list = None,
         filter_not_in_list = None,
 
-        seq_pad_len = None,
+        padded_len = None,
         N_fill_value = 0.25,
         padding = False,
         padding_mode = 'N',
@@ -42,7 +42,7 @@ class SeqLabelDataset(Dataset):
         self.filter_in_list = filter_in_list
         self.filter_not_in_list = filter_not_in_list
 
-        self.seq_pad_len = seq_pad_len
+        self.padded_len = padded_len
         self.N_fill_value = N_fill_value
         self.padding = padding
         self.padding_mode = padding_mode
@@ -70,28 +70,18 @@ class SeqLabelDataset(Dataset):
             self.df = self.df.iloc[shuffle_index].reset_index(drop=True)
 
         self.seqs = self.df[seq_column].to_numpy().astype(str)
-        self.labels = torch.tensor(np.array(self.df[label_column]), dtype=torch.float)
-
-        if len(self.labels) == 0:
-            print('empty labels, set labels to zeros')
+        if self.label_column is not None:
+            self.labels = torch.tensor(np.array(self.df[label_column]), dtype=torch.float)
+        else:
+            print('set all labels to 0')
             self.labels = np.zeros(shape=len(self.seqs))
-
-        # if self.seqs.dtype.kind in {'U', 'S', 'O'}:
-        #     self.seqs = self.seqs.astype(str)
-        #     # if self.MPRA_pad:
-        #     #     self.seqs = np.array([MPRA_UPSTREAM + seq + MPRA_DOWNSTREAM for seq in self.seqs])
-        #     self.seqs = strs2onehots(self.seqs, N_fill_value)
 
     def __getitem__(self, index) -> tuple:
         seq = self.seqs[index]
         if self.padding is True:
-            if self.padding_mode == 'N':
-                seq = pad_seq(seq, self.seq_pad_len)
-            elif self.padding_mode == 'given':
-                seq = pad_seq(seq, self.seq_pad_len, MPRA_UPSTREAM, MPRA_DOWNSTREAM)
+            seq = pad_seq(seq, self.padded_len, self.padding_mode, MPRA_UPSTREAM, MPRA_DOWNSTREAM)
         seq = str2onehot(seq)
         seq = torch.tensor(seq, dtype=torch.float)
-
         label = self.labels[index]
         input = {'seq': seq}
         return input, label
@@ -103,9 +93,9 @@ class SeqLabelDataset(Dataset):
 
 if __name__ == '__main__':
     dataset = SeqLabelDataset(
-        data_path='/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/MPRA_data_len200_small.csv',
-        seq_column='nt_sequence',
-        seq_pad_len=210,
+        data_path='/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_total.csv',
+        seq_column='seq',
+        padded_len=20000,
         )
     print(dataset[0])
     
@@ -126,7 +116,7 @@ if __name__ == '__main__':
 #         filter_in_list = None,
 #         filter_not_in_list = None,
 
-#         seq_pad_len = None,
+#         padded_len = None,
 #         N_fill_value = 0.25,
 #         pad_content = 'N',
 #         ) -> None:
@@ -141,7 +131,7 @@ if __name__ == '__main__':
 #         self.filter_column = filter_column
 #         self.filter_in_list = filter_in_list
 #         self.filter_not_in_list = filter_not_in_list
-#         self.seq_pad_len = seq_pad_len
+#         self.padded_len = padded_len
 #         self.N_fill_value = N_fill_value
 #         self.pad_content = pad_content
         
@@ -197,11 +187,11 @@ if __name__ == '__main__':
 
 #     def __getitem__(self, index) -> tuple:
 #         seq = self.seqs[index]
-#         if self.seq_pad_len is not None:
+#         if self.padded_len is not None:
 #             if self.pad_content == 'N':
-#                 seq = pad_seq(seq, self.seq_pad_len)
+#                 seq = pad_seq(seq, self.padded_len)
 #             elif self.pad_content == 'given':
-#                 seq = pad_seq(seq, self.seq_pad_len, MPRA_UPSTREAM, MPRA_DOWNSTREAM)
+#                 seq = pad_seq(seq, self.padded_len, MPRA_UPSTREAM, MPRA_DOWNSTREAM)
 
 #         seq = str2onehot(seq)
 #         seq = torch.tensor(seq, dtype=torch.float)

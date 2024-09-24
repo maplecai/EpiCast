@@ -14,13 +14,13 @@ class SeqLabelMultiCellTypeDataset(Dataset):
         filter_column = None,
         filter_in_list = None,
         filter_not_in_list = None,
-        seq_pad_len = None,
+        padded_len = None,
         N_fill_value = 0.25,
         ) -> None:
         super().__init__()
 
         self.cell_type_names = output_columns
-        self.seq_pad_len = seq_pad_len
+        self.padded_len = padded_len
         self.N_fill_value = N_fill_value
 
         self.seq_exp_df = pd.read_csv(seq_exp_path, sep=',')
@@ -80,8 +80,8 @@ class SeqLabelMultiCellTypeDataset(Dataset):
     def __getitem__(self, index) -> tuple:
         cell_type = self.cell_types[index]
         seq = self.seqs[index]
-        if self.seq_pad_len is not None:
-            seq = pad_onehot_N(seq, self.seq_pad_len, self.N_fill_value)
+        if self.padded_len is not None:
+            seq = pad_onehot_N(seq, self.padded_len, self.N_fill_value)
         # seq = torch.tensor(str2onehot(seq), dtype=torch.float)
         label = self.labels[index]
         return cell_type, seq, label
