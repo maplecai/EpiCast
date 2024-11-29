@@ -110,6 +110,57 @@ class Residual(nn.Module):
         return out
 
 
+# class Shortcut(nn.Module):
+#     def __init__(self, module):
+#         super().__init__()
+#         self.module = module
+    
+#     def forward(self, x, x0):
+#         x = self.module(x0) + x
+#         return x
+
+
+
+class ResidualConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride, padding)
+        self.bn1 = nn.BatchNorm1d(out_channels)
+        self.relu1 = nn.ReLU()
+
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride, padding)
+        self.bn2 = nn.BatchNorm1d(out_channels)
+        self.relu2 = nn.ReLU()
+
+        if in_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv1d(in_channels, out_channels, 1, 1, 0, bias=False),
+                nn.BatchNorm1d(out_channels)
+            )
+        else:
+            self.shortcut = nn.Identity()
+
+    def forward(self, x):
+        # 两种顺序需要都试一试
+        # out = self.conv(x)
+        # out = self.relu(out)
+        # out = self.bn(out)
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu1(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out += self.shortcut(x)
+        out = self.relu2(out)
+        return out
+
 
 
 class MyBassetResidual(nn.Module):
@@ -117,8 +168,8 @@ class MyBassetResidual(nn.Module):
         self, 
         input_length=200,
         output_dim=1,
-        residual=True,
-        conv_per_shortcut=2,
+        # residual=True,
+        # conv_per_shortcut=2,
         sigmoid=False,
         squeeze=True,
 
@@ -128,7 +179,7 @@ class MyBassetResidual(nn.Module):
         conv_stride=1,
         conv_padding=1,
 
-        pool_interval=4,
+        # pool_interval=4,
         pool_kernel_size=2,
         pool_padding=0,
         conv_dropout_rate=0.2,
@@ -145,59 +196,56 @@ class MyBassetResidual(nn.Module):
 
         self.input_length       = input_length
         self.output_dim         = output_dim
-        self.residual           = residual
-        self.conv_per_shortcut  = conv_per_shortcut
+        # self.residual           = residual
+        # self.conv_per_shortcut  = conv_per_shortcut
         self.sigmoid            = sigmoid
         self.squeeze            = squeeze
         self.rc_augmentation    = rc_augmentation
         self.rc_region          = rc_region
 
+        # assert residual == True, 'Only residual model is supported'
+
         self.conv_layers = nn.Sequential(OrderedDict([]))
         
         self.conv_layers.add_module(
-            f'conv_block_0', 
-            ConvBlock(
+            f'conv_block_0', ConvBlock(
                 in_channels=4,
                 out_channels=conv_channels, 
                 kernel_size=conv_kernel_size, 
                 stride=conv_stride, 
                 padding=conv_padding,))
 
-        if residual:
-            assert conv_num % conv_per_shortcut == 0, 'conv_num should be divisible by conv_per_shortcut'
-            assert pool_interval % conv_per_shortcut == 0, 'pool_interval should be divisible by conv_per_shortcut'
-            conv_num = conv_num // conv_per_shortcut
-            pool_interval = pool_interval // conv_per_shortcut
+        # if residual:
+            # assert conv_num % conv_per_shortcut == 0, 'conv_num should be divisible by conv_per_shortcut'
+            # assert pool_interval % conv_per_shortcut == 0, 'pool_interval should be divisible by conv_per_shortcut'
+            # conv_num = conv_num // conv_per_shortcut
+            # pool_interval = pool_interval // conv_per_shortcut
 
         for i in range(1, conv_num+1):
-            if residual:
-                self.conv_layers.add_module(
-                    f'res_conv_block_{i}', 
-                    Residual(MultiConvBlock(
-                        num_layers=conv_per_shortcut,
-                        in_channels=conv_channels,
-                        out_channels=conv_channels,
-                        kernel_size=conv_kernel_size, 
-                        stride=conv_stride, 
-                        padding=conv_padding,)))
-            else:
-                self.conv_layers.add_module(
-                    f'conv_block_{i}', 
-                    ConvBlock(
-                        conv_channels,
-                        out_channels=conv_channels, 
-                        kernel_size=conv_kernel_size, 
-                        stride=conv_stride, 
-                        padding=conv_padding,))
+            self.conv_layers.add_module(
+                f'res_conv_block_{i}', ResidualConvBlock(
+                    in_channels=conv_channels,
+                    out_channels=conv_channels, 
+                    kernel_size=conv_kernel_size, 
+                    stride=conv_stride, 
+                    padding=conv_padding,))
             
-            if i % pool_interval == 0:
-                self.conv_layers.add_module(
-                    f'max_pool_{i}', 
-                    nn.MaxPool1d(
-                        kernel_size=pool_kernel_size, 
-                        padding=pool_padding,
-                        ceil_mode = True))
-                
+                # Residual(MultiConvBlock(
+                #     num_layers=conv_per_shortcut,
+                #     in_channels=conv_channels,
+                #     out_channels=conv_channels,
+                #     kernel_size=conv_kernel_size, 
+                #     stride=conv_stride, 
+                #     padding=conv_padding,)))
+            
+            
+            self.conv_layers.add_module(
+                f'max_pool_{i}', 
+                nn.MaxPool1d(
+                    kernel_size=pool_kernel_size, 
+                    padding=pool_padding,
+                    ceil_mode = True))
+            
             self.conv_layers.add_module(
                 f'conv_dropout_{i}', 
                 nn.Dropout(p=conv_dropout_rate))
@@ -212,6 +260,7 @@ class MyBassetResidual(nn.Module):
             hidden_dim = x[0].reshape(-1).shape[0]
 
         self.linear_layers = nn.Sequential(OrderedDict([]))
+
         for i in range(linear_num):
             self.linear_layers.add_module(
                 f'linear_block_{i}', 
@@ -254,29 +303,6 @@ class MyBassetResidual(nn.Module):
         return x
     
 
-            # for i, layer in enumerate(self.conv_layers):
-            #     if not isinstance(layer, SkipConnection):
-            #         x = layer(x)
-            #     else:
-            #         pass
-
-        # x0 = x
-        # for i, layer in enumerate(self.conv_layers):
-        #     if not isinstance(layer, SkipConnection):
-        #         x = layer(x)
-        #     else:
-        #         # print(x0.shape, x.shape, layer(x0).shape)
-        #         # print(layer.in_channels, layer.out_channels)
-        #         x = layer(x0) + x
-        #         x0 = x
-        # x = x.view(x.size(0), -1)
-        # x = self.linear_layers(x)
-        # x = self.last_linear_layer(x)
-        # if self.sigmoid:
-        #     x = self.sigmoid_layer(x)
-        # if self.squeeze:
-        #     x = x.squeeze(-1)
-
 
 if __name__ == '__main__':
 
@@ -287,21 +313,17 @@ model:
     args:
         input_length:       200
         output_dim:         1
-
-        residual:           False
-        conv_per_shortcut:  2
-
         sigmoid:            False
         squeeze:            True
         
-        conv_num:           12
+        # conv_per_shortcut:  2
+        conv_num:           6
         conv_channels:      256
         conv_kernel_size:   3
         conv_stride:        1
         conv_padding:       1
         conv_dropout_rate:  0.2
 
-        pool_interval:      2
         pool_kernel_size:   2
         pool_padding:       0
         
@@ -315,4 +337,4 @@ model:
 
 
     model(torch.randn(2, 200, 4))
-    torchinfo.summary(model, input_size=(2, 200, 4))
+    torchinfo.summary(model, input_size=(2, 200, 4), depth=5)

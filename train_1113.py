@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import torch
+import torch.multiprocessing as mp
 from torch import nn
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -16,7 +17,6 @@ import torchinfo
 
 from MPRA_predict import models, datasets, metrics, utils
 from MPRA_predict.utils import *
-import torch.multiprocessing as mp
 
 class Trainer:
     def __init__(self, config, rank=0):
@@ -39,7 +39,7 @@ class Trainer:
         else:
             dist.init_process_group(
                 backend='nccl', 
-                init_method="tcp://localhost:12355",
+                init_method="tcp://localhost:23458",
                 world_size=self.world_size,
                 rank=self.rank)
             self.device = torch.device(f'cuda:{self.gpu_ids[self.rank]}')
@@ -160,7 +160,7 @@ class Trainer:
         if not self.distribute:
             self.model = self.model.to(self.device)
         else:
-            # self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+            self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
             self.model = DDP(
                 self.model.to(self.device), 
                 device_ids=[self.gpu_ids[self.rank]], 

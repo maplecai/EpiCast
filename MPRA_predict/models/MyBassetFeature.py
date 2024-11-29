@@ -170,6 +170,7 @@ class MyBassetFusion(nn.Module):
 class MyBassetFeature(nn.Module):
     """
     Basset model with seq and feature input
+    concat(seq_embedding, feature)
     """
     def __init__(
         self, 
@@ -268,54 +269,65 @@ class MyBassetFeature(nn.Module):
             seq = seq.permute(0, 2, 1)
         x = self.conv_layers(seq)
         x = x.view(x.size(0), -1)
+        # 其实不只有这一个地方可以concat, 或许在更靠后的层concat效果更好
         x = torch.cat([x, feature], dim=1)
         x = self.linear_layers(x)
         if self.squeeze:
             x = x.squeeze(-1)
         return x
 
-
-    # augmentation最好还是给dataset做
-
-    # def _forward(self, seq, feature):
-    #     # seq, feature = inputs['seq'], inputs['feature']
-    #     x = self.conv_layers(seq)
-    #     x = x.view(x.size(0), -1)
-    #     x = torch.cat([x, feature], dim=1)
-    #     x = self.linear_layers(x)
-    #     if self.squeeze:
-    #         x = x.squeeze(-1)
-    #     return x
-    
-
-    # def forward(self, inputs):
-    #     seq, feature = inputs['seq'], inputs['feature']
-
-    #     if seq.shape[2] == 4:
-    #         seq = seq.permute(0, 2, 1)
-
-    #     if self.rc_augmentation == False:
-    #         x = self._forward(seq, feature)
-    #     else:
-    #         if self.rc_region is None:
-    #             seq_aug = torch.flip(seq, dims=[1,2])
-    #         else:
-    #             left, right = self.rc_region
-    #             seq_aug = torch.flip(seq[:, :, left:right], dims=[1,2])
-    #             seq_aug = torch.cat((seq[:, :, :left], seq_aug, seq[:, :, right:]), dim=2)
-    #         x = (self._forward(seq, feature) + self._forward(seq_aug, feature)) / 2
-
-        # return x
+    # augmentation最好还是给dataset做, 而不是model内部做
 
 
 if __name__ == '__main__':
+
+
+
+    yaml_str = '''
+    model:
+        type: 
+            MyBassetFeature
+        args:
+            input_length:           200
+            input_feature_dim:      8
+            output_dim:             1
+            squeeze:                True
+
+            conv_channels_list:     [256,256,256,256,256,256]
+            conv_kernel_size_list:  [5,5,5,5,5,5]
+            conv_padding_list:      [2,2,2,2,2,2]
+            pool_kernel_size_list:  [2,2,2,2,2,2]
+            pool_padding_list:      [0,0,0,0,0,0]
+            conv_dropout_rate:      0.2
+
+            linear_channels_list:   [1024]
+            linear_dropout_rate:    0.5
+
+            sigmoid: False
+    '''
+    
+    config = yaml.load(yaml_str, Loader=yaml.FullLoader)
+    model = MyBassetFeature(**config['model']['args'])
+
+    seq = torch.randn(2, 4, 200)
+    feature = torch.randn(2, 8)
+    inputs = {'seq': seq, 'feature': feature}
+    out = model(inputs)
+    print(out.shape)
+    torchinfo.summary(model, input_data=[inputs])
+
+
+
+
+
+
     yaml_str = '''
     model:
         type: 
             MyBassetFusion
         args:
-            fusion_type:            'cross_attention'
-            n_heads:                1
+            fusion_type:            'concat'
+            # n_heads:                1
 
             input_length:           200
             input_feature_dim:      8
