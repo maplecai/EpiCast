@@ -1,6 +1,6 @@
 train: True # 是训练还是测试
 distribute: False # 是否使用分布式训练
-gpu_ids: [3] # 训练使用的gpu id
+gpu_ids: [0] # 训练使用的gpu id
 seed: 0 # 随机数种子
 save_dir: saved # 保存的根路径
 num_epochs: 1000 # 训练的epoch总数
@@ -10,14 +10,16 @@ scheduler_interval: step
 global_batch_size: 4096
 load_saved_model: false
 
-cell_types: &cell_types ['HepG2', 'K562', 'A549', 'HCT116']
+cell_types: &cell_types ['HepG2', 'K562', 'SK-N-SH', 'A549', 'HCT116']
 
 train_dataset:
-    type: &type SeqLabelDataset
+    type: &type SeqFeatureLabelDataset
     args: &args
-        data_path: '/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_total.csv'
+        data_path: '/home/hxcai/cell_type_specific_CRE/MPRA_exp/pretrained_based_models/data/Sei_Siraj_4features_flatten.csv'
         seq_column: 'seq'
-        label_column: *cell_types
+        feature_column: ['DNase', 'H3K4me3', 'H3K27ac', 'CTCF']
+        label_column: 'exp'
+        cell_types: *cell_types
         apply_filter: true
         filter_column: 'chr'
         filter_in_list: ['chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11', 'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21', 'chr22']
@@ -26,39 +28,42 @@ valid_dataset:
     type: *type
     args:
         <<: *args
+        cell_types: *cell_types
         filter_in_list: ['chr1']
 
 test_dataset:
     type: *type
     args:
         <<: *args
+        cell_types: ['HepG2', 'K562', 'A549', 'HCT116']
         apply_filter: false
 
 model:
-    type: MyBassetResidual
+    type: MyBassetFusion
     args:
         input_length:           200
-        output_dim:             4
+        input_feature_dim:      4
+        output_dim:             1
         sigmoid:                False
         squeeze:                True
 
-        residual:               True
-        conv_num:               24
-        conv_per_shortcut:      4
-        pool_interval:          4
-        linear_num:             2
-        
-        conv_channels:          256
-        conv_kernel_size:       3
-        conv_stride:            1
-        conv_padding:           1
+        fusion_type:            'concat'
+
+        conv_channels_list:     [256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256]
+        conv_kernel_size_list:  [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
+        conv_padding_list:      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        pool_kernel_size_list:  [1,1,2,1,1,2,1,1,2,1,1,2,1,1,2,1,1,2]
         conv_dropout_rate:      0.2
 
-        pool_kernel_size:       2
-        pool_padding:           0
-
-        linear_channels:        1024
+        linear_channels_list:   [1024, 1024]
         linear_dropout_rate:    0.5
+
+
+# data_loader:
+#     type: DataLoader
+#     args:
+#         batch_size: *global_batch_size
+#         num_workers: 1
 
 optimizer:
     type: Adam

@@ -1,21 +1,22 @@
 train: True # 是训练还是测试
-distribute: False # 是否使用分布式训练
+distributed: True # 是否使用分布式训练
 gpu_ids: [2] # 训练使用的gpu id
+
 seed: 0 # 随机数种子
 save_dir: saved # 保存的根路径
 num_epochs: 1000 # 训练的epoch总数
 num_log_steps: 10 # 每多少个step输出log, 0 means no output
 num_valid_epochs: 1 # 每多少个epoch运行valid
 scheduler_interval: step
-global_batch_size: 4096
+batch_size: 4096
 load_saved_model: false
 
-cell_types: &cell_types ['HepG2', 'K562', 'A549', 'HCT116']
+cell_types: &cell_types ['HepG2', 'K562', 'SK-N-SH', 'A549', 'HCT116']
 
 train_dataset:
     type: &type SeqLabelDataset
     args: &args
-        data_path: '/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_total.csv'
+        data_path: '/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_586k.csv'
         seq_column: 'seq'
         label_column: *cell_types
         apply_filter: true
@@ -35,30 +36,28 @@ test_dataset:
         apply_filter: false
 
 model:
-    type: MyBassetResidual
+    type: MyBasset
     args:
         input_length:           200
-        output_dim:             4
+        output_dim:             5
         sigmoid:                False
         squeeze:                True
 
-        residual:               True
-        conv_num:               18
-        conv_per_shortcut:      3
-        pool_interval:          3
-        linear_num:             2
-        
-        conv_channels:          256
-        conv_kernel_size:       3
-        conv_stride:            1
-        conv_padding:           1
+        conv_channels_list:     [256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256]
+        conv_kernel_size_list:  [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
+        conv_padding_list:      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        pool_kernel_size_list:  [1,1,2,1,1,2,1,1,2,1,1,2,1,1,2,1,1,2]
         conv_dropout_rate:      0.2
 
-        pool_kernel_size:       2
-        pool_padding:           0
-
-        linear_channels:        1024
+        linear_channels_list:   [1024, 1024]
         linear_dropout_rate:    0.5
+
+
+# data_loader:
+#     type: DataLoader
+#     args:
+#         batch_size: *global_batch_size
+#         num_workers: 1
 
 optimizer:
     type: Adam
@@ -71,15 +70,6 @@ lr_scheduler:
     args: 
         T_0: 20
 
-# loss_func:
-#     type: MyBCELoss
-
-# metric_func_list:
-# -   type: MyBCELoss
-# -   type: Accuracy
-# -   type: AUROC
-# -   type: AUPRC
-
 loss_func:
     type: MyMSELoss
 
@@ -87,6 +77,10 @@ metric_func_list:
 -   type: MyMSELoss
 -   type: Pearson
 -   type: Spearman
+# -   type: MyBCELoss
+# -   type: Accuracy
+# -   type: AUROC
+# -   type: AUPRC
 
 early_stopper:
     type: EarlyStopping

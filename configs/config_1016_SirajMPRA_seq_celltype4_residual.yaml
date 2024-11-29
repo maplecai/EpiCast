@@ -1,6 +1,6 @@
 train: True # 是训练还是测试
 distribute: False # 是否使用分布式训练
-gpu_ids: [2] # 训练使用的gpu id
+gpu_ids: [1] # 训练使用的gpu id
 seed: 0 # 随机数种子
 save_dir: saved # 保存的根路径
 num_epochs: 1000 # 训练的epoch总数
@@ -15,7 +15,7 @@ cell_types: &cell_types ['HepG2', 'K562', 'A549', 'HCT116']
 train_dataset:
     type: &type SeqLabelDataset
     args: &args
-        data_path: '/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_total.csv'
+        data_path: '/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_563k.csv'
         seq_column: 'seq'
         label_column: *cell_types
         apply_filter: true
@@ -40,14 +40,8 @@ model:
         input_length:           200
         output_dim:             4
         sigmoid:                False
-        squeeze:                True
 
-        residual:               True
-        conv_num:               18
-        conv_per_shortcut:      3
-        pool_interval:          3
-        linear_num:             2
-        
+        conv_num:               6
         conv_channels:          256
         conv_kernel_size:       3
         conv_stride:            1
@@ -57,6 +51,7 @@ model:
         pool_kernel_size:       2
         pool_padding:           0
 
+        linear_num:             2
         linear_channels:        1024
         linear_dropout_rate:    0.5
 
@@ -92,7 +87,7 @@ early_stopper:
     type: EarlyStopping
     args:
         monitor: 'Pearson'
-        patience: 30
+        patience: 40
         delta: 0
         mode: 'max'
         verbose: true

@@ -5,7 +5,6 @@ import argparse
 import logging
 import numpy as np
 import pandas as pd
-
 from tqdm import tqdm
 import torch
 from torch import nn
@@ -52,8 +51,7 @@ class Trainer:
             self.log = self.logger.debug
 
         # setup dataloader
-        self.train_cell_types = config['train_cell_types']
-        self.valid_cell_types = config['valid_cell_types']
+        self.cell_types = config['cell_types']
 
         if config.get('train', False):
             self.train_dataset = utils.init_obj(
@@ -97,7 +95,11 @@ class Trainer:
         if config.get('load_saved_model', False):
             saved_model_path = config['saved_model_path']
             state_dict = torch.load(saved_model_path)
-            self.model.load_state_dict(state_dict)
+            if 'model_state_dict' in state_dict:
+                model_state_dict = state_dict['model_state_dict']
+            else:
+                model_state_dict = state_dict
+            self.model.load_state_dict(model_state_dict)
             self.log(f"load saved model from {saved_model_path}")
 
         if config.get('load_partial_saved_model', False):
@@ -130,7 +132,7 @@ class Trainer:
         self.metric_names = [
             m['type'] for m in config.get('metric_func_list', [])]
         self.metric_df = pd.DataFrame(
-            index=self.valid_cell_types, 
+            index=self.cell_types, 
             columns=self.metric_names)
         
         self.lr_scheduler = utils.init_obj(
@@ -146,7 +148,6 @@ class Trainer:
 
     def train(self):
         config = self.config
-
         num_epochs = config['num_epochs']
         batch_size = config['data_loader']['args']['batch_size']
         num_valid_epochs = config['num_valid_epochs']
@@ -159,8 +160,7 @@ class Trainer:
             verbose=0, 
             depth=5))
             
-        self.log(f'train_cell_types = {self.train_cell_types}')
-        self.log(f'valid_cell_types = {self.valid_cell_types}')
+        self.log(f'cell_types = {self.cell_types}')
         self.log(f'len(train_dataset) = {len(self.train_dataset)}')
         self.log(f'len(valid_dataset) = {len(self.valid_dataset)}')
         self.log(f'len(train_loader) = {len(self.train_loader)}')
@@ -186,7 +186,7 @@ class Trainer:
                 self.valid_epoch(self.valid_loader)
 
                 if (self.early_stopper is not None):
-                    valid_pearson = self.metric_df.loc[self.train_cell_types, 'Pearson'].mean()
+                    valid_pearson = self.metric_df.loc[self.cell_types, 'Pearson'].mean()
                     self.log(f'epoch = {epoch}, valid_pearson = {valid_pearson:.6f}, check for early stopping')
                     # we should not use valid_loss to check early stopping
                     self.early_stopper.check(valid_pearson)
@@ -266,7 +266,7 @@ class Trainer:
         y_true_list = self.valid_dataset.labels
         assert y_pred_list.shape == y_true_list.shape, f'y_pred_list.shape = {y_pred_list.shape}, y_true_list.shape = {y_true_list.shape}'
 
-        for idx, cell_type in enumerate(self.valid_cell_types):
+        for idx, cell_type in enumerate(self.cell_types):
             log_message = f'cell_type = {cell_type:6}'
             if len(y_true_list.shape) == 1:
                 indice = (self.valid_dataset.df['cell_type'] == cell_type)
@@ -287,14 +287,14 @@ class Trainer:
         torch.set_grad_enabled(True)
 
 
-    def test(self):
+    def test(self, test_loader):
         torch.set_grad_enabled(False)
         # 代替with torch.no_grad()，避免多一层缩进，和train缩进一样，方便复制
 
         y_pred_list = []
 
         self.model.eval()
-        for batch_idx, (inputs, labels) in enumerate(tqdm(self.test_loader, disable=(self.local_rank != 0))):
+        for batch_idx, (inputs, labels) in enumerate(tqdm(test_loader, disable=(self.local_rank != 0))):
             inputs = to_device(inputs, self.device)
             labels = to_device(labels, self.device)
             out = self.model(inputs)
@@ -306,7 +306,6 @@ class Trainer:
         np.save(output_file_path, y_pred_list)
         torch.set_grad_enabled(True)
         return y_pred_list
-
     
     def save_model(self):
         # checkpoint = {
@@ -323,7 +322,6 @@ class Trainer:
         torch.save(checkpoint, checkpoint_path)
         self.logger.debug(f'save model at {checkpoint_path}')
         return
-
 
 def dist_all_gather(tensor):
     tensor_list = [torch.zeros_like(tensor, device=tensor.device) for _ in range(dist.get_world_size())]
