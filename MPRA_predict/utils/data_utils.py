@@ -3,12 +3,11 @@ import yaml
 import random
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import mean_squared_error
+from typing import List, Callable
 
 
 def set_seed(seed:int = 42) -> None:
@@ -31,60 +30,29 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
-def to_device(data, device):
-    if isinstance(data, (list, tuple)):
-        return [to_device(x, device) for x in data]
-    elif isinstance(data, dict):
-        return {k: to_device(v, device) for k, v in data.items()}
-    else:
-        return data.to(device)
-
-
-
-def load_partial_parameters(target_model, source_model_path, prefix_list=None, print_func=print):
-    """
-    Load parameters with specific prefix from a source model file into a target model.
-
-    Args:
-        target_model (torch.nn.Module): The target model instance to initialize.
-        source_model_path (str): Path to the source model's state_dict.
-        prefix_list (list of str, optional): List of prefixes to filter parameters to load. Default is None, which loads all common parameters.
-        print_func (callable, optional): Function to print log messages. Default is print.
-    """
-
-    # Load source model parameters
-    source_state_dict = torch.load(source_model_path)
-    
-    # Get target model parameters
-    target_state_dict = target_model.state_dict()
-    
-    # Initialize parameters
-    common_params = {k: v for k, v in source_state_dict.items() 
-                     if k in target_state_dict and v.size() == target_state_dict[k].size()}
-    
-    if prefix_list is None:
-        new_state_dict = common_params
-    else:
-        new_state_dict = {}
-        for k, v in common_params.items():
-            for prefix in prefix_list:
-                if k.startswith(prefix):
-                    new_state_dict[k] = v
-                    break
-
-        if new_state_dict:
-            print_func(f'Loading parameters: {list(new_state_dict.keys())} from {source_model_path}')
-        else:
-            print_func(f'No matching parameters found with prefixes {prefix_list}')
-        
-    # Update target state dict with the new parameters
-    target_state_dict.update(new_state_dict)
-    
-    # Load the updated state dict into the target model
-    target_model.load_state_dict(target_state_dict)
-
-
-
+def compute_cell_type_specific_metrics(
+        y_pred: np.ndarray, 
+        y_true: np.ndarray, 
+        metric_funcs: List[Callable], 
+        cell_types: List[str]
+    ):
+        metric_names = [type(m).__name__ for m in metric_funcs]
+        metric_df = pd.DataFrame(index=cell_types, columns=metric_names)
+        for idx, cell_type in enumerate(cell_types):
+            if len(y_true.shape) == 1:
+                indice = (y_true['cell_type'] == cell_type)
+                y_pred_0 = y_pred[indice]
+                y_true_0 = y_true[indice]
+            elif len(y_true.shape) == 2:
+                y_pred_0 = y_pred[:, idx]
+                y_true_0 = y_true[:, idx]
+            else:
+                raise ValueError(f'{y_pred.shape = }, {y_true.shape = }')
+            for m in metric_funcs:
+                metric_name = type(m).__name__
+                score = m(y_pred_0, y_true_0)
+                metric_df.loc[cell_type, metric_name] = score
+        return metric_df
 
 
 def split_dataset(index_list, train_valid_test_ratio):
@@ -112,7 +80,6 @@ def split_dataset(index_list, train_valid_test_ratio):
     return train_indice, valid_indice, test_indice
 
 
-
 def filter_by_column(table, filter_column, filter_in_list=None, filter_not_in_list=None):
     if filter_column is not None:
         if filter_in_list is not None:
@@ -122,7 +89,6 @@ def filter_by_column(table, filter_column, filter_in_list=None, filter_not_in_li
             filtered_index = ~table[filter_column].isin(filter_not_in_list)
             table = table[filtered_index]
     return table
-
 
 
 def remove_nan(x, y, verbose=False):
@@ -145,6 +111,7 @@ def remove_nan(x, y, verbose=False):
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
+
 
 def logit(x):
     return np.log(x/(1-x))
