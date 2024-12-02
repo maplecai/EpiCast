@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 def reverse(seq: str) -> str:
     '''反向'''
     return seq[::-1]

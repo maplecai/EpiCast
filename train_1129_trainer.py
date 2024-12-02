@@ -49,7 +49,7 @@ class Trainer:
         self.lr_scheduler = lr_scheduler
         self.early_stopper = early_stopper
         
-        self.log = self.logger.info if self.rank == 0 else self.logger.log
+        self.log = self.logger.info if self.rank == 0 else self.logger.debug
         self.distributed = config['distributed']
 
         self.train_sampler = DistributedSampler(self.train_dataset)
@@ -71,6 +71,7 @@ class Trainer:
             generator=torch.Generator().manual_seed(0),)
     
         self.cell_types = config['cell_types']
+        self.metric_names = [type(m).__name__ for m in metric_funcs]
 
 
     def train(self):
@@ -140,11 +141,11 @@ class Trainer:
         train_loss = 0
 
         self.model.train()
-        for batch_idx, (inputs, labels) in enumerate(tqdm(self.train_loader, disable=(self.rank != 0))):
-            inputs = to_device(inputs, self.device)
-            labels = to_device(labels, self.device)
-            output = self.model(inputs)
-            loss = self.loss_func(output, labels)
+        for batch_idx, (input, label) in enumerate(tqdm(self.train_loader, disable=(self.rank != 0))):
+            input = to_device(input, self.device)
+            label = to_device(label, self.device)
+            output = self.model(input)
+            loss = self.loss_func(output, label)
             self.optimizer.zero_grad()
             loss.backward()
             # nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10) # clip gradient
@@ -171,67 +172,54 @@ class Trainer:
 
         valid_steps = len(self.valid_loader)
         valid_loss = 0
-        y_pred_list = []
+        y_pred = []
 
         self.model.eval()
-        for batch_idx, (inputs, labels) in enumerate(tqdm(self.valid_loader, disable=(self.rank != 0))):
-            inputs = to_device(inputs, self.device)
-            labels = to_device(labels, self.device)
-            output = self.model(inputs)
-            loss = self.loss_func(output, labels)
+        for batch_idx, (input, label) in enumerate(tqdm(self.valid_loader, disable=(self.rank != 0))):
+            input = to_device(input, self.device)
+            label = to_device(label, self.device)
+            output = self.model(input)
+            loss = self.loss_func(output, label)
             valid_loss += loss.item()
-            y_pred_list.append(output.detach())
-
+            y_pred.append(output.detach())
 
         valid_loss = valid_loss / valid_steps
         self.log(f'rank = {self.rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
 
+        y_pred = torch.cat(y_pred)
+        if self.distributed:
+            y_pred = dist_all_gather(y_pred).cpu()
+        else:
+            y_pred = y_pred.cpu()
 
+        y_true = self.valid_dataset.labels
 
+        self.metric_df = compute_cell_type_specific_metrics(y_pred, y_true, self.metric_funcs, self.cell_types)
 
-
-        y_pred_list = torch.cat(y_pred_list)
-        y_pred_list = y_pred_list.cpu()
-
-        y_true_list = self.valid_dataset.labels
-        assert y_pred_list.shape == y_true_list.shape, f'y_pred_list.shape = {y_pred_list.shape}, y_true_list.shape = {y_true_list.shape}'
-
-        for idx, cell_type in enumerate(self.cell_types):
-            log_message = f'cell_type = {cell_type:6}'
-            if len(y_true_list.shape) == 1:
-                indice = (self.valid_dataset.df['cell_type'] == cell_type)
-                y_true_list_0 = y_true_list[indice]
-                y_pred_list_0 = y_pred_list[indice]
-            elif len(y_true_list.shape) == 2:
-                y_true_list_0 = y_true_list[:, idx]
-                y_pred_list_0 = y_pred_list[:, idx]
-            else:
-                raise ValueError(f'y_true_list.shape = {y_true_list.shape}')
-            
-            for metric_func in self.metric_funcs:
-                metric_name = type(metric_func).__name__
-                score = metric_func(y_pred_list_0, y_true_list_0)
+        for cell_type in self.cell_types:
+            log_message = f'{cell_type:6}'
+            for metric_name in self.metric_names:
+                score = self.metric_df.loc[cell_type, metric_name]
                 log_message += f', {metric_name} = {score:.6f}'
-                self.metric_df.loc[cell_type, metric_name] = score
             self.log(log_message)
         torch.set_grad_enabled(True)
 
 
     def test(self, test_loader):
         torch.set_grad_enabled(False)
-        y_pred_list = []
+        y_pred = []
         self.model.eval()
         for batch_idx, (inputs, labels) in enumerate(tqdm(test_loader, disable=(self.rank != 0))):
             inputs = to_device(inputs, self.device)
             labels = to_device(labels, self.device)
             out = self.model(inputs)
-            y_pred_list.append(out.detach())
-        y_pred_list = torch.cat(y_pred_list).cpu().numpy()
-        output_file_name = self.config.get('output_file_name', 'test_pred.npy')
+            y_pred.append(out.detach())
+        y_pred = torch.cat(y_pred).cpu().numpy()
+        output_file_name = self.config.get('output_file_name', 'y_pred_test.npy')
         output_file_path = os.path.join(self.config['save_dir'], output_file_name)
-        np.save(output_file_path, y_pred_list)
+        np.save(output_file_path, y_pred)
         torch.set_grad_enabled(True)
-        return y_pred_list
+        return y_pred
 
     
     def save_model(self):
@@ -250,18 +238,6 @@ class Trainer:
         return
 
 
-def load_model(model, checkpoint_path):
-    state_dict = torch.load(checkpoint_path)
-    if 'model_state_dict' in state_dict:
-        model_state_dict = state_dict['model_state_dict']
-    else:
-        model_state_dict = state_dict
-    if 'module' in model_state_dict.keys()[0]:
-        model_state_dict = {k.replace('module.', ''): v for k, v in model_state_dict.items()}
-    model.load_state_dict(model_state_dict)
-    return model
-
-
 def main_worker(rank, config):
     # 设置随机种子
     utils.set_seed(config['seed'] + rank)
@@ -276,10 +252,9 @@ def main_worker(rank, config):
     world_size = len(config['gpu_ids'])
     device = torch.device(f'cuda:{gpu_ids[rank]}')
     torch.cuda.set_device(device)
-    port = random.randint(10000, 20000)
     dist.init_process_group(
         backend='nccl',
-        init_method=f"tcp://localhost:{port}",
+        init_method=f"tcp://localhost:12346",
         world_size=world_size,
         rank=rank,
     )

@@ -12,15 +12,12 @@ import pandas as pd
 import subprocess
 import torch
 import torch.nn as nn
-import warnings
-
 from tqdm import tqdm
-from typing import Callable
+from typing import Callable, List
 from datetime import datetime
 from torch.utils.data import DataLoader, Subset, random_split
 from collections import Counter
 from torchinfo import summary
-
 
 def load_txt(file_dir: str) -> list:
     with open(file_dir, 'r') as f:
@@ -45,8 +42,8 @@ def save_pickle(file_dir: str, data) -> None:
     return
 
 
-def init_obj_2(module, module_name: str, *args, **kwargs):
-    return getattr(module, module_name)(*args, **kwargs)
+def init_obj_2(module, class_name, *args, **kwargs):
+    return getattr(module, class_name)(*args, **kwargs)
 
 
 def init_obj(module, obj_dict:dict, *args, **kwargs):
@@ -71,13 +68,41 @@ def init_obj(module, obj_dict:dict, *args, **kwargs):
     return getattr(module, module_name)(*args, **module_args)
 
 
-
 def load_config(config_path: str) -> dict:
     with open(config_path, 'r') as f:
         # config = yaml.safe_load(f)
         config = yaml.load(f, Loader=yaml.FullLoader)
     config['task_name'] = config_path.split('_', 1)[1].split('.')[0]
     return config
+
+
+def process_config(config: dict) -> dict:
+    task_name = config['task_name']
+    save_dir = config['save_dir']
+    run_id = config.get('run_id', datetime.now().strftime(r'%m%d_%H%M%S')) 
+
+    # make directory for saving checkpoints and log.
+    save_dir = os.path.join(save_dir, task_name, run_id)
+    os.makedirs(save_dir, exist_ok=True)
+
+    # update config_dict after write it
+    config['save_dir'] = save_dir
+
+    # update logging
+    loggingConfigDict = config['logger']
+    for _, handler in loggingConfigDict['handlers'].items():
+        if 'filename' in handler.keys():
+            handler['filename'] = os.path.join(save_dir, handler['filename'])
+    logging.config.dictConfig(loggingConfigDict)
+    
+    # save new config file
+    with open(os.path.join(save_dir, 'config.yaml'), 'w') as f:
+        f.write(yaml.dump(config))
+    
+    return config
+
+
+
 
 # def process_config(config: dict) -> dict:
 #     task_name = config['task_name']
@@ -113,41 +138,6 @@ def load_config(config_path: str) -> dict:
 #     return config
 
 
-def process_config(config: dict) -> dict:
-    task_name = config['task_name']
-    save_dir = config['save_dir']
-    run_id = config.get('run_id', datetime.now().strftime(r'%m%d_%H%M%S')) 
-
-    # make directory for saving checkpoints and log.
-    save_dir = os.path.join(save_dir, task_name, run_id)
-    os.makedirs(save_dir, exist_ok=True)
-
-    # update config_dict after write it
-    config['save_dir'] = save_dir
-
-    # update logging
-    loggingConfigDict = config['logger']
-    for _, handler in loggingConfigDict['handlers'].items():
-        if 'filename' in handler.keys():
-            handler['filename'] = os.path.join(save_dir, handler['filename'])
-    logging.config.dictConfig(loggingConfigDict)
-    
-    # save new config file
-    with open(os.path.join(save_dir, 'config.yaml'), 'w') as f:
-        f.write(yaml.dump(config))
-    
-    return config
-
-
-def get_nums_trainable_params(model:nn.Module) -> int:
-    '''
-    计算模型的可训练参数数量
-    '''
-    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
-    params = sum([np.prod(p.size()) for p in model_parameters])
-    return params
-
-
 # def load_and_trim_parameters_from_Sei(trained_model_path, output_channels_list=[]):
 #     '''
 #     加载Sei模型的参数到MLP模型中并选择部分channels作为输出
@@ -168,37 +158,3 @@ def get_nums_trainable_params(model:nn.Module) -> int:
 #     mlp_state_dict['fc2.bias'] = mlp_state_dict['fc2.bias'][output_channels_list]
 
 #     return mlp_state_dict
-
-
-# def get_free_gpu_id():
-#     # 执行nvidia-smi命令获取GPU状态
-#     result = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
-#                             capture_output=True, text=True)
-#     memory_info = result.stdout.strip().split('\n')
-#     free_gpu_id = np.argmax([int(free_memory) for free_memory in memory_info])
-
-#     # index_free_memory = [re.split(r'\s*,\s*', info) for info in memory_info]
-#     # free_gpu_id = np.argmax([int(free_memory) for index, free_memory in index_free_memory])
-#     return free_gpu_id
-
-
-def get_free_gpu_ids(min_memory_mb=40000):
-    """Return a list of GPU ids with more than min_memory MB free memory."""
-    free_memorys = []
-    for i in range(torch.cuda.device_count()):
-        free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
-        free_memory_mb = free_memory / (1024 ** 2)  # Convert to MB
-        free_memorys.append(free_memory_mb)
-    
-    free_gpus = [i for i in range(len(free_memorys)) if free_memorys[i] > min_memory_mb]
-    return free_gpus
-
-
-def get_free_gpu_id():
-    free_memorys = []
-    for i in range(torch.cuda.device_count()):
-        free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
-        free_memory_mb = free_memory / (1024 ** 2)  # Convert to MB
-        free_memorys.append(free_memory_mb)
-    free_gpu_id = np.argmax(free_memorys)
-    return free_gpu_id

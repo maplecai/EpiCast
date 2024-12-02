@@ -1,6 +1,6 @@
 train: True # 是训练还是测试
 distributed: True # 是否使用分布式训练
-gpu_ids: [2] # 训练使用的gpu id
+gpu_ids: [0,2] # 训练使用的gpu id
 
 seed: 0 # 随机数种子
 save_dir: saved # 保存的根路径
@@ -73,7 +73,7 @@ lr_scheduler:
 loss_func:
     type: MyMSELoss
 
-metric_func_list:
+metric_funcs:
 -   type: MyMSELoss
 -   type: Pearson
 -   type: Spearman

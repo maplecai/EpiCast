@@ -5,9 +5,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_theme(context="talk", style="whitegrid")
 
-# import warnings
-# warnings.filterwarnings("ignore", category=FutureWarning, module="seaborn")
-
 color_list = np.delete(matplotlib.colormaps.get_cmap('Set3')(np.arange(12)), 1, axis=0)
 
 mpl_params = {

@@ -9,37 +9,6 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from scipy import stats
 from ..utils import *
 
-# class Pearson(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-    
-#     def forward(self, x:torch.Tensor, y:torch.Tensor) -> torch.Tensor:
-#         if x.dtype != torch.float32 or y.dtype != torch.float32:
-#             return 0
-#         xm = x - torch.mean(x)
-#         ym = y - torch.mean(y)
-#         # torch.std default parameter 'unbiased'
-#         # r_num = torch.mean(xm * ym)
-#         # r_den = torch.std(xm) * torch.std(ym)
-#         r_num = torch.sum(xm * ym)
-#         r_den = torch.sqrt(torch.sum(xm ** 2)) * torch.sqrt(torch.sum(ym ** 2))
-#         r_val = r_num / r_den
-#         return r_val
-#         # return pearsonr(input, target)[0]
-
-
-# class Spearman(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.pearson = Pearson()
-    
-#     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-#         # 计算每个向量的秩
-#         x_rank = x.argsort().argsort().float()
-#         y_rank = y.argsort().argsort().float()
-
-#         r_val = self.pearson(x_rank, y_rank)
-#         return r_val
 
 class Pearson():
     def __init__(self):
