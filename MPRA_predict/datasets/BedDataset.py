@@ -10,8 +10,7 @@ from .SeqInterval import SeqInterval
 class BedDataset(Dataset):
     def __init__(
         self,
-        task_idx = None,
-        bed_exp_path = None,
+        bed_path = None,
         genome_path = None,
         # input_column = None,
         output_column = None,
@@ -24,11 +23,11 @@ class BedDataset(Dataset):
         filter_in_list = None,
         filter_not_in_list = None,
 
-        use_pos=False,
+        only_center_pos=False,
         select_seq_range=None,
 
         padded_len = None,
-        use_strand=False,
+        spicify_strand=False,
         rc_aug=False,
         shift_aug=False,
         shift_aug_range=None,
@@ -39,13 +38,11 @@ class BedDataset(Dataset):
         ) -> None:
         super().__init__()
 
-        self.task_idx = task_idx
-        self.bed_exp_path = bed_exp_path
         self.genome_path = genome_path
         self.output_column = output_column
         
         self.load_memory = load_memory
-        self.use_strand = use_strand
+        self.spicify_strand = spicify_strand
 
         self.seq_interval = SeqInterval(
             genome_path=genome_path,
@@ -58,7 +55,8 @@ class BedDataset(Dataset):
             N_fill_value=N_fill_value,
         )
 
-        self.df = pd.read_csv(bed_exp_path, sep='\t', header=0)
+        sep = detect_delimiter(bed_path)
+        self.df = pd.read_csv(bed_path, sep=sep, header=0)
 
         if shuffle == True:
             shuffle_index = np.random.permutation(len(self.df))
@@ -73,10 +71,8 @@ class BedDataset(Dataset):
             end_index = int(len(self.df) * end_ratio)
             self.df = self.df.iloc[start_index: end_index]
 
-        if use_pos == True:
+        if only_center_pos == True:
             left, right = select_seq_range
-            # if 'mid' not in self.df.columns:
-            #     self.df['mid'] = (self.df['start'] + self.df['end']) // 2
             self.df['start'] = self.df['pos'] + left
             self.df['end'] = self.df['pos'] + right
 
@@ -95,7 +91,7 @@ class BedDataset(Dataset):
         chr, start, end = interval[['chr', 'start', 'end']]
         seq = self.seq_interval(chr, start, end)
 
-        if self.use_strand == True:
+        if self.spicify_strand == True:
             strand = interval['strand']
             if strand == '-':
                 seq = seq_reverse_complement(seq)

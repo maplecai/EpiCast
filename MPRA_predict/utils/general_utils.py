@@ -101,60 +101,12 @@ def process_config(config: dict) -> dict:
     
     return config
 
-
-
-
-# def process_config(config: dict) -> dict:
-#     task_name = config['task_name']
-#     # root_dir = config['root_dir']
-#     save_dir = config['save_dir']
-#     run_id = config.get('run_id', datetime.now().strftime(r'%m%d_%H%M%S')) 
-
-#     # make directory for saving checkpoints and log.
-#     save_dir = os.path.join(save_dir, task_name, run_id)
-#     # log_dir = os.path.join(save_dir, 'logs')
-#     log_dir = save_dir
-#     checkpoint_dir = os.path.join(save_dir, 'checkpoints')
-#     os.makedirs(save_dir, exist_ok=True)
-#     # os.makedirs(log_dir, exist_ok=False)
-#     os.makedirs(checkpoint_dir, exist_ok=True)
-
-#     # update config_dict after write it
-#     config['save_dir'] = save_dir
-#     config['log_dir'] = log_dir
-#     config['checkpoint_dir'] = checkpoint_dir
-
-#     # update logging
-#     loggingConfigDict = config['logger']
-#     for _, handler in loggingConfigDict['handlers'].items():
-#         if 'filename' in handler.keys():
-#             handler['filename'] = os.path.join(log_dir, handler['filename'])
-#     logging.config.dictConfig(loggingConfigDict)
-    
-#     # save new config file
-#     with open(os.path.join(save_dir, 'config.yaml'), 'w') as f:
-#         f.write(yaml.dump(config))
-    
-#     return config
-
-
-# def load_and_trim_parameters_from_Sei(trained_model_path, output_channels_list=[]):
-#     '''
-#     加载Sei模型的参数到MLP模型中并选择部分channels作为输出
-#     '''
-#     state_dict = torch.load(trained_model_path) 
-#     new_state_dict = {k.replace('module.model.', ''): v for k, v in state_dict.items()}
-
-#     mlp_state_dict = {}
-#     mlp_state_dict['fc1.weight'] = new_state_dict['classifier.0.weight']
-#     mlp_state_dict['fc1.bias'] = new_state_dict['classifier.0.bias']
-#     mlp_state_dict['fc2.weight'] = new_state_dict['classifier.2.weight']
-#     mlp_state_dict['fc2.bias'] = new_state_dict['classifier.2.bias']
-
-#     # # 20977, 21325 是 HepG2/K562 ENCODE DNase channel
-#     # # 20988, 21326 是 HepG2/K562 Roadmap DNase channel
-#     # # 4574,  10728 是 HepG2/K562 相关系数最高的 DNase channel
-#     mlp_state_dict['fc2.weight'] = mlp_state_dict['fc2.weight'][output_channels_list]
-#     mlp_state_dict['fc2.bias'] = mlp_state_dict['fc2.bias'][output_channels_list]
-
-#     return mlp_state_dict
+def detect_delimiter(csv_file_path):
+    with open(csv_file_path, 'r') as file:
+        first_line = file.readline()
+        if '\t' in first_line:
+            return '\t'
+        elif ',' in first_line:
+            return ','
+        else:
+            raise ValueError('delimiter is not , or \t')

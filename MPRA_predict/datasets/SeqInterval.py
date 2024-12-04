@@ -40,8 +40,8 @@ class SeqInterval():
         return self._genome
 
 
-    def __call__(self, chr_name, start, end):
-        chromosome = self.genome[chr_name]
+    def __call__(self, chr, start, end):
+        chromosome = self.genome[chr]
         
         # adjust start and end to window_length
         if (self.window_length is not None):
@@ -69,7 +69,7 @@ class SeqInterval():
             end = len(chromosome)
 
         # N means unknown base
-        ####### . means outside the chromosome (but not used)
+        # . means outside the chromosome
         with self.lock:
             seq = str(chromosome[start:end])
         seq = ('N' * left_padding) + seq + ('N' * right_padding)
