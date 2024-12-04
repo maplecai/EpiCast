@@ -17,8 +17,9 @@ __pycache__/
 
 old/
 data/
+outputs/
 figures/
 saved/
-pretrained_models/*/
+notebooks/pretrained_models/*/
 
 !*.py
