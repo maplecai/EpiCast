@@ -12,15 +12,13 @@
 
 # folder
 .vscode/
-.idea/
 .history/
+__pycache__/
 
 old/
 data/
 figures/
 saved/
-# configs/old/
-pretrained_models/
+pretrained_models/*/
 
-!*.ipynb
 !*.py
