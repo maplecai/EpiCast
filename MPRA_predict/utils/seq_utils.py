@@ -4,9 +4,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 def reverse(seq: str) -> str:
     '''反向'''
     return seq[::-1]
+
 
 def complement(seq: str) -> str:
     '''互补'''
@@ -16,166 +18,155 @@ def complement(seq: str) -> str:
     }
     return ''.join(dic[c] for c in seq)
 
-def seq_reverse_complement(seq: str):
+
+def seq_rc(seq: str) -> str:
     '''反向互补'''
     return reverse(complement(seq))
 
-def onehots_reverse_complement(onehots):
+
+def onehot_rc(onehot: np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
     '''反向互补'''
-    if isinstance(onehots, np.ndarray):
-        onehots_rc = np.flip(onehots, axis=(-1,-2))
-    elif isinstance(onehots, torch.Tensor):
-        onehots_rc = torch.flip(onehots, dims=(-1,-2))
+    if isinstance(onehot, np.ndarray):
+        onehot_rc = np.flip(onehot, axis=(-1,-2))
+    elif isinstance(onehot, torch.Tensor):
+        onehot_rc = torch.flip(onehot, dims=(-1,-2))
     else:
-        raise ValueError('onehots must be a numpy array or a torch tensor.')
-    return onehots_rc
+        raise ValueError('onehot must be a numpy array or a torch tensor.')
+    return onehot_rc
 
-# def str2onehot(seq: str, N_fill_value=0.25) -> np.ndarray:
-#     '''
-#     str -> onehot
-#     N_fill_value: 碱基N对应的值 0.25(default)
-#     '''
-#     dic = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
-#     onehot = np.zeros((len(seq), 4))
-#     for i, c in enumerate(seq):
-#         if c in ['A', 'C', 'G', 'T']:
-#             onehot[i, dic[c]] = 1
-#         elif c == 'N':
-#             onehot[i, :] += N_fill_value
-#     return onehot
 
-# def strs2onehots(seqs: list[str], N_fill_value=0.25) -> np.ndarray:
-#     '''序列s->onehot矩阵s'''
-#     onehots = np.array([str2onehot(seq, N_fill_value) for seq in seqs])
-#     return onehots
+def onehots_rc(onehots: np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
+    return onehot_rc(onehots)
 
-def str2onehot(seq: str, N_fill_value=0.25) -> np.ndarray:
+
+def str2onehot(seq: str, N_fill_value : int = 0.25) -> np.ndarray:
     '''
     str -> onehot
     N_fill_value: 碱基N对应的值 0.25(default)
     '''
-    # optimized version
-    dic = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
+    base2idx = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 4,
+                'a': 0, 'c': 1, 'g': 2, 't': 3, 'n': 4,}
+    seq = np.array(list(seq), dtype='U1')
+    indices = np.array([base2idx[b] for b in seq], dtype=int)
     onehot = np.zeros((len(seq), 4))
-    seq_array = np.array(list(seq))
-    for base, index in dic.items():
-        onehot[seq_array == base, index] = 1
-    onehot[seq_array == 'N', :] = N_fill_value
+    # 对N的位置整行赋值N_fill_value
+    N_pos = (indices == 4)
+    onehot[N_pos, :] = N_fill_value
+    # 非N的位置：直接用整型索引赋值为1
+    notN_pos = ~N_pos
+    onehot[np.arange(len(seq))[notN_pos], indices[notN_pos]] = 1
     return onehot
 
-def strs2onehots(seqs: list[str], N_fill_value=0.25) -> np.ndarray:
+
+def strs2onehots(seqs: list[str], N_fill_value: int = 0.25) -> np.ndarray:
     '''
     序列s->onehot矩阵s
     seqs: list of sequences (must be of the same length)
     N_fill_value: 碱基N对应的值 0.25(default)
     '''
-    # 假设所有序列的长度相同
-    seq_length = len(seqs[0])
-    num_seqs = len(seqs)
-    
-    # 初始化一个onehot矩阵 [num_seqs, seq_length, 4]
-    onehot = np.zeros((num_seqs, seq_length, 4))
-    
-    # 将序列转换为矩阵
-    seqs_array = np.array([list(seq) for seq in seqs])
-    
-    # 创建字典，将 ACGT 映射到数值
-    dic = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
-
-    # 矢量化处理 ACGT
-    for base, index in dic.items():
-        onehot[seqs_array == base, :, index] = 1
-
-    # 处理 N 的情况
-    onehot[seqs_array == 'N', :] = N_fill_value
-    
-    return onehot
+    return np.array([str2onehot(seq, N_fill_value) for seq in seqs])
 
 
-
-def onehot2str(onehot: np.ndarray) -> str:
+def onehot2str(onehot: np.ndarray | torch.Tensor) -> str:
     '''onehot矩阵->序列'''
-    dic = {0:'A', 1:'C', 2:'G', 3:'T'}
-    seq = ''
-    onehot = np.array(onehot)
-    num = np.argmax(onehot, axis=-1)
-    for i in num:
-        seq += dic[i]
-    return seq
+    if isinstance(onehot, torch.Tensor):
+        onehot = onehot.detach().cpu().numpy()
+    mapping = np.array(['A', 'C', 'G', 'T'], dtype='U1')
+    bases = np.full(len(onehot), 'N', dtype='U1')
+    # 检查矩阵中有没有1
+    
+    # 使用 np.where 找到值为 1 的位置
+    row_indices, col_indices = np.where(onehot == 1)
+    bases[row_indices] = mapping[col_indices]
+    return ''.join(bases)
+
 
 def onehots2strs(onehots: np.ndarray) -> list[str]:
     '''onehot矩阵s->序列s'''
     seqs = [onehot2str(onehot) for onehot in onehots]
     return seqs
 
-def pad_seq(seq: str, padded_len: int, padding_mode='N', upstream_seq: str=None, downstream_seq: str=None) -> str:
-    assert padded_len >= len(seq), 'Padded length must >= sequence length'
-    padding_len = padded_len - len(seq)
+
+def crop_seq(seq: str, length: int) -> str:
+    # center crop
+    assert length < len(seq), 'crop length must >= sequence length'
+    start = (len(seq) - length) // 2
+    return seq[start: start + length]
+
+
+def crop_seqs(seqs: list[str], length: int) -> list[str]:
+    return [crop_seq(seq, length) for seq in seqs]
+
+
+
+def crop_onehot(onehot: np.ndarray, length: int) -> np.ndarray:
+    # center crop
+    assert length < onehot.shape[0], 'crop length must >= sequence length'
+    start = (onehot.shape[0] - length) // 2
+    return onehot[start: start + length]
+
+
+def crop_onehots(onehots: np.ndarray, length: int) -> np.ndarray:
+    assert length < onehots.shape[1], 'crop length must >= sequence length'
+    start = (onehots.shape[1] - length) // 2
+    return onehots[:, start: start + length]
+
+
+def pad_seq(seq: str, padded_length: int, padding_method='N', upstream_seq: str=None, downstream_seq: str=None) -> str:
+    assert padded_length >= len(seq), 'Padded length must >= sequence length'
+    padding_len = padded_length - len(seq)
     left_len = padding_len // 2
     right_len = padding_len - left_len
 
-    if padding_mode == 'N':
+    if padding_method == 'N':
         upstream_seq = 'N' * left_len
         downstream_seq = 'N' * right_len
-    elif padding_mode == 'random':
+    elif padding_method == 'random':
         upstream_seq = "".join(np.random.choice(['A', 'C', 'G', 'T'], left_len))
         downstream_seq = "".join(np.random.choice(['A', 'C', 'G', 'T'], right_len))
-    elif padding_mode == 'given':
+    elif padding_method == 'given':
         upstream_seq = upstream_seq[-left_len:]
         downstream_seq = downstream_seq[:right_len]
     else:
-        raise ValueError('padding_mode must be "N", "random", or "given"')
+        raise ValueError('padding_method must be "N", "random", or "given"')
     padded_seq = upstream_seq + seq + downstream_seq
     return padded_seq
 
 
-def pad_onehot_N(onehot, padded_len, N_fill_value=0.25):
+def pad_onehot_N(onehot, padded_length, N_fill_value=0.25):
     """
-    Pad onehot with N to a padded_len
+    Pad onehot with N to a padded_length
     onehot.shape = (seq_len, 4)
     """
     assert onehot.shape[1] == 4, 'onehot shape must be (seq_len, 4)'
     seq = onehot2str(onehot)
-    padded_seq = pad_seq(seq, padded_len)
+    padded_seq = pad_seq(seq, padded_length)
     padded_onehot = str2onehot(padded_seq, N_fill_value=N_fill_value)
     return padded_onehot
 
 
-    # if onehot.shape[0] == target_length:
-    #     return onehot
-    # elif onehot.shape[0] > target_length:
-    #     mid_point = onehot.shape[0] // 2
-    #     onehot = onehot[mid_point - target_length // 2: mid_point + target_length // 2, :]
-    #     return onehot
-    # else:
-    #     total_pad_length = target_length - onehot.shape[0]
-    #     left_pad_length = total_pad_length // 2
-    #     right_pad_length = total_pad_length - left_pad_length
-    #     if type(onehot) == np.ndarray:
-    #         padded_onehot = np.zeros((target_length, 4))
-    #     elif type(onehot) == torch.Tensor:
-    #         padded_onehot = torch.zeros((target_length, 4))
-    #     else:
-    #         raise ValueError('onehot must be a numpy array or a torch tensor.')
-    #     padded_onehot[:left_pad_length, :] = N_fill_value
-    #     padded_onehot[left_pad_length: -right_pad_length, :] = onehot
-    #     padded_onehot[-right_pad_length:, :] = N_fill_value
-    #     return padded_onehot
-
-
-
-def pad_onehots_N(onehots, target_length, N_fill_value=0.25):
+def pad_onehots_N(onehots : np.ndarray, target_length, N_fill_value=0.25):
     """
     Pad onehots with N's to a target length.
     onehots.shape = (batch_size, seq_len, 4)
     axis corresponds to the seq_len axis
     """
     padded_onehots = [pad_onehot_N(onehot, target_length, N_fill_value) for onehot in onehots]
-    if isinstance(onehots, np.ndarray):
-        padded_onehots = np.stack(padded_onehots, axis=0)
-    elif isinstance(onehots, torch.Tensor):
-        padded_onehots = torch.stack(padded_onehots, dim=0)
-    else:
-        raise ValueError('onehots must be a numpy array or a torch tensor.')
+    padded_onehots = np.stack(padded_onehots, axis=0)
     return padded_onehots
 
+
+def random_seq(length: int) -> str:
+    return ''.join(np.random.choice(['A', 'C', 'G', 'T'], length))
+
+
+def random_seqs(length: int, num: int) -> list[str]:
+    return [random_seq(length) for _ in range(num)]
+
+
+def random_onehot(length: int) -> np.ndarray:
+    return str2onehot(random_seq(length))
+
+
+def random_onehots(length: int, num: int) -> np.ndarray:
+    return np.array([random_onehot(length) for _ in range(num)])

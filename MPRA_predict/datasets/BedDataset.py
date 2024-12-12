@@ -10,55 +10,72 @@ from .SeqInterval import SeqInterval
 class BedDataset(Dataset):
     def __init__(
         self,
-        bed_path = None,
-        genome_path = None,
-        # input_column = None,
-        output_column = None,
+        bed_path=None,
+        bed_df=None,
+        genome_path=None,
+        label_column=None,
+        genome_window_size=None,
 
-        shuffle = False,
-        subset_range = None,
-        load_memory=False,
-
-        filter_column = None,
-        filter_in_list = None,
-        filter_not_in_list = None,
-
-        only_center_pos=False,
-        select_seq_range=None,
-
-        padded_len = None,
+        shuffle=False,
+        subset_range=None,
+        filter_column=None,
+        filter_in_list=None,
+        filter_not_in_list=None,
+        use_center_pos=False,
+        
         spicify_strand=False,
         rc_aug=False,
         shift_aug=False,
         shift_aug_range=None,
 
-        return_onehot=False,
-        return_aug_info=False,
+        padding = False,
+        padding_method = 'N',
+        padded_length = None,
         N_fill_value = 0.25,
-        ) -> None:
+        return_aug_info=False,
+    ) -> None:
         super().__init__()
 
+        self.bed_path = bed_path
+        self.bed_df = bed_df
         self.genome_path = genome_path
-        self.output_column = output_column
-        
-        self.load_memory = load_memory
+        self.label_column = label_column
+        self.genome_window_size = genome_window_size
+
+        self.shuffle = shuffle
+        self.subset_range = subset_range
+        self.filter_column = filter_column
+        self.filter_in_list = filter_in_list
+        self.filter_not_in_list = filter_not_in_list
+        self.use_center_pos = use_center_pos
+
         self.spicify_strand = spicify_strand
+        self.rc_aug = rc_aug
+        self.shift_aug = shift_aug
+        self.shift_aug_range = shift_aug_range
+
+        self.padding = padding
+        self.padding_method = padding_method
+        self.padded_length = padded_length
+        self.N_fill_value = N_fill_value
+        self.return_aug_info = return_aug_info
 
         self.seq_interval = SeqInterval(
             genome_path=genome_path,
-            window_length=padded_len,
+            window_length=genome_window_size,
             rc_aug=rc_aug,
             shift_aug=shift_aug,
             shift_aug_range=shift_aug_range,
-            return_onehot=return_onehot,
-            return_aug_info=return_aug_info,
-            N_fill_value=N_fill_value,
-        )
+            return_aug_info=return_aug_info,)
 
-        sep = detect_delimiter(bed_path)
-        self.df = pd.read_csv(bed_path, sep=sep, header=0)
+        assert (bed_path is None) != (bed_df is None), "bed_path和bed_df两个里必须有且只有一个不是None"
+        if bed_path is not None:
+            sep = detect_delimiter(bed_path)
+            self.df = pd.read_csv(bed_path, sep=sep)
+        else:
+            self.df = bed_df
 
-        if shuffle == True:
+        if shuffle:
             shuffle_index = np.random.permutation(len(self.df))
             self.df = self.df.iloc[shuffle_index].reset_index(drop=True)
 
@@ -69,65 +86,57 @@ class BedDataset(Dataset):
             start_ratio, end_ratio = subset_range
             start_index = int(len(self.df) * start_ratio)
             end_index = int(len(self.df) * end_ratio)
-            self.df = self.df.iloc[start_index: end_index]
+            self.df = self.df.iloc[start_index:end_index]
 
-        if only_center_pos == True:
-            left, right = select_seq_range
-            self.df['start'] = self.df['pos'] + left
-            self.df['end'] = self.df['pos'] + right
+        if use_center_pos:
+            if genome_window_size is None:
+                raise ValueError("window_size must be specified when use_center_pos is True.")
+            self.df['start'] = self.df['pos'] - genome_window_size // 2
+            self.df['end'] = self.df['pos'] + genome_window_size // 2
 
-        if load_memory == True:
-            self.seqs = []
-            for i in range(len(self.df)):
-                seq = self.get_seq_from_genome(i)
-                self.seqs.append(seq)
-            self.seqs = torch.tensor(strs2onehots(self.seqs), dtype=torch.float)
-
-        self.labels = self.df[output_column].to_numpy()
-        self.labels = torch.tensor(self.labels, dtype=torch.float)
+        if label_column is None:
+            self.labels = None
+        else:
+            self.labels = self.df[label_column].to_numpy()
+            self.labels = torch.tensor(self.labels, dtype=torch.float)
 
     def get_seq_from_genome(self, index):
-        interval = self.df.iloc[index]
-        chr, start, end = interval[['chr', 'start', 'end']]
+        row = self.df.iloc[index]
+        chr, start, end = row[['chr', 'start', 'end']]
         seq = self.seq_interval(chr, start, end)
-
-        if self.spicify_strand == True:
-            strand = interval['strand']
-            if strand == '-':
-                seq = seq_reverse_complement(seq)
-
-        seq = torch.tensor(str2onehot(seq), dtype=torch.float)
+        if self.spicify_strand and row['strand'] == '-':
+            seq = seq_rc(seq)
         return seq
 
     def __getitem__(self, index) -> tuple:
-        if self.load_memory == True:
-            seq = self.seqs[index]
-            label = self.labels[index]
-        else:
-            seq = self.get_seq_from_genome(index)
-            label = self.labels[index]
+        seq = self.get_seq_from_genome(index)
+        if self.padding:
+            seq = pad_seq(seq, self.padded_length, self.padding_method)
 
-        if self.task_idx is not None:
-            return self.task_idx, (seq, label)
+        seq = str2onehot(seq, N_fill_value=self.N_fill_value)
+        seq = torch.tensor(seq, dtype=torch.float)
+
+        if self.labels is None:
+            return {'seq': seq}
         else:
-            return seq, label
-    
+            label = self.labels[index]
+            {'seq': seq, 'label': label}
+
     def __len__(self) -> int:
-        return len(self.labels)
-
-
+        return len(self.df)
 
 
 
 if __name__ == '__main__':
     dataset = BedDataset(
-        task_idx=0,
-        bed_exp_path = '/home/hxcai/cell_type_specific_CRE/data/Xpresso/merged_bed_exp.csv',
-        genome_path = '/home/hxcai/genome/hg38.fa',
+        bed_path = 'data/SirajMPRA/SirajMPRA_100.csv',
+        genome_path = '../../genome/hg38.fa',
         output_column = 'HepG2',
-        use_pos=True,
-        select_seq_range=[-500, 500],
+        use_center_pos=True,
+        genome_window_size=1000,
+        padding=True,
+        padded_length=10000,
     )
     print(dataset[0])
-    print(dataset[0][1][0].shape)
+    print(dataset[0][0].shape)
     

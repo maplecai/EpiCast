@@ -4,6 +4,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 from typing import Callable
+from tqdm import tqdm
+from .seq_utils import *
+
+def get_pred(model, test_data_loader, device='cuda', rc=False):
+    model = model.to(device)
+    y_pred = []
+    model.eval()
+    with torch.no_grad():
+        for batch in tqdm(test_data_loader):
+            if isinstance(batch, (list, tuple)):
+                x = batch[0]
+            elif isinstance(batch, dict):
+                x = batch['seq']
+            if rc == False:
+                x = x.to(device)
+                output = model(x)['human']
+            else:
+                x_rc = onehot_rc(x)
+                x = x.to(device)
+                x_rc = x_rc.to(device)
+                output = (model(x)['human'] + model(x_rc)['human']) / 2
+
+            y_pred.append(output.cpu().numpy())
+    y_pred = np.concatenate(y_pred, axis=0)
+    return y_pred
 
 
 def to_device(data, device):

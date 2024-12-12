@@ -1,3 +1,4 @@
+from torch.utils.data import TensorDataset
 from .SeqDataset import SeqDataset
 from .BodaMPRADataset import BodaMPRADataset
 from .LentiMPRADataset import LentiMPRADataset

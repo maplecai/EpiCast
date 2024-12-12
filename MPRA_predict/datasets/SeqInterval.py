@@ -14,9 +14,7 @@ class SeqInterval():
         rc_aug: bool = False,
         shift_aug: bool = False,
         shift_aug_range: tuple[int, int] = None,
-        return_onehot: bool = False,
         return_aug_info: bool = False,
-        N_fill_value: float = 0.25,
     ):
         self.lock = Lock()
 
@@ -26,9 +24,7 @@ class SeqInterval():
         self.rc_aug = rc_aug
         self.shift_aug = shift_aug
         self.shift_aug_range = shift_aug_range
-        self.return_onehot = return_onehot
         self.return_aug_info = return_aug_info
-        self.N_fill_value = N_fill_value
         
         self._genome = None
 
@@ -76,13 +72,10 @@ class SeqInterval():
 
         # reverse complement augmentation
         if self.rc_aug and np.random.rand() < 0.5:
-            seq = seq_reverse_complement(seq)
+            seq = seq_rc(seq)
             rc = True
         else:
             rc = False
-
-        if self.return_onehot:
-            seq = str2onehot(seq, N_fill_value=self.N_fill_value)
 
         if self.return_aug_info == False:
             return seq

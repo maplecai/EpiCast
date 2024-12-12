@@ -19,7 +19,7 @@ class XpressoDatasetNew(Dataset):
         filter_column = None,
         filter_in_list = None,
         filter_not_in_list = None,
-        padded_len = None,
+        padded_length = None,
         N_fill_value = 0.25,
         select_seq_region = None,
         load_memory=False,
@@ -67,7 +67,7 @@ class XpressoDatasetNew(Dataset):
                 if self.use_strand == True:
                     strand = interval[5]
                     if strand == '-':
-                        seq = seq_reverse_complement(seq)
+                        seq = seq_rc(seq)
                 if self.select_seq_region is not None:
                     start, end = self.select_seq_region
                     seq = seq[start:end]
@@ -87,7 +87,7 @@ class XpressoDatasetNew(Dataset):
             if self.use_strand == True:
                 strand = interval[5]
                 if strand == '-':
-                    seq = seq_reverse_complement(seq)
+                    seq = seq_rc(seq)
             if self.select_seq_region is not None:
                 start, end = self.select_seq_region
                 seq = seq[start:end]

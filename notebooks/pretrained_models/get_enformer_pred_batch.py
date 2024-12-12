@@ -18,7 +18,7 @@ from MPRA_predict.datasets import SeqLabelDataset
 #         for (x, y) in tqdm(test_data_loader):
 #             x = x['seq'].to(device)
 #             # print(x.shape)
-#             x_rc = onehots_reverse_complement(x).to(device)
+#             x_rc = onehots_rc(x).to(device)
 #             pred_1 = model(x)['human']
 #             pred_2 = model(x_rc)['human']
 #             pred = (pred_1 + pred_2)/2
@@ -49,7 +49,7 @@ def get_pred(model, test_data_loader, device, save_interval, save_prefix):
         for (x, y) in tqdm(test_data_loader):
             x = x['seq'].to(device)
             pred = model(x)['human']
-            # x_rc = onehots_reverse_complement(x).to(device)
+            # x_rc = onehots_rc(x).to(device)
             # pred_2 = model(x_rc)['human']
             # pred = (pred + pred_2) / 2
             y_pred.extend(pred.cpu().detach().numpy())
@@ -76,7 +76,7 @@ model = from_pretrained(pretrained_model_path, use_tf_gamma=True, target_length=
 # model = Enformer.from_pretrained(pretrained_model_path, target_length=target_length).to(device)
 torchinfo.summary(model, input_size=(1, 200, 4), depth=5)
 dataset = SeqLabelDataset(data_path='/home/hxcai/cell_type_specific_CRE/data/SirajMPRA/SirajMPRA_total.csv',
-                          seq_column='seq', padding=True, padded_len=256, padding_mode='random', N_fill_value=0)
+                          seq_column='seq', padding=True, padded_len=256, padding_method='random', N_fill_value=0)
 test_data_loader = DataLoader(dataset, batch_size=1024, shuffle=False, num_workers=0)
 y_pred = get_pred(model, test_data_loader, device, save_interval=10, save_prefix='data/Enformer_Siraj_pred_part')
 
@@ -92,7 +92,7 @@ y_pred = get_pred(model, test_data_loader, device, save_interval=10, save_prefix
 #         model.eval()
 #         for (x, y) in tqdm(test_data_loader):
 #             x = x.to(device)
-#             x_rc = onehots_reverse_complement(x).to(device)
+#             x_rc = onehots_rc(x).to(device)
 #             pred_1, emb_1 = model(x, return_embeddings = True)
 #             pred_2, emb_2 = model(x_rc, return_embeddings = True)
 #             pred = (pred_1['human'] + pred_2['human']) / 2

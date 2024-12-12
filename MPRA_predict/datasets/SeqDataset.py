@@ -41,7 +41,7 @@ class SeqDataset(Dataset):
         label = self.labels[index]
         if self.reverse_complement_augmentation:
             if torch.rand(1) < 0.5:
-                seq = onehots_reverse_complement(seq)
+                seq = onehots_rc(seq)
         return seq, label
     
     def __len__(self) -> int:

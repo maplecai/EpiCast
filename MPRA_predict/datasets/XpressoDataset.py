@@ -16,14 +16,14 @@ from pyfaidx import Fasta
 #         filter_column = None,
 #         filter_in_list = None,
 #         filter_not_in_list = None,
-#         padded_len = None,
+#         padded_length = None,
 #         N_fill_value = 0.25,
 #         select_seq_region = None,
 #         ) -> None:
 #         super().__init__()
 
 #         self.output_columns = output_columns
-#         self.padded_len = padded_len
+#         self.padded_length = padded_len
 #         self.N_fill_value = N_fill_value
 #         self.select_seq_region = select_seq_region
 #         self.genome = Fasta(genome_path)
@@ -66,7 +66,7 @@ from pyfaidx import Fasta
 
 #         seq = self.genome[chr][start:end].seq
 #         if strand == '-':
-#             seq = seq_reverse_complement(seq)
+#             seq = seq_rc(seq)
         
 #         if self.select_seq_region is not None:
 #             start, end = self.select_seq_region
@@ -94,7 +94,7 @@ class XpressoDataset(Dataset):
         filter_column = None,
         filter_in_list = None,
         filter_not_in_list = None,
-        padded_len = None,
+        padded_length = None,
         N_fill_value = 0.25,
         select_seq_region = None,
         ) -> None:
@@ -102,7 +102,7 @@ class XpressoDataset(Dataset):
 
         self.task_idx = task_idx
 
-        self.padded_len = padded_len
+        self.padded_length = padded_len
         self.N_fill_value = N_fill_value
         self.select_seq_region = select_seq_region
 
@@ -143,7 +143,7 @@ class XpressoDataset(Dataset):
 
         seq = self.genome[chr][start:end].seq
         if strand == '-':
-            seq = seq_reverse_complement(seq)
+            seq = seq_rc(seq)
         
         if self.select_seq_region is not None:
             start, end = self.select_seq_region
