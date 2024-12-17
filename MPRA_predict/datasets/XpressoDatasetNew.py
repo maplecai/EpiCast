@@ -4,7 +4,7 @@ import pandas as pd
 from torch.utils.data import Dataset
 from ..utils import *
 from pyfaidx import Fasta
-from .SeqInterval import SeqInterval
+from .GenomeInterval import GenomeInterval
 
 
 class XpressoDatasetNew(Dataset):
@@ -34,7 +34,7 @@ class XpressoDatasetNew(Dataset):
         self.load_memory = load_memory
         self.use_strand = use_strand
 
-        self.seq_interval = SeqInterval(
+        self.seq_interval = GenomeInterval(
             genome_path=genome_path,
             window_length=padded_len,
             rc_aug=False,
@@ -67,7 +67,7 @@ class XpressoDatasetNew(Dataset):
                 if self.use_strand == True:
                     strand = interval[5]
                     if strand == '-':
-                        seq = seq_rc(seq)
+                        seq = rc_seq(seq)
                 if self.select_seq_region is not None:
                     start, end = self.select_seq_region
                     seq = seq[start:end]
@@ -87,7 +87,7 @@ class XpressoDatasetNew(Dataset):
             if self.use_strand == True:
                 strand = interval[5]
                 if strand == '-':
-                    seq = seq_rc(seq)
+                    seq = rc_seq(seq)
             if self.select_seq_region is not None:
                 start, end = self.select_seq_region
                 seq = seq[start:end]

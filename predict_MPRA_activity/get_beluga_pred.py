@@ -11,7 +11,7 @@ def get_pred(model, test_data_loader, device='cuda'):
     with torch.no_grad():
         for (x, y) in tqdm(test_data_loader):
             x = x.to(device)
-            x_rc = onehots_rc(x).to(device)
+            x_rc = rc_onehots(x).to(device)
             pred_1 = model(x)
             pred_2 = model(x_rc)
             pred = (pred_1 + pred_2) / 2

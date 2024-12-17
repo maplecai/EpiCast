@@ -11,7 +11,7 @@ def get_pred(model, test_data_loader, device='cuda'):
         model.eval()
         for (x, y) in tqdm(test_data_loader):
             x = x.to(device)
-            x_rc = onehots_rc(x).to(device)
+            x_rc = rc_onehots(x).to(device)
             pred_1 = model(x)
             pred_2 = model(x_rc)
             pred = (pred_1 + pred_2) / 2
@@ -42,7 +42,7 @@ np.save(f'../pretrained_models/Sei/Sei_Agarwal_joint_pred.npy', y_pred)
 #         model.eval()
 #         for (x, y) in tqdm(test_data_loader):
 #             x = x.to(device)
-#             x_rc = onehots_rc(x).to(device)
+#             x_rc = rc_onehots(x).to(device)
 #             # pred = (model(x) + model(x_rc))/2
 
 #             pred_1, emb_1 = model.get_embedding(x)
