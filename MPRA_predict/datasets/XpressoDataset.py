@@ -66,7 +66,7 @@ from pyfaidx import Fasta
 
 #         seq = self.genome[chr][start:end].seq
 #         if strand == '-':
-#             seq = seq_rc(seq)
+#             seq = rc_seq(seq)
         
 #         if self.select_seq_region is not None:
 #             start, end = self.select_seq_region
@@ -143,7 +143,7 @@ class XpressoDataset(Dataset):
 
         seq = self.genome[chr][start:end].seq
         if strand == '-':
-            seq = seq_rc(seq)
+            seq = rc_seq(seq)
         
         if self.select_seq_region is not None:
             start, end = self.select_seq_region

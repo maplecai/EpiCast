@@ -6,7 +6,7 @@ from ..utils import *
 from pyfaidx import Fasta
 from multiprocessing import Lock
 
-class SeqInterval():
+class GenomeInterval():
     def __init__(
         self,
         genome_path: str,
@@ -67,12 +67,12 @@ class SeqInterval():
         # N means unknown base
         # . means outside the chromosome
         with self.lock:
-            seq = str(chromosome[start:end])
+            seq = chromosome[start:end].seq.upper()
         seq = ('N' * left_padding) + seq + ('N' * right_padding)
 
         # reverse complement augmentation
         if self.rc_aug and np.random.rand() < 0.5:
-            seq = seq_rc(seq)
+            seq = rc_seq(seq)
             rc = True
         else:
             rc = False

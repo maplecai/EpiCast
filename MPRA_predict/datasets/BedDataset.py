@@ -4,33 +4,38 @@ import pandas as pd
 from torch.utils.data import Dataset
 from ..utils import *
 from pyfaidx import Fasta
-from .SeqInterval import SeqInterval
+from .GenomeInterval import GenomeInterval
 
 
 class BedDataset(Dataset):
     def __init__(
         self,
-        bed_path=None,
-        bed_df=None,
-        genome_path=None,
-        label_column=None,
-        genome_window_size=None,
+        data_path = None,
+        data_df = None,
+        label_column = None,
+        genome_path = None,
 
-        shuffle=False,
-        subset_range=None,
-        filter_column=None,
-        filter_in_list=None,
-        filter_not_in_list=None,
-        use_center_pos=False,
-        
-        spicify_strand=False,
-        rc_aug=False,
-        shift_aug=False,
-        shift_aug_range=None,
+        shuffle = False,
+        subset_range = None,
+
+        apply_filter = True,
+        filter_column = None,
+        filter_in_list = None,
+        filter_not_in_list = None,
+
+        genome_window_size = None,
+        spicify_strand = False,
+
+        crop = False,
+        crop_method = 'center',
+        cropped_length = None,
 
         padding = False,
         padding_method = 'N',
         padded_length = None,
+
+        # aug_rc=False,
+
         N_fill_value = 0.25,
         return_aug_info=False,
     ) -> None:
@@ -57,10 +62,11 @@ class BedDataset(Dataset):
         self.padding = padding
         self.padding_method = padding_method
         self.padded_length = padded_length
+
         self.N_fill_value = N_fill_value
         self.return_aug_info = return_aug_info
 
-        self.seq_interval = SeqInterval(
+        self.seq_interval = GenomeInterval(
             genome_path=genome_path,
             window_length=genome_window_size,
             rc_aug=rc_aug,
@@ -68,7 +74,7 @@ class BedDataset(Dataset):
             shift_aug_range=shift_aug_range,
             return_aug_info=return_aug_info,)
 
-        assert (bed_path is None) != (bed_df is None), "bed_path和bed_df两个里必须有且只有一个不是None"
+        assert (bed_path is None) != (bed_df is None), "bed_path和bed_df必须有且只有一个不是None"
         if bed_path is not None:
             sep = detect_delimiter(bed_path)
             self.df = pd.read_csv(bed_path, sep=sep)
@@ -105,8 +111,9 @@ class BedDataset(Dataset):
         chr, start, end = row[['chr', 'start', 'end']]
         seq = self.seq_interval(chr, start, end)
         if self.spicify_strand and row['strand'] == '-':
-            seq = seq_rc(seq)
+            seq = rc_seq(seq)
         return seq
+
 
     def __getitem__(self, index) -> tuple:
         seq = self.get_seq_from_genome(index)
