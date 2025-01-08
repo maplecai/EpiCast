@@ -15,9 +15,8 @@ for cropped_length in [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 13
     if not os.path.exists(output_path):
         print(f'predicting {output_path}')
         model = from_pretrained(model_path, target_length=2)
-        dataset = SeqLabelDataset(
+        dataset = SeqDataset(
             data_path=data_path,
-            data_type='seq',
             input_column='seq', 
             crop=True, ###
             crop_method='center',
