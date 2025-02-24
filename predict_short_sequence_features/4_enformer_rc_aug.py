@@ -9,7 +9,7 @@ from enformer_pytorch import from_pretrained
 
 for cropped_length in [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 196608]:
     output_path = f'outputs/Enformer_pred_crop_{cropped_length}_pad_196608_zero_rc.npy'
-    model_path = f'../pretrained_models/enformer_pytorch'
+    model_path = f'../pretrained_models/enformer_weights'
     data_path = f'data/enformer_sequences_test.csv'
 
     if not os.path.exists(output_path):

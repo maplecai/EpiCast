@@ -13,7 +13,7 @@ import einops
 from rotary_embedding_torch import RotaryEmbedding
 
 from transformers import AutoTokenizer, AutoModel
-from enformer_pytorch import Enformer as BaseEnformer
+# from enformer_pytorch import Enformer as BaseEnformer
 
 from tltorch import TRL
 

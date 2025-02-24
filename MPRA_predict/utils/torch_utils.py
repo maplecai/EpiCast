@@ -7,34 +7,25 @@ from typing import Callable
 from tqdm import tqdm
 from .seq_utils import *
 
-def get_pred(model, test_data_loader, device='cuda'):
-    model = model.to(device)
-    y_pred = []
-    model.eval()
-    with torch.no_grad():
-        for batch in tqdm(test_data_loader):
-            if isinstance(batch, (list, tuple)):
-                x = batch[0]
-            elif isinstance(batch, dict):
-                x = batch['seq']
-            x = x.to(device)
-            output = model(x)['human']
-            # if average_rc:
-            #     x_rc = rc_onehot(x)
-            #     x = x.to(device)
-            #     x_rc = x_rc.to(device)
-            #     output = (model(x)['human'] + model(x_rc)['human'].flip(dims=[-2])) / 2
-            # elif only_rc:
-            #     x_rc = rc_onehot(x)
-            #     x_rc = x_rc.to(device)
-            #     output = model(x_rc)['human'].flip(dims=[-2])
-            # else:
-            #     x = x.to(device)
-            #     output = model(x)['human']
-            y_pred.append(output.detach().cpu().numpy())
-    y_pred = np.concatenate(y_pred, axis=0)
-    torch.cuda.empty_cache()
-    return y_pred
+# def get_pred(model, test_data_loader, device='cuda'):
+#     model = model.to(device)
+#     y_pred = []
+#     model.eval()
+#     with torch.no_grad():
+#         for batch in tqdm(test_data_loader):
+#             if isinstance(batch, (list, tuple)):
+#                 x = batch[0]
+#             elif isinstance(batch, dict):
+#                 x = batch['seq']
+#             x = x.to(device)
+#             output = model(x)
+#             # if enformer
+#             if isinstance(output, dict):
+#                 output = output['human']
+#             y_pred.append(output.detach().cpu().numpy())
+#     y_pred = np.concatenate(y_pred, axis=0)
+#     torch.cuda.empty_cache()
+#     return y_pred
 
 
 def to_device(data, device):
