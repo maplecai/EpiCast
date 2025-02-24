@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
+import torchinfo
 from typing import Callable
 from tqdm import tqdm
 from .seq_utils import *
