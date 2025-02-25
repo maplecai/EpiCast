@@ -31,8 +31,17 @@ def get_pred(model, test_data_loader, device='cuda'):
 
 
 
+
+def get_pred_total(model, dataset, device, output_path):
+    test_data_loader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=0)
+    pred = get_pred(model, test_data_loader, device)
+    np.save(output_path, pred)
+    return
+
+
+
 # split to many parts, predict and save, in order to save memory
-def get_pred_split(model, dataset, device, num_splits):
+def get_pred_split(model, dataset, device, output_path, num_splits):
 
     split_size = len(dataset) // num_splits  # num_splits是你要分割的部分数
     # 分割数据集
@@ -51,8 +60,9 @@ if __name__ == "__main__":
     
     set_seed(0)
     model_path = f'../pretrained_models/enformer_weights'
-    data_path = f'/home/hxcai/CRE/MPRA_predict/data/SirajMPRA/SirajMPRA_562654.csv'
+    data_path = f'../data/SirajMPRA/SirajMPRA_562654.csv'
     output_path = f'outputs/SirajMPRA_Enformer_no_padding.npy'
+    device = f'cuda:0'
 
     if os.path.exists(output_path):
         print(f'already have {output_path}')
@@ -64,7 +74,6 @@ if __name__ == "__main__":
     # torchinfo.summary(model, input_size=(1, 256, 4), depth=5)
 
     # no padding
-    
     dataset = SeqDataset(
         data_path=data_path,
         input_column='seq', 
@@ -73,8 +82,8 @@ if __name__ == "__main__":
         N_fill_value=0
         )
     
-    get_pred_split(model, dataset, 'cuda:0', 10)
-    
-    # test_data_loader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=0)
-    # pred = get_pred(model, test_data_loader)
-    # np.save(output_path, pred)
+    # get_pred_split(model, dataset, 'cuda:0', output_path, 10)
+    # get_pred_total(model, dataset, 'cuda:0', output_path)
+    test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=0)
+    pred = get_pred(model, test_data_loader, device)
+    np.save(output_path, pred)

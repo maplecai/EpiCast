@@ -16,7 +16,7 @@
 __pycache__/
 
 old/
-data/*
+data/
 output/
 outputs/
 figures/

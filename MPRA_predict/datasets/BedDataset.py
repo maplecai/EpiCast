@@ -1,32 +1,104 @@
 from ..utils import *
-from .BaseDataset import BaseDataset
+from torch.utils.data import Dataset
 from .GenomeInterval import GenomeInterval
 
-class BedDataset(BaseDataset):
+class BedDataset(Dataset):
     def __init__(
         self,
-        genome_path,
+
+        data_path=None,
+        data_df=None,
+
+        apply_filter=True,
+        filter_column=None,
+        filter_in_list=None,
+        filter_not_in_list=None,
+
+        shuffle=False,
+        slice_range=None,
+
+        crop=False,
+        crop_method='center',
+        cropped_length=None,
+        
+        padding=False,
+        padding_method='N',
+        padded_length=None,
+
+        N_fill_value=0.25,
+        augmentations=[],
+
+        ###
+        genome_path=None,
         window_length=None,
         spicify_strand=False,
-        aug_rc=False,
-        aug_rc_prob=0.5,
-        aug_shift=False,
-        aug_shift_range=(0, 0),
-        **kwargs,
+        random_rc=False,
+        random_rc_prob=0.5,
+        random_shift=False,
+        random_shift_range=(0, 0),
+        ###
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__()
+
+        self.data_path = data_path
+        self.data_df = data_df
+
+        self.apply_filter = apply_filter
+        self.filter_column = filter_column
+        self.filter_in_list = filter_in_list
+        self.filter_not_in_list = filter_not_in_list
+
+        self.shuffle = shuffle
+        self.slice_range = slice_range
+
+        self.crop = crop
+        self.crop_method = crop_method
+        self.cropped_length = cropped_length
+
+        self.padding = padding
+        self.padding_method = padding_method
+        self.padded_length = padded_length
+
+        self.N_fill_value = N_fill_value
+        self.augmentations = augmentations
+
         self.genome_path = genome_path
         self.window_length = window_length
         self.spicify_strand = spicify_strand
-        self.aug_rc = aug_rc
-        self.aug_rc_prob = aug_rc_prob
-        self.aug_shift = aug_shift
-        self.aug_shift_range = aug_shift_range
+        self.random_rc = random_rc
+        self.random_rc_prob = random_rc_prob
+        self.random_shift = random_shift
+        self.random_shift_range = random_shift_range
+
+        assert (data_path is None) != (data_df is None), "data_path和data_df必须有且只有一个不是None"
+
+        if data_path is not None:
+            self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
+        else:
+            self.df = data_df
+
+        if apply_filter:
+            if filter_in_list is not None:
+                self.df = self.df[self.df[filter_column].isin(filter_in_list)]
+            if filter_not_in_list is not None:
+                self.df = self.df[~self.df[filter_column].isin(filter_not_in_list)]
+        self.df = self.df.reset_index(drop=True)
+
+        if slice_range is not None:
+            start, end = slice_range
+            if 0 <= start < end <= 1:
+                start = int(len(self.df) * start)
+                end = int(len(self.df) * end)
+            self.df = self.df.iloc[start:end].reset_index(drop=True)
+
+        if shuffle:
+            shuffle_index = np.random.permutation(len(self.df))
+            self.df = self.df.iloc[shuffle_index].reset_index(drop=True)
+
+        self.seqs = None
+        self.labels = None
 
         self.genome_interval = GenomeInterval(genome_path)
-        # self.df['mid'] = (self.df['start'] + self.df['end']) // 2
-        # self.df['start'] = self.df['mid'] - window_length // 2
-        # self.df['end'] = self.df['start'] + window_length
 
 
     def get_seq_from_genome(self, index):
@@ -40,8 +112,8 @@ class BedDataset(BaseDataset):
             end = start + self.window_length
 
         # shift augmentation
-        if self.aug_shift:
-            min_shift, max_shift = self.aug_shift_range
+        if self.random_shift:
+            min_shift, max_shift = self.random_shift_range
             shift = np.random.randint(min_shift, max_shift + 1)
             start += shift
             end += shift
@@ -54,11 +126,15 @@ class BedDataset(BaseDataset):
             seq = rc_seq(seq)
 
         # reverse complement augmentation
-        if self.aug_rc and np.random.rand() < self.aug_rc_prob:
-            seq = rc_seq(seq)
+        if self.random_rc:
+            if np.random.rand() < self.random_rc_prob:
+                seq = rc_seq(seq)
         
         return seq
 
+
+    def __len__(self) -> int:
+        return len(self.df)
 
 
     def __getitem__(self, index) -> dict:

@@ -1,21 +1,95 @@
-import torch
-import numpy as np
-import pandas as pd
 from ..utils import *
-from .BaseDataset import BaseDataset
+from torch.utils.data import Dataset
 
 
-
-class SeqDataset(BaseDataset):
+class SeqDataset(Dataset):
     def __init__(
         self,
+
+        data_path=None,
+        data_df=None,
+
+        apply_filter=True,
+        filter_column=None,
+        filter_in_list=None,
+        filter_not_in_list=None,
+
+        shuffle=False,
+        slice_range=None,
+
+        crop=False,
+        crop_method='center',
+        cropped_length=None,
+        
+        padding=False,
+        padding_method='N',
+        padded_length=None,
+
+        N_fill_value=0.25,
+        augmentations=[],
+
+        ###
         input_column=None,
         output_column=None,
-        **kwargs,
+        ###
     ) -> None:
-        super().__init__(**kwargs)
+        
+        super().__init__()
 
+        self.data_path = data_path
+        self.data_df = data_df
 
+        self.apply_filter = apply_filter
+        self.filter_column = filter_column
+        self.filter_in_list = filter_in_list
+        self.filter_not_in_list = filter_not_in_list
+
+        self.shuffle = shuffle
+        self.slice_range = slice_range
+
+        self.crop = crop
+        self.crop_method = crop_method
+        self.cropped_length = cropped_length
+
+        self.padding = padding
+        self.padding_method = padding_method
+        self.padded_length = padded_length
+
+        self.N_fill_value = N_fill_value
+        self.augmentations = augmentations
+
+        self.input_column = input_column
+        self.output_column = output_column
+
+        assert (data_path is None) != (data_df is None), "data_path和data_df必须有且只有一个不是None"
+
+        if data_path is not None:
+            self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
+        else:
+            self.df = data_df
+
+        if apply_filter:
+            if filter_in_list is not None:
+                self.df = self.df[self.df[filter_column].isin(filter_in_list)]
+            if filter_not_in_list is not None:
+                self.df = self.df[~self.df[filter_column].isin(filter_not_in_list)]
+        self.df = self.df.reset_index(drop=True)
+
+        if slice_range is not None:
+            start, end = slice_range
+            if 0 <= start < end <= 1:
+                start = int(len(self.df) * start)
+                end = int(len(self.df) * end)
+            self.df = self.df.iloc[start:end].reset_index(drop=True)
+
+        if shuffle:
+            shuffle_index = np.random.permutation(len(self.df))
+            self.df = self.df.iloc[shuffle_index].reset_index(drop=True)
+
+        self.seqs = None
+        self.labels = None
+
+        ###
         if input_column:
             self.seqs = self.df[input_column].to_numpy().astype(str)
         if output_column:
@@ -23,6 +97,11 @@ class SeqDataset(BaseDataset):
             self.labels = torch.tensor(self.labels, dtype=torch.float)
         else:
             self.labels = None
+        ###
+
+
+    def __len__(self) -> int:
+        return len(self.df)
 
 
     def __getitem__(self, index) -> dict:
