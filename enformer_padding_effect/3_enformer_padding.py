@@ -71,7 +71,7 @@ if __name__ == '__main__':
     model = from_pretrained(model_path)
 
 
-    # # pad no need more modification
+    # # no pad, need more modification
     # for cropped_length in [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 196608]:
     #     output_path = f'outputs/Enformer_pred_crop_{cropped_length}_pad_196608_no.npy'
     #     if not os.path.exists(output_path):

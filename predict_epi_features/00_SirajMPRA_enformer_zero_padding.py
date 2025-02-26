@@ -34,7 +34,7 @@ if __name__ == '__main__':
     set_seed(0)
     model_path = f'../pretrained_models/enformer_weights'
     data_path = f'../data/SirajMPRA/SirajMPRA_562654.csv'
-    output_path = f'outputs/SirajMPRA_Enformer_pad_zero.npy'
+    output_path = f'outputs/SirajMPRA_Enformer_zero_padding.npy'
     device = f'cuda:0'
 
     if os.path.exists(output_path):
@@ -52,17 +52,17 @@ if __name__ == '__main__':
         padded_length=196608,
         N_fill_value=0)
     
-    # test_data_loader = DataLoader(dataset, batch_size=6, shuffle=False, num_workers=1)
-    # pred = get_pred(model, test_data_loader, device)
-    # np.save(output_path, pred)
+    test_data_loader = DataLoader(dataset, batch_size=6, shuffle=False, num_workers=1)
+    pred = get_pred(model, test_data_loader, device)
+    np.save(output_path, pred)
 
-    num_splits = 10    # num_splits是你要分割的部分数
-    split_size = len(dataset) // num_splits
-    for i in range(num_splits):
-        start_idx = i * split_size
-        end_idx = (i + 1) * split_size if i != num_splits - 1 else len(dataset)
+    # num_splits = 10    # num_splits是你要分割的部分数
+    # split_size = len(dataset) // num_splits
+    # for i in range(num_splits):
+    #     start_idx = i * split_size
+    #     end_idx = (i + 1) * split_size if i != num_splits - 1 else len(dataset)
 
-        subset = Subset(dataset, range(start_idx, end_idx))
-        subloader = DataLoader(subset, batch_size=6, shuffle=False, num_workers=0)
-        y_pred = get_pred(model, subloader, device)
-        np.save(f'{output_path}_{i}/{num_splits}.npy', np.array(y_pred))
+    #     subset = Subset(dataset, range(start_idx, end_idx))
+    #     subloader = DataLoader(subset, batch_size=6, shuffle=False, num_workers=0)
+    #     y_pred = get_pred(model, subloader, device)
+    #     np.save(f'{output_path}_{i}.npy', np.array(y_pred))
