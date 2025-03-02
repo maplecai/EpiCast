@@ -33,9 +33,9 @@ if __name__ == '__main__':
 
     set_seed(0)
     model_path = f'../pretrained_models/enformer_weights'
-    data_path = f'../data/SirajMPRA/SirajMPRA_562654.csv'
+    data_path = f'../data/SirajMPRA/SirajMPRA_563k.csv'
     output_path = f'outputs/SirajMPRA_Enformer_zero_padding.npy'
-    device = f'cuda:0'
+    device = f'cuda:1'
 
     if os.path.exists(output_path):
         print(f'warning, already exists {output_path}')
@@ -52,7 +52,7 @@ if __name__ == '__main__':
         padded_length=196608,
         N_fill_value=0)
     
-    test_data_loader = DataLoader(dataset, batch_size=6, shuffle=False, num_workers=1)
+    test_data_loader = DataLoader(dataset, batch_size=8, shuffle=False, num_workers=1)
     pred = get_pred(model, test_data_loader, device)
     np.save(output_path, pred)
 
