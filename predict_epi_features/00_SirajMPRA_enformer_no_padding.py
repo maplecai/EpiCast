@@ -20,7 +20,8 @@ def get_pred(model, test_data_loader, device='cuda'):
                 x = batch['seq']
             x = x.to(device)
             output = model(x)
-            output = output['human'][:, 447:449]
+            output = output['human']
+            # output = output['human'][:, 447:449]
             y_pred.append(output.detach().cpu().numpy())
             del batch, x, output  # 清理内存
             torch.cuda.empty_cache() # 清理显存
@@ -33,9 +34,9 @@ if __name__ == '__main__':
 
     set_seed(0)
     model_path = f'../pretrained_models/enformer_weights'
-    data_path = f'../data/SirajMPRA/SirajMPRA_562654.csv'
+    data_path = f'../data/SirajMPRA/SirajMPRA_563k.csv'
     output_path = f'outputs/SirajMPRA_Enformer_no_padding.npy'
-    device = f'cuda:0'
+    device = f'cuda:3'
 
     if os.path.exists(output_path):
         print(f'warning, already exists {output_path}')
@@ -63,4 +64,4 @@ if __name__ == '__main__':
     #     subset = Subset(dataset, range(start_idx, end_idx))
     #     subloader = DataLoader(subset, batch_size=6, shuffle=False, num_workers=0)
     #     y_pred = get_pred(model, subloader, device)
-    #     np.save(f'{output_path}_{i}/{num_splits}.npy', np.array(y_pred))
+    #     np.save(f'{output_path}_{i}.npy', np.array(y_pred))
