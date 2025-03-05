@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import torch
+import torch.multiprocessing as mp
 from torch import nn
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -14,33 +15,35 @@ from torch.utils.data.distributed import DistributedSampler
 import torch.utils.data
 import torchinfo
 
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(script_dir)
+sys.path.append(root_dir)
 from MPRA_predict import models, datasets, metrics, utils
 from MPRA_predict.utils import *
 
+
 class Trainer:
     def __init__(self, config):
-        # setup seed and distribute
+        # setup seed and distributed
         self.config = config
         utils.set_seed(config['seed'])
         logging.config.dictConfig(config['logger'])
         self.logger = logging.getLogger()
 
-        self.distribute = config['distribute']
-        self.gpu_ids = config['gpu_ids']
-        
-        if self.distribute == False:
+        self.distributed = config['distributed']
+
+        if self.distributed is False:
             self.local_rank = 0
-            self.device = torch.device(f'cuda:{self.gpu_ids[0]}')
+            gpu_id = config['gpu_ids'][0]
+            self.device = torch.device(f'cuda:{gpu_id}')
             torch.cuda.set_device(self.device)
             self.logger.info(
-                f"Start non-distributed training on rank {self.local_rank}, {self.device}.")
+                f"Start non-distributedd training on rank {self.local_rank}, {self.device}.")
         else:
-            dist.init_process_group(
-                backend='nccl', 
-                init_method='env://', 
-                world_size=len(self.gpu_ids))
+            dist.init_process_group(backend='nccl', init_method='env://')
             self.local_rank = dist.get_rank()
-            self.device = torch.device(f'cuda:{self.gpu_ids[self.local_rank]}')
+            self.device = torch.device(f'cuda:{self.local_rank}')
             torch.cuda.set_device(self.device)
             self.logger.info(
                 f"Start DDP training on rank {self.local_rank}, {self.device}.")
@@ -53,110 +56,96 @@ class Trainer:
         # setup dataloader
         self.cell_types = config['cell_types']
 
-        if config.get('train', False):
-            self.train_dataset = utils.init_obj(
-                datasets, 
-                config['train_dataset'])
-            self.valid_dataset = utils.init_obj(
-                datasets, 
-                config['valid_dataset'])
-            
-            if self.distribute == False:
-                self.train_loader = utils.init_obj(
-                    torch.utils.data, 
-                    config['data_loader'], 
-                    dataset=self.train_dataset, 
-                    shuffle=True)
-            else:
-                self.train_sampler = DistributedSampler(self.train_dataset, shuffle=True)
-                self.train_loader = utils.init_obj(
-                    torch.utils.data, 
-                    config['data_loader'], 
-                    dataset=self.train_dataset, 
-                    sampler=self.train_sampler)
-            self.valid_loader = utils.init_obj(
-                torch.utils.data, 
-                config['data_loader'], 
+        self.train_dataset = utils.init_obj(
+            datasets, 
+            config['train_dataset'])
+        self.valid_dataset = utils.init_obj(
+            datasets, 
+            config['valid_dataset'])
+        
+        if self.distributed is False:
+            self.train_loader = DataLoader(
+                dataset=self.train_dataset, 
+                batch_size=config['batch_size'],
+                shuffle=True,
+                num_workers=1)
+            self.valid_loader = DataLoader(
                 dataset=self.valid_dataset, 
-                shuffle=False)
+                batch_size=config['batch_size'],
+                shuffle=False,
+                num_workers=1)
             
-        else:
-            self.test_dataset = utils.init_obj(
-                datasets, 
-                config['test_dataset'])
-            self.test_loader = utils.init_obj(
-                torch.utils.data, 
-                config['data_loader'], 
-                dataset=self.test_dataset, 
-                shuffle=False)
-            
+        # setup model and metric
         self.model = utils.init_obj(models, config['model'])
 
-        if config.get('load_saved_model', False):
-            saved_model_path = config['saved_model_path']
-            state_dict = torch.load(saved_model_path)
-            if 'model_state_dict' in state_dict:
-                model_state_dict = state_dict['model_state_dict']
-            else:
-                model_state_dict = state_dict
-            self.model.load_state_dict(model_state_dict)
-            self.log(f"load saved model from {saved_model_path}")
+        # if config.get('load_saved_model', False) == True:
+        #     saved_model_path = config['saved_model_path']
+        #     state_dict = torch.load(saved_model_path)
+        #     self.model.load_state_dict(state_dict)
+        #     self.log(f"load saved model from {saved_model_path}")
 
-        if config.get('load_partial_saved_model', False):
-            load_partial_parameters(self.model, config['saved_model_path'], None, self.log)
-            self.log(f"load partial saved model from {config['saved_model_path']}")
 
-        if config.get('freeze_layers', False):
-            self.log(f"freeze conv layers")
-            for name, param in self.model.named_parameters():
-                if name.startswith('conv_layers'):
-                    param.requires_grad = False
-                elif name.startswith('linear_layers'):
-                    param.requires_grad = True
-                else:
-                    param.requires_grad = True
+        # if config.get('freeze_layers', False) == True:
+        #     self.log(f"freeze conv layers")
+        #     for name, param in self.model.named_parameters():
+        #         if name.startwith('conv_layers'):
+        #             param.requires_grad = False
+        #         elif name.startwith('linear_layers'):
+        #             param.requires_grad = True
+        #         else:
+        #             param.requires_grad = True
 
-        self.model = self.model.to(self.device)
-        if self.distribute == True:
+        if self.distributed is False:
+            self.model = self.model.to(self.device)
+        else:
             self.model = DDP(
                 self.model, 
-                device_ids=[self.gpu_ids[self.local_rank]], 
+                device_ids=[self.local_rank], 
                 find_unused_parameters=False)
 
         self.loss_func = utils.init_obj(metrics, config['loss_func'])
         trainable_params = filter(lambda p: p.requires_grad, self.model.parameters())
         self.optimizer = utils.init_obj(torch.optim, config['optimizer'], trainable_params)
         
-        self.metric_func_list = [
-            utils.init_obj(metrics, m) for m in config.get('metric_func_list', [])]
+        self.metric_funcs = [
+            utils.init_obj(metrics, m) for m in config.get('metric_funcs', [])]
         self.metric_names = [
-            m['type'] for m in config.get('metric_func_list', [])]
+            m['type'] for m in config.get('metric_funcs', [])]
         self.metric_df = pd.DataFrame(
             index=self.cell_types, 
             columns=self.metric_names)
-        
-        self.lr_scheduler = utils.init_obj(
-            torch.optim.lr_scheduler, 
-            config['lr_scheduler'], 
-            self.optimizer)
 
-        self.early_stopper = utils.init_obj(
-            utils, 
-            config['early_stopper'], 
-            save_dir=os.path.join(config['save_dir']), 
-            trace_func=self.log)
+        if 'lr_scheduler' in config:
+            self.lr_scheduler = utils.init_obj(
+                torch.optim.lr_scheduler, 
+                config['lr_scheduler'], 
+                self.optimizer)
+        else:
+            self.lr_scheduler = torch.optim.lr_scheduler.ConstantLR(
+                self.optimizer, 
+                factor=1.0)
+
+        if 'early_stopper' in config:
+            self.early_stopper = utils.init_obj(
+                utils, 
+                config['early_stopper'], 
+                save_dir=os.path.join(config['save_dir']), 
+                trace_func=self.log)
+        else:
+            self.early_stopper = utils.EarlyStopping(patience=np.inf)
+
 
     def train(self):
         config = self.config
         num_epochs = config['num_epochs']
-        batch_size = config['data_loader']['args']['batch_size']
+        batch_size = config['batch_size']
         num_valid_epochs = config['num_valid_epochs']
         
-        inputs, labels = next(iter(self.train_loader))
-        inputs = to_device(inputs, self.device)
+        input, label = next(iter(self.train_loader))
+        input = to_device(input, self.device)
         self.log(torchinfo.summary(
             self.model, 
-            input_data=[inputs], 
+            input_data=[input], 
             verbose=0, 
             depth=5))
             
@@ -171,24 +160,24 @@ class Trainer:
 
         for epoch in range(num_epochs):
             self.epoch = epoch
-            if self.distribute:
+            if self.distributed:
                 self.train_sampler.set_epoch(epoch)
 
             # valid one epoch before training
             if (epoch == 0):
-                self.valid_epoch(self.valid_loader)
+                self.valid_epoch()
 
             self.log(f'train on epoch {epoch}')
-            self.train_epoch(self.train_loader)
+            self.train_epoch()
             
             if ((epoch+1) % num_valid_epochs == 0):
                 self.log(f'valid on epoch {epoch}')
-                self.valid_epoch(self.valid_loader)
+                self.valid_epoch()
 
                 if (self.early_stopper is not None):
                     valid_pearson = self.metric_df.loc[self.cell_types, 'Pearson'].mean()
                     self.log(f'epoch = {epoch}, valid_pearson = {valid_pearson:.6f}, check for early stopping')
-                    # we should not use valid_loss to check early stopping
+                    # use valid_pearson instread of valid_loss to check early stopping
                     self.early_stopper.check(valid_pearson)
 
                     if self.early_stopper.update_flag == True:
@@ -199,24 +188,27 @@ class Trainer:
 
         self.log(f'local_rank = {self.local_rank:1}, finish training.')
 
-        if self.distribute:
+        if self.distributed:
             dist.destroy_process_group()
 
-    def train_epoch(self, train_loader):
+
+    def train_epoch(self, train_loader=None):
+        if train_loader is None:
+            train_loader = self.train_loader
         scheduler_interval = self.config.get('scheduler_interval', 'epoch')
         num_log_steps = self.config.get('num_log_steps', 0)
         train_steps = len(train_loader)
         train_loss = 0
 
         self.model.train()
-        for batch_idx, (inputs, labels) in enumerate(tqdm(train_loader, disable=(self.local_rank != 0))):
-            inputs = to_device(inputs, self.device)
-            labels = to_device(labels, self.device)
-            out = self.model(inputs)
-            loss = self.loss_func(out, labels)
+        for batch_idx, (input, label) in enumerate(tqdm(train_loader, disable=(self.local_rank != 0))):
+            input = to_device(input, self.device)
+            label = to_device(label, self.device)
+            out = self.model(input)
+            loss = self.loss_func(out, label)
             self.optimizer.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
+            # nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
             self.optimizer.step()
             
             if scheduler_interval == 'step':
@@ -235,50 +227,52 @@ class Trainer:
         self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, train_loss = {train_loss:.6f}')
 
 
-    def valid_epoch(self, valid_loader):
-        torch.set_grad_enabled(False)
-        # 代替with torch.no_grad()，避免多一层缩进，和train缩进一样，方便复制
+    def valid_epoch(self, valid_loader=None):
+        if valid_loader is None:
+            valid_loader = self.valid_loader
+        torch.set_grad_enabled(False) # 代替with torch.no_grad()，避免多一层缩进，方便从train复制
 
         valid_steps = len(valid_loader)
         valid_loss = 0
         y_pred_list = []
 
         self.model.eval()
-        for batch_idx, (inputs, labels) in enumerate(tqdm(valid_loader, disable=(self.local_rank != 0))):
-            inputs = to_device(inputs, self.device)
-            labels = to_device(labels, self.device)
-            out = self.model(inputs)
-            loss = self.loss_func(out, labels)
+        for batch_idx, (input, label) in enumerate(tqdm(valid_loader, disable=(self.local_rank != 0))):
+            input = to_device(input, self.device)
+            label = to_device(label, self.device)
+            out = self.model(input)
+            loss = self.loss_func(out, label)
             valid_loss += loss
             y_pred_list.append(out.detach())
 
         valid_loss = valid_loss / valid_steps
-        # if self.distribute:
-        #     dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
-        #     valid_loss = valid_loss / dist.get_world_size()
+        if self.distributed:
+            dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
+            valid_loss = valid_loss / dist.get_world_size()
         self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
 
         y_pred_list = torch.cat(y_pred_list)
-        # if self.distribute:
-        #     y_pred_list = dist_all_gather(y_pred_list)
-        y_pred_list = y_pred_list.cpu()
+        if self.distributed:
+            y_pred_list = self.dist_all_gather(y_pred_list).cpu()
+        else:
+            y_pred_list = y_pred_list.cpu()
 
         y_true_list = self.valid_dataset.labels
-        assert y_pred_list.shape == y_true_list.shape, f'y_pred_list.shape = {y_pred_list.shape}, y_true_list.shape = {y_true_list.shape}'
+        assert y_pred_list.shape == y_true_list.shape
 
-        for idx, cell_type in enumerate(self.cell_types):
+        for i, cell_type in enumerate(self.cell_types):
             log_message = f'cell_type = {cell_type:6}'
             if len(y_true_list.shape) == 1:
                 indice = (self.valid_dataset.df['cell_type'] == cell_type)
                 y_true_list_0 = y_true_list[indice]
                 y_pred_list_0 = y_pred_list[indice]
             elif len(y_true_list.shape) == 2:
-                y_true_list_0 = y_true_list[:, idx]
-                y_pred_list_0 = y_pred_list[:, idx]
+                y_true_list_0 = y_true_list[:, i]
+                y_pred_list_0 = y_pred_list[:, i]
             else:
                 raise ValueError(f'y_true_list.shape = {y_true_list.shape}')
             
-            for metric_func in self.metric_func_list:
+            for metric_func in self.metric_funcs:
                 metric_name = type(metric_func).__name__
                 score = metric_func(y_pred_list_0, y_true_list_0)
                 log_message += f', {metric_name} = {score:.6f}'
@@ -294,20 +288,28 @@ class Trainer:
         y_pred_list = []
 
         self.model.eval()
-        for batch_idx, (inputs, labels) in enumerate(tqdm(test_loader, disable=(self.local_rank != 0))):
-            inputs = to_device(inputs, self.device)
-            labels = to_device(labels, self.device)
-            out = self.model(inputs)
+        for batch_idx, (input, label) in enumerate(tqdm(test_loader, disable=(self.local_rank != 0))):
+            input = to_device(input, self.device)
+            label = to_device(label, self.device)
+            out = self.model(input)
             y_pred_list.append(out.detach())
 
         y_pred_list = torch.cat(y_pred_list).cpu().numpy()
-        output_file_name = self.config.get('output_file_name', 'test_pred.npy')
-        output_file_path = os.path.join(self.config['save_dir'], output_file_name)
-        np.save(output_file_path, y_pred_list)
+        save_file_path = self.config['save_file_path']
+        np.save(save_file_path, y_pred_list)
         torch.set_grad_enabled(True)
-        return y_pred_list
+
+
+    def dist_all_gather(self, tensor):
+        tensor_list = [torch.zeros_like(tensor, device=tensor.device) for _ in range(dist.get_world_size())]
+        dist.all_gather(tensor_list, tensor)
+        tensor_list = torch.cat(tensor_list)
+        return tensor_list
     
+
     def save_model(self):
+        checkpoint_dir = self.config['save_dir']
+
         # checkpoint = {
         #     'config': self.config,
         #     'epoch': self.epoch,
@@ -315,19 +317,11 @@ class Trainer:
         #     'optimizer_state_dict': self.optimizer.state_dict(),
         #     }
         # checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
-        checkpoint = self.model.module.state_dict() if self.distribute else self.model.state_dict()
         
-        checkpoint_dir = self.config['save_dir']
+        checkpoint = self.model.module.state_dict() if self.distributed else self.model.state_dict()
         checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint.pth')
         torch.save(checkpoint, checkpoint_path)
         self.logger.debug(f'save model at {checkpoint_path}')
-        return
-
-def dist_all_gather(tensor):
-    tensor_list = [torch.zeros_like(tensor, device=tensor.device) for _ in range(dist.get_world_size())]
-    dist.all_gather(tensor_list, tensor)
-    tensor_list = torch.cat(tensor_list)
-    return tensor_list
 
 
 if __name__ == '__main__':
@@ -338,10 +332,7 @@ if __name__ == '__main__':
     config_path = args.config_path
 
     config = utils.load_config(config_path)
-    if config.get('train', True):
-        config = utils.process_config(config)
-        trainer = Trainer(config)
-        trainer.train()
-    else:
-        trainer = Trainer(config)
-        trainer.test()
+    config = utils.process_config(config)
+
+    trainer = Trainer(config)
+    trainer.train()

@@ -2,7 +2,7 @@ from torch.utils.data import TensorDataset
 # from .BodaMPRADataset import BodaMPRADataset
 # from .LentiMPRADataset import LentiMPRADataset
 from .SeqDataset import SeqDataset
-from .BedDataset import BedDataset
+# from .BedDataset import BedDataset
 # from .XpressoDataset import XpressoDataset
 # # from kipoiseq.dataloaders import GenomeIntervalDl
 # from .SeqLabelMultiCellTypeDataset import SeqLabelMultiCellTypeDataset

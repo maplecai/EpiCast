@@ -13,4 +13,5 @@ from .MyCNNTransformer import MyCNNTransformer
 # from .MyBassetConcat import *
 from .Sei import Sei
 from .MyBassetFeature import MyBassetFeature, MyBassetFusion
+from .MyBassetFeatureMatrix import MyBassetFeatureMatrix
 from .MyBassetResidual import MyBassetResidual

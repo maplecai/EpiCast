@@ -2,7 +2,7 @@ from ..utils import *
 from torch.utils.data import Dataset
 
 
-class SeqDataset(Dataset):
+class SeqStackDataset(Dataset):
     def __init__(
         self,
 
@@ -29,16 +29,11 @@ class SeqDataset(Dataset):
         augmentations=[],
 
         ###
-        matrixize_feature=False,
-        cell_types=None,
-        assays=None,
-        ###
         seq_column=None,
         feature_column=None,
         label_column=None,
         ###
     ) -> None:
-        
         super().__init__()
 
         self.data_path = data_path
@@ -67,10 +62,6 @@ class SeqDataset(Dataset):
         self.feature_column = feature_column
         self.label_column = label_column
 
-        self.matrixize_feature = matrixize_feature
-        self.cell_types = cell_types
-        self.assays = assays
-
         # read data
         assert (data_path is None) != (data_df is None), "data_path和data_df必须有且只有一个不是None"
 
@@ -98,6 +89,9 @@ class SeqDataset(Dataset):
             shuffle_index = np.random.permutation(len(self.df))
             self.df = self.df.iloc[shuffle_index].reset_index(drop=True)
 
+
+
+        ###
         # set columns
         self.seqs = None
         self.features = None
@@ -105,20 +99,12 @@ class SeqDataset(Dataset):
         if seq_column:
             self.seqs = self.df[seq_column].to_numpy().astype(str)
         if feature_column:
-            if matrixize_feature:
-                self.features = np.zeros((len(self.df), len(cell_types), len(assays)))
-                for i, cell_type in enumerate(cell_types):
-                    for j, assay in enumerate(assays):
-                        self.features[:, i, j] = self.df[f'{cell_type}_{assay}'].to_numpy()
-                self.features = torch.tensor(self.features, dtype=torch.float)
-            else:
-                self.features = self.df[feature_column].to_numpy()
-                self.features = torch.tensor(self.features, dtype=torch.float)
+            self.features = self.df[feature_column].to_numpy()
+            self.features = torch.tensor(self.features, dtype=torch.float)
         if label_column:
             self.labels = self.df[label_column].to_numpy()
             self.labels = torch.tensor(self.labels, dtype=torch.float)
         ###
-
 
 
     def __len__(self) -> int:
@@ -127,7 +113,8 @@ class SeqDataset(Dataset):
 
     def __getitem__(self, index) -> dict:
         sample = {}
-        
+        # sample = []
+
         if self.seqs is not None:
             seq = self.seqs[index]
             if self.crop:
@@ -136,14 +123,17 @@ class SeqDataset(Dataset):
                 seq = pad_seq(seq, self.padded_length, self.padding_method)
             seq = torch.tensor(str2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
             sample['seq'] = seq
+            # sample.append(seq)
 
         if self.features is not None:
             feature = self.features[index]
             sample['feature'] = feature
+            # sample.append(feature)
 
         if self.labels is not None:
             label = self.labels[index]
             sample['label'] = label
+            # sample.append(label)
 
         return sample
 

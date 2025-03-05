@@ -335,7 +335,7 @@ class MyBasset(nn.Module):
         elif isinstance(inputs, torch.Tensor):
             seq = inputs
         else:
-            raise ValueError('Unsupported input type')
+            raise ValueError('inputs must be a dict, list, tuple, or torch.Tensor')
         
         if seq.shape[2] == 4:
             seq = seq.permute(0, 2, 1)

@@ -174,9 +174,11 @@ class MyBassetFeature(nn.Module):
     """
     def __init__(
         self, 
-        input_length=230,
+        input_seq_length=200,
         input_feature_dim=7,
         output_dim=1,
+
+        sigmoid=False,
         squeeze=True,
         rc_augmentation=False,
         rc_region=None,
@@ -187,18 +189,18 @@ class MyBassetFeature(nn.Module):
         pool_kernel_size_list=None,
         pool_padding_list=None,
         conv_dropout_rate=0.2,
-        gap_layer=False,
+        global_average_pooling=False,
 
         linear_channels_list=None,
         linear_dropout_rate=0.5,
         last_linear_layer=True,
-        sigmoid=False,
     ):                                
         super().__init__()
 
-        self.input_length       = input_length
+        self.input_seq_length   = input_seq_length
         self.input_feature_dim  = input_feature_dim
         self.output_dim         = output_dim
+        self.sigmoid            = sigmoid
         self.squeeze            = squeeze
         self.rc_augmentation    = rc_augmentation
         self.rc_region          = rc_region
@@ -228,12 +230,12 @@ class MyBassetFeature(nn.Module):
             self.conv_layers.add_module(
                 f'conv_dropout_{i}', nn.Dropout(p=conv_dropout_rate))
         
-        if gap_layer:
+        if global_average_pooling:
             self.conv_layers.add_module(
                 'gap_layer', nn.AdaptiveAvgPool1d(1))
 
         with torch.no_grad():
-            test_input = torch.randn(1, 4, self.input_length)
+            test_input = torch.randn(1, 4, self.input_seq_length)
             test_output = self.conv_layers(test_input)
             hidden_dim = test_output[0].reshape(-1).shape[0]
 
@@ -254,8 +256,7 @@ class MyBassetFeature(nn.Module):
                     in_features=hidden_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
                     out_features=output_dim))
 
-        if sigmoid == True:
-            self.linear_layers.add_module(f'sigmoid', nn.Sigmoid())
+        self.sigmoid_layer = nn.Sigmoid()
 
 
     def forward(self, inputs):
@@ -264,7 +265,8 @@ class MyBassetFeature(nn.Module):
         elif isinstance(inputs, (list, tuple)):
             seq, feature = inputs[0], inputs[1]
         else:
-            raise ValueError('Unsupported input type')
+            raise ValueError('inputs type must be dict or list or tuple')
+        
         if seq.shape[2] == 4:
             seq = seq.permute(0, 2, 1)
         x = self.conv_layers(seq)
@@ -272,6 +274,9 @@ class MyBassetFeature(nn.Module):
         # 其实不只有这一个地方可以concat, 或许在更靠后的层concat效果更好
         x = torch.cat([x, feature], dim=1)
         x = self.linear_layers(x)
+
+        if self.sigmoid:
+            x = self.sigmoid_layer(x)
         if self.squeeze:
             x = x.squeeze(-1)
         return x
