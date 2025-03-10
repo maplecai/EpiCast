@@ -7,7 +7,6 @@ import pandas as pd
 from tqdm import tqdm
 import torch
 import torch.multiprocessing as mp
-from torch import nn
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
@@ -15,11 +14,7 @@ from torch.utils.data import DataLoader
 import torchinfo
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-# print(sys.path)
-# sys.exit()
 from MPRA_predict import models, datasets, metrics, utils
-from MPRA_predict.utils import *
-
 
 class Trainer:
     def __init__(self, config):
@@ -34,18 +29,17 @@ class Trainer:
         self.distributed = config['distributed']
         if not self.distributed:
             self.local_rank = 0
-            gpu_id = config['gpu_ids'][0]
-            self.device = torch.device(f'cuda:{gpu_id}')
+            self.gpu_id = config['gpu_ids'][0]
+            self.device = torch.device(f'cuda:{self.gpu_id}')
             torch.cuda.set_device(self.device)
-            self.logger.info(
-                f"Start non-distributedd training on rank {self.local_rank}, {self.device}.")
+            self.logger.info(f"Start training on rank {self.local_rank}, {self.device}.")
         else:
             dist.init_process_group(backend='nccl', init_method='env://')
-            self.local_rank = dist.get_rank()
-            self.device = torch.device(f'cuda:{self.local_rank}')
+            self.local_rank = int(os.environ["LOCAL_RANK"])
+            self.gpu_id = config['gpu_ids'][self.local_rank]
+            self.device = torch.device(f'cuda:{self.gpu_id}')
             torch.cuda.set_device(self.device)
-            self.logger.info(
-                f"Start DDP training on rank {self.local_rank}, {self.device}.")
+            self.logger.info(f"Start DDP training on rank {self.local_rank}, {self.device}.")
 
 
         if self.local_rank == 0:
@@ -67,28 +61,32 @@ class Trainer:
                 batch_size=config['batch_size'],
                 shuffle=True,
                 num_workers=1,
-                pin_memory=True)
+                pin_memory=True,
+                drop_last=False)
             self.valid_loader = DataLoader(
                 dataset=self.valid_dataset, 
                 batch_size=config['batch_size'],
                 shuffle=False,
                 num_workers=1,
-                pin_memory=True)
+                pin_memory=True,
+                drop_last=False)
         else:
-            self.train_sampler = DistributedSampler(self.train_dataset)
-            self.valid_sampler = DistributedSampler(self.valid_dataset)
+            self.train_sampler = DistributedSampler(self.train_dataset, shuffle=True)
+            self.valid_sampler = DistributedSampler(self.valid_dataset, shuffle=False)
             self.train_loader = DataLoader(
                 dataset=self.train_dataset, 
-                batch_size=config['batch_size'],
+                batch_size=config['batch_size'] // config['world_size'],
                 sampler=self.train_sampler,
                 num_workers=1,
-                pin_memory=True)
+                pin_memory=True,
+                drop_last=False)
             self.valid_loader = DataLoader(
                 dataset=self.valid_dataset, 
-                batch_size=config['batch_size'],
+                batch_size=config['batch_size'] // config['world_size'],
                 sampler=self.valid_sampler,
                 num_workers=1,
-                pin_memory=True)
+                pin_memory=True,
+                drop_last=False)
             
         # setup model
         self.model = utils.init_obj(models, config['model'])
@@ -110,12 +108,11 @@ class Trainer:
         #         else:
         #             param.requires_grad = True
 
-        if self.distributed is False:
-            self.model = self.model.to(self.device)
-        else:
+        self.model = self.model.to(self.device)
+        if self.distributed:
             self.model = DDP(
                 self.model, 
-                device_ids=[self.local_rank], 
+                device_ids=[self.gpu_id], 
                 find_unused_parameters=False)
         
         # setup training
@@ -149,13 +146,14 @@ class Trainer:
         batch_size = config['batch_size']
         num_valid_epochs = config['num_valid_epochs']
         
-        sample = next(iter(self.train_loader))
-        sample = to_device(sample, self.device)
-        self.log(torchinfo.summary(
-            self.model, 
-            input_data=[sample], 
-            verbose=0, 
-            depth=5))
+        if self.local_rank == 0:
+            sample = next(iter(self.train_loader))
+            sample = utils.to_device(sample, self.device)
+            self.log(torchinfo.summary(
+                self.model, 
+                input_data=[sample], 
+                verbose=0, 
+                depth=5))
             
         self.log(f'cell_types = {self.cell_types}')
         self.log(f'len(train_dataset) = {len(self.train_dataset)}')
@@ -210,10 +208,10 @@ class Trainer:
 
         self.model.train()
         for batch_idx, sample in enumerate(tqdm(train_loader, disable=(self.local_rank != 0))):
-            sample = to_device(sample, self.device)
+            sample = utils.to_device(sample, self.device)
+            pred = self.model(sample)
             label = sample['label']
-            out = self.model(sample)
-            loss = self.loss_func(out, label)
+            loss = self.loss_func(pred, label)
             self.optimizer.zero_grad()
             loss.backward()
             # nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
@@ -235,84 +233,96 @@ class Trainer:
         self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, train_loss = {train_loss:.6f}')
 
 
+    @torch.no_grad()
     def valid_epoch(self, valid_loader=None):
         if valid_loader is None:
             valid_loader = self.valid_loader
-        torch.set_grad_enabled(False) # 代替with torch.no_grad()，避免多一层缩进，方便从train复制
 
         valid_steps = len(valid_loader)
         valid_loss = 0
-        y_pred_list = []
+        idx_list = []
+        pred_list = []
+        label_list = []
 
         self.model.eval()
         for batch_idx, sample in enumerate(tqdm(valid_loader, disable=(self.local_rank != 0))):
-            sample = to_device(sample, self.device)
+            sample = utils.to_device(sample, self.device)
+            idx = sample['idx']
+            pred = self.model(sample)
             label = sample['label']
-            out = self.model(sample)
-            loss = self.loss_func(out, label)
+            loss = self.loss_func(pred, label)
             valid_loss += loss
-            y_pred_list.append(out.detach())
+            idx_list.append(idx.detach())
+            pred_list.append(pred.detach())
+            label_list.append(label.detach())
 
         valid_loss = valid_loss / valid_steps
         if self.distributed:
             dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
-            valid_loss = valid_loss / dist.get_world_size()
+            valid_loss = valid_loss / self.config['world_size']
         self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, valid_loss = {valid_loss:.6f}')
 
-        y_pred_list = torch.cat(y_pred_list)
+        idx_list = torch.cat(idx_list, dim=0)
+        pred_list = torch.cat(pred_list, dim=0)
+        label_list = torch.cat(label_list, dim=0)
         if self.distributed:
-            y_pred_list = self.dist_all_gather(y_pred_list).cpu()
+            idx_list = utils.dist_all_gather(idx_list).cpu()
+            pred_list = utils.dist_all_gather(pred_list).cpu()
+            label_list = utils.dist_all_gather(label_list).cpu()
         else:
-            y_pred_list = y_pred_list.cpu()
+            idx_list = idx_list.cpu()
+            pred_list = pred_list.cpu()
+            label_list = label_list.cpu()
 
-        y_true_list = self.valid_dataset.labels
-        assert y_pred_list.shape == y_true_list.shape
+        # sort pred by sample idx
+        sorted_idx, sort_indices = torch.sort(idx_list)
+        idx_list = sorted_idx
+        pred_list = pred_list[sort_indices]
+        label_list = label_list[sort_indices]
 
         for i, cell_type in enumerate(self.cell_types):
             log_message = f'cell_type = {cell_type:6}'
-            if len(y_true_list.shape) == 1:
+            if len(label_list.shape) == 1:
                 indice = (self.valid_dataset.df['cell_type'] == cell_type)
-                y_true_list_0 = y_true_list[indice]
-                y_pred_list_0 = y_pred_list[indice]
-            elif len(y_true_list.shape) == 2:
-                y_true_list_0 = y_true_list[:, i]
-                y_pred_list_0 = y_pred_list[:, i]
+                label_list_0 = label_list[indice]
+                pred_list_0 = pred_list[indice]
+            elif len(label_list.shape) == 2:
+                label_list_0 = label_list[:, i]
+                pred_list_0 = pred_list[:, i]
             else:
-                raise ValueError(f'wrong shape: y_true_list.shape = {y_true_list.shape}')
+                raise ValueError(f'label_list.shape = {label_list.shape}')
             
             for metric_func in self.metric_funcs:
                 metric_name = type(metric_func).__name__
-                score = metric_func(y_pred_list_0, y_true_list_0)
+                score = metric_func(pred_list_0, label_list_0)
                 log_message += f', {metric_name} = {score:.6f}'
                 self.metric_df.loc[cell_type, metric_name] = score
             self.log(log_message)
 
-        torch.set_grad_enabled(True)
 
-
-
-
+    @torch.no_grad()
     def test(self, test_loader):
-        torch.set_grad_enabled(False)
+        # only single gpu
         self.model.eval()
-        y_pred_list = []
+        idx_list = []
+        pred_list = []
+        label_list = []
         for batch_idx, sample in enumerate(tqdm(test_loader, disable=(self.local_rank != 0))):
-            sample = to_device(sample, self.device)
-            out = self.model(sample)
-            y_pred_list.append(out.detach())
+            sample = utils.to_device(sample, self.device)
+            idx = sample['idx']
+            pred = self.model(sample)
+            label = sample['label']
+            idx_list.append(idx.detach())
+            pred_list.append(pred.detach())
+            label_list.append(label.detach())
 
-        y_pred_list = torch.cat(y_pred_list).cpu().numpy()
+        idx_list = torch.cat(idx_list).cpu().numpy()
+        pred_list = torch.cat(pred_list).cpu().numpy()
+        label_list = torch.cat(label_list).cpu().numpy()
+
         save_file_path = os.path.join(self.config['save_dir'], f'test_pred.npy')
-        np.save(save_file_path, y_pred_list)
-        torch.set_grad_enabled(True)
+        np.save(save_file_path, pred_list)
 
-
-    def dist_all_gather(self, tensor):
-        tensor_list = [torch.zeros_like(tensor, device=tensor.device) for _ in range(dist.get_world_size())]
-        dist.all_gather(tensor_list, tensor)
-        tensor_list = torch.cat(tensor_list)
-        return tensor_list
-    
 
     def save_model(self):
         checkpoint_dir = self.config['save_dir']
@@ -341,10 +351,10 @@ if __name__ == '__main__':
     config = utils.load_config(config_path)
     config = utils.process_config(config)
 
-    # 设置分布式环境变量
-    if config['distributed']:
-        os.environ['MASTER_ADDR'] = 'localhost'
-        os.environ['MASTER_PORT'] = '12355'
+    # # 设置分布式环境变量 （如果使用torchrun,则不需要手动设置）
+    # if config['distributed']:
+    #     os.environ['MASTER_ADDR'] = 'localhost'
+    #     os.environ['MASTER_PORT'] = '13579'
 
     trainer = Trainer(config)
     trainer.train()

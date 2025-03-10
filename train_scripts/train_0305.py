@@ -235,10 +235,10 @@ class Trainer:
         self.log(f'local_rank = {self.local_rank:1}, epoch = {self.epoch:3}, train_loss = {train_loss:.6f}')
 
 
+    @torch.no_grad()
     def valid_epoch(self, valid_loader=None):
         if valid_loader is None:
             valid_loader = self.valid_loader
-        torch.set_grad_enabled(False) # 代替with torch.no_grad()，避免多一层缩进，方便从train复制
 
         valid_steps = len(valid_loader)
         valid_loss = 0
@@ -278,7 +278,7 @@ class Trainer:
                 y_true_list_0 = y_true_list[:, i]
                 y_pred_list_0 = y_pred_list[:, i]
             else:
-                raise ValueError(f'wrong shape: y_true_list.shape = {y_true_list.shape}')
+                raise ValueError(f'y_true_list.shape = {y_true_list.shape}')
             
             for metric_func in self.metric_funcs:
                 metric_name = type(metric_func).__name__
@@ -287,13 +287,9 @@ class Trainer:
                 self.metric_df.loc[cell_type, metric_name] = score
             self.log(log_message)
 
-        torch.set_grad_enabled(True)
 
-
-
-
+    @torch.no_grad()
     def test(self, test_loader):
-        torch.set_grad_enabled(False)
         self.model.eval()
         y_pred_list = []
         for batch_idx, sample in enumerate(tqdm(test_loader, disable=(self.local_rank != 0))):
@@ -304,7 +300,6 @@ class Trainer:
         y_pred_list = torch.cat(y_pred_list).cpu().numpy()
         save_file_path = os.path.join(self.config['save_dir'], f'test_pred.npy')
         np.save(save_file_path, y_pred_list)
-        torch.set_grad_enabled(True)
 
 
     def dist_all_gather(self, tensor):

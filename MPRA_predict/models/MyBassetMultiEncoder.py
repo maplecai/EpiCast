@@ -1,7 +1,6 @@
 from .MyBasset import *
 from .. import models
 from .. import utils
-import yaml
 
 
 class MyBassetMultiEncoderMultiDecoder(nn.Module):

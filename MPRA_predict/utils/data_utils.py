@@ -1,11 +1,9 @@
 import os
-import yaml
 import random
 import numpy as np
-import torch
-import numpy as np
 import pandas as pd
-from scipy.stats import pearsonr, spearmanr
+import torch
+from scipy.stats import pearsonr, spearmanr, rankdata
 from sklearn.metrics import mean_squared_error
 from typing import List, Callable
 
@@ -24,7 +22,7 @@ def set_seed(seed:int = 42) -> None:
     torch.backends.cudnn.deterministic = True
 
 
-def seed_worker(worker_id):
+def seed_worker():
     worker_seed = torch.initial_seed() % 2**32
     np.random.seed(worker_seed)
     random.seed(worker_seed)
@@ -55,58 +53,40 @@ def compute_cell_type_specific_metrics(
         return metric_df
 
 
-def split_dataset(index_list, train_valid_test_ratio):
-    """
-    Split the dataset into train, valid, and test sets.
-    """
-    total_size = len(index_list)
-    train_ratio, valid_ratio, test_ratio = train_valid_test_ratio
-    train_split = int(total_size * train_ratio)
-    valid_split = int(total_size * (train_ratio+valid_ratio))
+# def split_dataset(index_list, train_valid_test_ratio):
+#     """
+#     Split the dataset into train, valid, and test sets.
+#     """
+#     total_size = len(index_list)
+#     train_ratio, valid_ratio, test_ratio = train_valid_test_ratio
+#     train_split = int(total_size * train_ratio)
+#     valid_split = int(total_size * (train_ratio+valid_ratio))
     
-    # if split_mode is None:
-    #     pass
-    # elif split_mode =='order':
-    #     pass
-    # elif split_mode == 'random':
-    #     np.random.shuffle(index_list)
-    # else:
-    #     raise ValueError
+#     # if split_mode is None:
+#     #     pass
+#     # elif split_mode =='order':
+#     #     pass
+#     # elif split_mode == 'random':
+#     #     np.random.shuffle(index_list)
+#     # else:
+#     #     raise ValueError
 
-    train_indice = index_list[:train_split]
-    valid_indice = index_list[train_split:valid_split]
-    test_indice = index_list[valid_split:]
+#     train_indice = index_list[:train_split]
+#     valid_indice = index_list[train_split:valid_split]
+#     test_indice = index_list[valid_split:]
 
-    return train_indice, valid_indice, test_indice
-
-
-def filter_by_column(table, filter_column, filter_in_list=None, filter_not_in_list=None):
-    if filter_column is not None:
-        if filter_in_list is not None:
-            filtered_index = table[filter_column].isin(filter_in_list)
-            table = table[filtered_index]
-        if filter_not_in_list is not None:
-            filtered_index = ~table[filter_column].isin(filter_not_in_list)
-            table = table[filtered_index]
-    return table
+#     return train_indice, valid_indice, test_indice
 
 
-def remove_nan(x, y, verbose=False):
-    assert len(x) == len(y), 'len(x) must be equal to len(y)'
-    if len(x.shape) == 2:
-        x_mask = (~np.isnan(x)).all(axis=1)
-    else:
-        x_mask = ~np.isnan(x)
-    y_mask = ~np.isnan(y)
-    mask = x_mask & y_mask
-    x = x[mask]
-    y = y[mask]
-
-    # if len(mask) == 0:
-    #     print('len(x) = 0')
-    if mask.sum() / len(mask) < 0.1 and verbose:
-        print(f'{mask.sum()} of {len(mask)} values are non-nan.')
-    return x, y
+# def filter_by_column(table, filter_column, filter_in_list=None, filter_not_in_list=None):
+#     if filter_column is not None:
+#         if filter_in_list is not None:
+#             filtered_index = table[filter_column].isin(filter_in_list)
+#             table = table[filtered_index]
+#         if filter_not_in_list is not None:
+#             filtered_index = ~table[filter_column].isin(filter_not_in_list)
+#             table = table[filtered_index]
+#     return table
 
 
 def sigmoid(x):
@@ -117,20 +97,35 @@ def logit(x):
     return np.log(x/(1-x))
 
 
-def pearson(x, y, allow_nan=True):
-    assert len(x) == len(y)
-    x, y = remove_nan(x, y)
-    if len(x) == 0 or len(y) == 0:
-        return np.nan
-    r, _ = pearsonr(x, y)
-    return r
+def remove_nan(x, y):
+    if len(x) != len(y):
+        raise ValueError('len(x) must be equal to len(y)')
+    # if len(x.shape) == 2:
+    #     x_mask = (~np.isnan(x)).all(axis=1)
+    # else:
+    x_mask = ~np.isnan(x)
+    y_mask = ~np.isnan(y)
+    mask = x_mask & y_mask
+    x = x[mask]
+    y = y[mask]
+    return x, y
 
 
-def spearman(x, y, allow_nan=True):
-    assert len(x) == len(y)
-    assert len(x) > 0
+def pearson(x: np.ndarray, y: np.ndarray) -> float:
     x, y = remove_nan(x, y)
-    if len(x) == 0 or len(y) == 0:
-        return np.nan
-    r, _ = spearmanr(x, y)
-    return r
+    if len(x) >= 2:
+        r, p = pearsonr(x, y)
+    else:
+        print('after remove nan, len(x) < 2, pearson = nan')
+        r, p = np.nan, np.nan
+    return r, p
+
+
+def spearman(x: np.ndarray, y: np.ndarray) -> float:
+    x, y = remove_nan(x, y)
+    if len(x) >= 2:
+        r, p = spearmanr(x, y)
+    else:
+        print('after remove nan, len(x) < 2, spearman = nan')
+        r, p = np.nan, np.nan
+    return r, p

@@ -3,31 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
+from torch.utils.data import DataLoader
 import torchinfo
 from typing import Callable
 from tqdm import tqdm
 from .seq_utils import *
-
-# def get_pred(model, test_data_loader, device='cuda'):
-#     model = model.to(device)
-#     y_pred = []
-#     model.eval()
-#     with torch.no_grad():
-#         for batch in tqdm(test_data_loader):
-#             if isinstance(batch, (list, tuple)):
-#                 x = batch[0]
-#             elif isinstance(batch, dict):
-#                 x = batch['seq']
-#             x = x.to(device)
-#             output = model(x)
-#             # if enformer
-#             if isinstance(output, dict):
-#                 output = output['human']
-#             y_pred.append(output.detach().cpu().numpy())
-#     y_pred = np.concatenate(y_pred, axis=0)
-#     torch.cuda.empty_cache()
-#     return y_pred
-
 
 def to_device(data, device):
     if isinstance(data, (list, tuple)):
@@ -119,34 +99,6 @@ class EarlyStopping:
             self.best_score = -np.inf
         else:
             raise ValueError('mode should be either "min" or "max"')
-
-    # def check(self, score, model=None, save=True):
-    #     if self.monitor is not None:
-    #         score = score[self.monitor]
-
-    #     if self.mode =='min':
-    #         self.update_flag = (score < self.best_score - self.delta)
-    #     elif self.mode =='max':
-    #         self.update_flag = (score > self.best_score + self.delta)
-
-    #     if self.update_flag == False:
-    #         self.counter += 1
-    #         if self.verbose:
-    #             self.trace_func(f'best score = {self.best_score}, {self.counter} out of {self.patience}')
-    #         if self.counter >= self.patience:
-    #             self.stop_flag = True
-    #     else:
-    #         if self.verbose:
-    #             self.trace_func(f'best score changed ({self.best_score:.6f} --> {score:.6f}).')
-    #         self.best_score = score
-    #         self.counter = 0
-
-    #         if save is True and model is not None:
-    #             if os.path.isfile(self.save_path):
-    #                 os.remove(self.save_path)
-    #             self.save_path = f'{self.save_dir}/checkpoint_{score:.6f}.pt'
-    #             torch.save(model.state_dict(), self.save_path)
-    #             self.trace_func(f'save model to {self.save_path}')
 
     def check(self, score):
         if self.monitor is not None and type(score) == dict:

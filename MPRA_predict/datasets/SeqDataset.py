@@ -28,14 +28,15 @@ class SeqDataset(Dataset):
         N_fill_value=0.25,
         augmentations=[],
 
-        ###
-        matrixize_feature=False,
-        cell_types=None,
-        assays=None,
+
         ###
         seq_column=None,
         feature_column=None,
         label_column=None,
+        
+        matrixize_feature=False,
+        cell_types=None,
+        assays=None,
         ###
     ) -> None:
         
@@ -71,15 +72,20 @@ class SeqDataset(Dataset):
         self.cell_types = cell_types
         self.assays = assays
 
-        # read data
-        assert (data_path is None) != (data_df is None), "data_path和data_df必须有且只有一个不是None"
+        # read dataframe
+        if data_path is not None and data_df is None:
+            self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
+        elif data_path is None and data_df is not None:
+            self.df = data_df
+        else:
+            raise ValueError("data_path or data_df must be provided.")
 
         if data_path is not None:
             self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
         else:
             self.df = data_df
 
-        # filter data
+        # filter data by filter_column
         if apply_filter:
             if filter_in_list is not None:
                 self.df = self.df[self.df[filter_column].isin(filter_in_list)]
@@ -98,22 +104,23 @@ class SeqDataset(Dataset):
             shuffle_index = np.random.permutation(len(self.df))
             self.df = self.df.iloc[shuffle_index].reset_index(drop=True)
 
-        # set columns
+        # set seqs, features, labels
         self.seqs = None
         self.features = None
         self.labels = None
         if seq_column:
             self.seqs = self.df[seq_column].to_numpy().astype(str)
+        if feature_column and matrixize_feature:
+            raise ValueError("feature_column and feature_matrix cannot be used at the same time.")
         if feature_column:
-            if matrixize_feature:
-                self.features = np.zeros((len(self.df), len(cell_types), len(assays)))
-                for i, cell_type in enumerate(cell_types):
-                    for j, assay in enumerate(assays):
-                        self.features[:, i, j] = self.df[f'{cell_type}_{assay}'].to_numpy()
-                self.features = torch.tensor(self.features, dtype=torch.float)
-            else:
-                self.features = self.df[feature_column].to_numpy()
-                self.features = torch.tensor(self.features, dtype=torch.float)
+            self.features = self.df[feature_column].to_numpy()
+            self.features = torch.tensor(self.features, dtype=torch.float)
+        if matrixize_feature:
+            self.features = np.zeros((len(self.df), len(cell_types), len(assays)))
+            for i, cell_type in enumerate(cell_types):
+                for j, assay in enumerate(assays):
+                    self.features[:, i, j] = self.df[f'{cell_type}_{assay}'].to_numpy()
+            self.features = torch.tensor(self.features, dtype=torch.float)
         if label_column:
             self.labels = self.df[label_column].to_numpy()
             self.labels = torch.tensor(self.labels, dtype=torch.float)
@@ -127,6 +134,7 @@ class SeqDataset(Dataset):
 
     def __getitem__(self, index) -> dict:
         sample = {}
+        sample['idx'] = index
         
         if self.seqs is not None:
             seq = self.seqs[index]

@@ -2,10 +2,12 @@ import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import seaborn as sns
+
 sns.set_theme(context="talk", style="whitegrid")
 
-color_list = np.delete(matplotlib.colormaps.get_cmap('Set3')(np.arange(12)), 1, axis=0)
+color_list = matplotlib.colormaps.get_cmap('Set2').colors
 
 mpl_params = {
     # 字体参数
@@ -19,7 +21,7 @@ mpl_params = {
     'figure.dpi': 100,
     'figure.figsize': (8, 6),
 
-    # 保存字体可编辑
+    # 保存pdf字体可编辑
     'pdf.fonttype': 42,
 }
 

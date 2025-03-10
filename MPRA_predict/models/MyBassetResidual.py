@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchinfo
-import yaml
 from collections import OrderedDict
 
 from .. import models, utils

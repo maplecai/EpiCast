@@ -1,6 +1,5 @@
 import os
 import sys
-import yaml
 import argparse
 import logging
 import numpy as np

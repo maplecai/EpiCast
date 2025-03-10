@@ -1,24 +1,25 @@
 import os
-import re
 import sys
 import json
-import yaml
-import random
 import pickle
 import argparse
 import logging
 import logging.config
 import numpy as np
 import pandas as pd
-import subprocess
-import torch
-import torch.nn as nn
 from tqdm import tqdm
-from typing import Callable, List
 from datetime import datetime
-from torch.utils.data import DataLoader, Subset, random_split
-from collections import Counter
-from torchinfo import summary
+from ruamel.yaml import YAML
+yaml = YAML()
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', 100)
+pd.set_option('display.width', 1000)
+pd.set_option('display.precision', 3)
+pd.set_option('display.float_format', '{:.3f}'.format) 
+np.set_printoptions(linewidth=1000)
+np.set_printoptions(precision=3)
+np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
 
 def load_txt(file_dir: str) -> list:
     with open(file_dir, 'r') as f:
@@ -71,8 +72,7 @@ def init_obj(module, obj_dict:dict, *args, **kwargs):
 
 def load_config(config_path: str) -> dict:
     with open(config_path, 'r') as f:
-        # config = yaml.safe_load(f)
-        config = yaml.load(f, Loader=yaml.FullLoader)
+        config = yaml.load(f)
     config['task_name'] = config_path.split('_', 1)[1].split('.')[0]
     return config
 
@@ -98,7 +98,7 @@ def process_config(config: dict) -> dict:
     
     # save new config file
     with open(os.path.join(save_dir, 'config.yaml'), 'w') as f:
-        f.write(yaml.dump(config))
+        yaml.dump(config, f)
     
     return config
 
