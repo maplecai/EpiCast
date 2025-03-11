@@ -1,0 +1,6 @@
+                            , HepG2, K562, SK-N-SH, A549, HCT116
+nearest true                , 
+nearest seq pred (bias)     , 
+seq train 5                 , 
+seq feature train 5         , 0
+seq feature leave-one-out   , 0

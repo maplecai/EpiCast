@@ -1,0 +1,6 @@
+                            , HepG2, K562, SK-N-SH, A549, HCT116
+nearest true                , 0.867, 0.808, 0.826, 0.815, 0.867
+nearest seq pred (bias)     , 0.769, 0.752, 0.760, 0.716, 0.797
+seq train 5                 , 0.839, 0.844, 0.832, 0.801, 0.848
+seq feature train 5         , 0.817, 0.798, 0.800, 0.756, 0.823
+seq feature leave-one-out   , 0.779, 0.778, 0.724, 0.735, 0.803

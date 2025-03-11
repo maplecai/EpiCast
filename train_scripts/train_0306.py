@@ -32,7 +32,7 @@ class Trainer:
             self.gpu_id = config['gpu_ids'][0]
             self.device = torch.device(f'cuda:{self.gpu_id}')
             torch.cuda.set_device(self.device)
-            self.logger.info(f"Start training on rank {self.local_rank}, {self.device}.")
+            self.logger.info(f"Start non DDP training on rank {self.local_rank}, {self.device}.")
         else:
             dist.init_process_group(backend='nccl', init_method='env://')
             self.local_rank = int(os.environ["LOCAL_RANK"])
