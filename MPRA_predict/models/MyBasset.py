@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchinfo
 from collections import OrderedDict
-
+from ruamel.yaml import YAML
+yaml = YAML()
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
@@ -39,7 +40,7 @@ class LinearBlock(nn.Module):
 #     """
 #     def __init__(
 #             self, 
-#             input_length=200, 
+#             input_seq_length=200, 
 #             output_dim=1, 
 #             conv1_channels=300, 
 #             conv1_kernel_size=19, 
@@ -66,7 +67,7 @@ class LinearBlock(nn.Module):
 #         """                                         
 #         super().__init__()
 
-#         self.input_length = input_length
+#         self.input_seq_length = input_seq_length
 #         self.output_dim   = output_dim
 #         self.gap_layer    = gap_layer
 #         self.augmentation = augmentation
@@ -147,7 +148,7 @@ class LinearBlock(nn.Module):
 class MyBassetEncoder(nn.Module):
     def __init__(
             self, 
-            # input_length=230, 
+            # input_seq_length=230, 
             # output_dim=1, 
             conv_channels_list=None,
             conv_kernel_size_list=None,
@@ -241,9 +242,11 @@ class MyBasset(nn.Module):
     """
     def __init__(
             self, 
-            input_length=200,
+            input_seq_length=200,
             output_dim=1,
+
             squeeze=True,
+            sigmoid=False,
 
             conv_channels_list=None,
             conv_kernel_size_list=None,
@@ -251,24 +254,18 @@ class MyBasset(nn.Module):
             pool_kernel_size_list=None,
             pool_padding_list=None,
             conv_dropout_rate=0.2,
-            gap_layer=False,
+            global_average_pooling=False,
 
             linear_channels_list=None,
             linear_dropout_rate=0.5,
             last_linear_layer=True,
-            sigmoid=False,
-
-            rc_augmentation=False,
-            rc_region=None,
-
-            ):                                
+        ):                                
         super().__init__()
 
-        self.input_length = input_length
-        self.output_dim   = output_dim
-        self.squeeze     = squeeze
-        self.rc_augmentation = rc_augmentation
-        self.rc_region = rc_region
+        self.input_seq_length   = input_seq_length
+        self.output_dim         = output_dim
+        self.sigmoid            = sigmoid
+        self.squeeze            = squeeze
 
         if conv_padding_list is None:
             conv_padding_list = [0] * len(conv_kernel_size_list)
@@ -295,17 +292,15 @@ class MyBasset(nn.Module):
             self.conv_layers.add_module(
                 f'conv_dropout_{i}', nn.Dropout(p=conv_dropout_rate))
         
-        if gap_layer:
+        if global_average_pooling:
             self.conv_layers.add_module(
                 'gap_layer', nn.AdaptiveAvgPool1d(1))
-        
 
         with torch.no_grad():
-            test_input = torch.randn(1, 4, self.input_length)
+            test_input = torch.randn(1, 4, self.input_seq_length)
             test_output = self.conv_layers(test_input)
             hidden_dim = test_output[0].reshape(-1).shape[0]
         self.linear_layers = nn.Sequential(OrderedDict([]))
-
 
         for i in range(len(linear_channels_list)):
             self.linear_layers.add_module(
@@ -322,8 +317,7 @@ class MyBasset(nn.Module):
                     in_features=hidden_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
                     out_features=output_dim))
 
-        if sigmoid == True:
-            self.linear_layers.add_module(f'sigmoid', nn.Sigmoid())
+        self.sigmoid_layer = nn.Sigmoid()
 
 
     def forward(self, inputs):
@@ -341,6 +335,8 @@ class MyBasset(nn.Module):
         x = self.conv_layers(seq)
         x = x.view(x.size(0), -1)
         x = self.linear_layers(x)
+        if self.sigmoid:
+            x = self.sigmoid_layer(x)
         if self.squeeze:
             x = x.squeeze(-1)
         return x
@@ -376,35 +372,26 @@ class MyBasset(nn.Module):
 
 
 if __name__ == '__main__':
-    # model = MyBasset(
-    #     input_length=1000,
-    #     output_dim=1,
-    #     conv_channels_list= [100]*12,
-    #     conv_kernel_size_list= [3]*12,
-    #     pool_kernel_size_list= [1,1,1,4]*3,
-    #     linear_channels_list= [1000,100],
-    #     conv_dropout_rate= 0.1,
-    #     linear_dropout_rate= 0.5,
-    #     augmentation= False,
-    #     gap_layer= True,
-    #     )
-    # summary(model, input_size=(1, 1000, 4))
 
     yaml_str = '''
-        input_length:   200
-        output_dim:     1
+    model:
+        type: 
+            MyBassetFeatureMatrix
+        args:
+            input_seq_length:       200
+            output_dim:             1
 
-        conv_channels_list:     [256, 256, 256]
-        conv_kernel_size_list:  [7, 7, 7]
-        conv_padding_list:      [3, 3, 3]
-        pool_kernel_size_list:  [2, 2, 2]
-        pool_padding_list:      [0, 0, 0]
-        conv_dropout_rate:      0.2
+            conv_channels_list:     [256, 256, 256]
+            conv_kernel_size_list:  [7, 7, 7]
+            conv_padding_list:      [3, 3, 3]
+            pool_kernel_size_list:  [2, 2, 2]
+            pool_padding_list:      [0, 0, 0]
+            conv_dropout_rate:      0.2
 
-        linear_channels_list:   [256]
-        linear_dropout_rate:    0.5
+            linear_channels_list:   [256]
+            linear_dropout_rate:    0.5
 
-        sigmoid: True
+            sigmoid: True
         '''
     
     config = yaml.load(yaml_str, Loader=yaml.FullLoader)

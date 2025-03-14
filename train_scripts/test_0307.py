@@ -11,20 +11,25 @@ from train_0306 import Trainer
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
-    args.add_argument(
-        '-s', '--saved_dir', type=str, default=None, 
-        help='saved folder dir',
-        )
+    args.add_argument('-s', '--saved_dir', type=str, default=None, help='saved folder dir',)
+    args.add_argument('-c', '--config_path', type=str, default=None, help='config folder path, default is saved_dir/config.yaml',)
+    
     args = args.parse_args()
     saved_dir = args.saved_dir
+    config_path = args.config_path
 
-    config_path = 'configs/config_0306_SirajMPRA_test.yaml'
+    if config_path is None: # use the saved config
+        config_path = os.path.join(saved_dir, 'config.yaml')
+    else: # use the given new config
+        pass
+    # config_path = 'configs/config_0311_SirajMPRA_test_1_cell_type.yaml'
+
     config = utils.load_config(config_path)
     config['save_dir'] = saved_dir
+    config['load_saved_model'] = True
     config['saved_model_path'] = os.path.join(saved_dir, 'checkpoint.pth')
 
     trainer = Trainer(config)
-
     test_dataset = utils.init_obj(datasets, config['test_dataset'])
     test_loader = DataLoader(
         dataset=test_dataset, 
@@ -32,6 +37,4 @@ if __name__ == '__main__':
         shuffle=False,
         num_workers=1,
         pin_memory=True)
-
     trainer.test(test_loader)
-    torch.cuda.empty_cache()

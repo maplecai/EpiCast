@@ -16,29 +16,29 @@ class MyBassetFeatureMatrix(nn.Module):
     output: label (batch_size, num_cell_types)
     """
     def __init__(
-        self, 
-        input_seq_length=200,
-        input_feature_dim=4,
-        num_cell_types=5,
-        output_dim=1,
+            self, 
+            input_seq_length=200,
+            input_feature_dim=4,
+            num_cell_types=5,
+            output_dim=1,
 
-        sigmoid=False,
-        squeeze=True,
-        rc_augmentation=False,
-        rc_region=None,
+            sigmoid=False,
+            squeeze=True,
+            rc_augmentation=False,
+            rc_region=None,
 
-        conv_channels_list=None,
-        conv_kernel_size_list=None,
-        conv_padding_list=None,
-        pool_kernel_size_list=None,
-        pool_padding_list=None,
-        conv_dropout_rate=0.2,
-        global_average_pooling=False,
+            conv_channels_list=None,
+            conv_kernel_size_list=None,
+            conv_padding_list=None,
+            pool_kernel_size_list=None,
+            pool_padding_list=None,
+            conv_dropout_rate=0.2,
+            global_average_pooling=False,
 
-        linear_channels_list=None,
-        linear_dropout_rate=0.5,
-        last_linear_layer=True,
-    ):                                
+            linear_channels_list=None,
+            linear_dropout_rate=0.5,
+            last_linear_layer=True,
+        ):                                
         super().__init__()
 
         self.input_seq_length   = input_seq_length
@@ -84,7 +84,6 @@ class MyBassetFeatureMatrix(nn.Module):
             test_input = torch.randn(1, 4, self.input_seq_length)
             test_output = self.conv_layers(test_input)
             hidden_dim = test_output[0].reshape(-1).shape[0]
-
         self.linear_layers = nn.Sequential(OrderedDict([]))
 
         for i in range(len(linear_channels_list)):
@@ -135,8 +134,6 @@ class MyBassetFeatureMatrix(nn.Module):
 
 
 if __name__ == '__main__':
-
-
 
     yaml_str = '''
     model:

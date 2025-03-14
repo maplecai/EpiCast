@@ -75,14 +75,14 @@ class Trainer:
             self.valid_sampler = DistributedSampler(self.valid_dataset, shuffle=False)
             self.train_loader = DataLoader(
                 dataset=self.train_dataset, 
-                batch_size=config['batch_size'] // config['world_size'],
+                batch_size=config['batch_size'],
                 sampler=self.train_sampler,
                 num_workers=1,
                 pin_memory=True,
                 drop_last=False)
             self.valid_loader = DataLoader(
                 dataset=self.valid_dataset, 
-                batch_size=config['batch_size'] // config['world_size'],
+                batch_size=config['batch_size'],
                 sampler=self.valid_sampler,
                 num_workers=1,
                 pin_memory=True,
@@ -322,11 +322,10 @@ class Trainer:
 
         save_file_path = os.path.join(self.config['save_dir'], f'test_pred.npy')
         np.save(save_file_path, pred_list)
+        torch.cuda.empty_cache()
 
 
     def save_model(self):
-        checkpoint_dir = self.config['save_dir']
-
         # checkpoint = {
         #     'config': self.config,
         #     'epoch': self.epoch,
@@ -336,7 +335,7 @@ class Trainer:
         # checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
         
         checkpoint = self.model.module.state_dict() if self.distributed else self.model.state_dict()
-        checkpoint_path = os.path.join(checkpoint_dir, f'checkpoint.pth')
+        checkpoint_path = os.path.join(self.config['save_dir'], f'checkpoint.pth')
         torch.save(checkpoint, checkpoint_path)
         self.logger.debug(f'save model at {checkpoint_path}')
 
