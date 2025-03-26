@@ -11,3 +11,4 @@ from .SeqDataset import SeqDataset
 # from .GenomeInterval import GenomeInterval
 # from .XpressoDatasetNew import XpressoDatasetNew
 # from .SeqFeatureLabelDataset import SeqFeatureLabelDataset
+from .RandomDataset import RandomDataset

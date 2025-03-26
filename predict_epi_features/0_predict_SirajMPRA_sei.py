@@ -22,6 +22,8 @@ def get_pred(model, test_data_loader, device='cuda'):
                 x = batch[0]
             elif isinstance(batch, dict):
                 x = batch['seq']
+            else:
+                x = batch
             x = x.to(device)
             output = model(x)
             y_pred.append(output.detach().cpu().numpy())
@@ -35,15 +37,20 @@ def get_pred(model, test_data_loader, device='cuda'):
 if __name__ == '__main__':
 
     set_seed(0)
+    device = f'cuda:0'
     model_path = f'pretrained_models/Sei/sei.pth'
     data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
     # output_path = f'predict_epi_features/outputs/SirajMPRA_Sei_prediction_zero_padding.npy'
-    output_path = f'predict_epi_features/outputs/SirajMPRA_Sei_prediction_N_padding.npy'
-    device = f'cuda:0'
+    output_dir = f'predict_epi_features/outputs'
+    output_path = f'{output_dir}/SirajMPRA_Sei_prediction_N_padding.npy'
 
-
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f'cannot find {output_dir}, creating {output_dir}')
     if os.path.exists(output_path):
-        print(f'warning, already exists {output_path}')
+        print(f'already exists {output_path}, exit')
+        exit()
+    
     print(f'predicting {output_path}')
 
     model = models.Sei()
@@ -51,16 +58,20 @@ if __name__ == '__main__':
     model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
     model.load_state_dict(model_state_dict)
 
-    dataset = datasets.SeqDataset(
-        data_path=data_path,
-        seq_column='seq', 
-        crop=False,
-        padding=True,
-        padding_method='N',
-        padded_length=4096,
-        N_fill_value=0.25)
+    # dataset = datasets.SeqDataset(
+    #     data_path=data_path,
+    #     seq_column='seq', 
+    #     crop=False,
+    #     padding=True,
+    #     padding_method='N',
+    #     padded_length=4096,
+    #     N_fill_value=0.25)
+
+    dataset = datasets.RandomDataset(
+        shape=(10000, 4, 4096)
+    )
     
-    test_data_loader = DataLoader(dataset, batch_size=512, shuffle=False, num_workers=16, pin_memory=True)
+    test_data_loader = DataLoader(dataset, batch_size=512, shuffle=False, num_workers=4, pin_memory=True)
     pred = get_pred(model, test_data_loader, device)
     np.save(output_path, pred)
 
