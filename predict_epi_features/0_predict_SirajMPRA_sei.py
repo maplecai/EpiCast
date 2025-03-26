@@ -11,13 +11,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from MPRA_predict import models, datasets, metrics, utils
 from MPRA_predict.utils import *
 
-
 def get_pred(model, test_data_loader, device='cuda'):
-    model = model.to(device)
     y_pred = []
     model.eval()
     with torch.no_grad():
-        for batch in tqdm(test_data_loader):
+        for i, batch in enumerate(tqdm(test_data_loader)):
             if isinstance(batch, (list, tuple)):
                 x = batch[0]
             elif isinstance(batch, dict):
@@ -26,9 +24,10 @@ def get_pred(model, test_data_loader, device='cuda'):
                 x = batch
             x = x.to(device)
             output = model(x)
-            y_pred.append(output.detach().cpu().numpy())
-            del batch, x, output  # 清理内存
-    torch.cuda.empty_cache()
+            # output = model.test(x)
+            # y_pred.append(output.detach().cpu().numpy())
+    #         del batch, x, output  # 清理内存
+    # torch.cuda.empty_cache()
     y_pred = np.concatenate(y_pred, axis=0)
     return y_pred
 
@@ -57,21 +56,22 @@ if __name__ == '__main__':
     model_state_dict = torch.load(model_path)
     model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
     model.load_state_dict(model_state_dict)
+    model = model.to(device)
 
-    # dataset = datasets.SeqDataset(
-    #     data_path=data_path,
-    #     seq_column='seq', 
-    #     crop=False,
-    #     padding=True,
-    #     padding_method='N',
-    #     padded_length=4096,
-    #     N_fill_value=0.25)
+    dataset = datasets.SeqDataset(
+        data_path=data_path,
+        seq_column='seq', 
+        crop=False,
+        padding=True,
+        padding_method='N',
+        padded_length=4096,
+        N_fill_value=0.25)
 
-    dataset = datasets.RandomDataset(
-        shape=(10000, 4, 4096)
-    )
+    # dataset = datasets.RandomDataset(
+    #     shape=(4000, 4096, 4)
+    # )
     
-    test_data_loader = DataLoader(dataset, batch_size=512, shuffle=False, num_workers=4, pin_memory=True)
+    test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=16)
     pred = get_pred(model, test_data_loader, device)
     np.save(output_path, pred)
 

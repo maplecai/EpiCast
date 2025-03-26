@@ -234,9 +234,9 @@ class Sei(nn.Module):
         predict = self.classifier(reshape_out)
         return predict
 
-    def get_embedding(self, x):
-        """Forward propagation of a batch.
-        """
+
+
+    def test(self, x):
         if x.shape[2] == 4:
             x = x.transpose(1, 2) # (b, l, 4) -> (b, 4, l)
 
@@ -259,24 +259,54 @@ class Sei(nn.Module):
         cat_out4 = cat_out3 + dconv_out4
         dconv_out5 = self.dconv5(cat_out4)
         out = cat_out4 + dconv_out5
+
+        return out
+
+
+
+#     def get_embedding(self, x):
+#         """Forward propagation of a batch.
+#         """
+#         if x.shape[2] == 4:
+#             x = x.transpose(1, 2) # (b, l, 4) -> (b, 4, l)
+
+#         lout1 = self.lconv1(x)
+#         out1 = self.conv1(lout1)
+
+#         lout2 = self.lconv2(out1 + lout1)
+#         out2 = self.conv2(lout2)
+
+#         lout3 = self.lconv3(out2 + lout2)
+#         out3 = self.conv3(lout3)
+
+#         dconv_out1 = self.dconv1(out3 + lout3)
+#         cat_out1 = out3 + dconv_out1
+#         dconv_out2 = self.dconv2(cat_out1)
+#         cat_out2 = cat_out1 + dconv_out2
+#         dconv_out3 = self.dconv3(cat_out2)
+#         cat_out3 = cat_out2 + dconv_out3
+#         dconv_out4 = self.dconv4(cat_out3)
+#         cat_out4 = cat_out3 + dconv_out4
+#         dconv_out5 = self.dconv5(cat_out4)
+#         out = cat_out4 + dconv_out5
         
-        spline_out = self.spline_tr(out)
-        embedding = spline_out.view(spline_out.size(0), 960 * self._spline_df)
-        predict = self.classifier(embedding)
-        return predict, embedding
+#         spline_out = self.spline_tr(out)
+#         embedding = spline_out.view(spline_out.size(0), 960 * self._spline_df)
+#         predict = self.classifier(embedding)
+#         return predict, embedding
 
-def criterion():
-    """
-    The criterion the model aims to minimize.
-    """
-    return nn.BCELoss()
+# def criterion():
+#     """
+#     The criterion the model aims to minimize.
+#     """
+#     return nn.BCELoss()
 
-def get_optimizer(lr):
-    """
-    The optimizer and the parameters with which to initialize the optimizer.
-    At a later time, we initialize the optimizer by also passing in the model
-    parameters (`model.parameters()`). We cannot initialize the optimizer
-    until the model has been initialized.
-    """
-    return (torch.optim.SGD,
-            {"lr": lr, "weight_decay": 1e-7, "momentum": 0.9})
+# def get_optimizer(lr):
+#     """
+#     The optimizer and the parameters with which to initialize the optimizer.
+#     At a later time, we initialize the optimizer by also passing in the model
+#     parameters (`model.parameters()`). We cannot initialize the optimizer
+#     until the model has been initialized.
+#     """
+#     return (torch.optim.SGD,
+#             {"lr": lr, "weight_decay": 1e-7, "momentum": 0.9})

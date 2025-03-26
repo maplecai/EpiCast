@@ -10,12 +10,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from MPRA_predict import models, datasets, metrics, utils
 from MPRA_predict.utils import *
-# from MPRA_predict.models.enformer_pytorch import from_pretrained
 
 
 # only get center pos pred
 def get_pred(model, test_data_loader, device='cuda'):
-    model = model.to(device)
     y_pred = []
     model.eval()
     with torch.no_grad():
@@ -24,6 +22,8 @@ def get_pred(model, test_data_loader, device='cuda'):
                 x = batch[0]
             elif isinstance(batch, dict):
                 x = batch['seq']
+            else:
+                x = batch
             x = x.to(device)
             output = model(x)
             # output = output['human']
@@ -39,20 +39,27 @@ def get_pred(model, test_data_loader, device='cuda'):
 if __name__ == '__main__':
 
     set_seed(0)
-    model_path = f'../pretrained_models/enformer_weights'
-    data_path = f'../data/SirajMPRA/SirajMPRA_563k.csv'
+    device = f'cuda:0'
+    model_path = f'pretrained_models/enformer_weights'
+    data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
+    output_dir = f'predict_epi_features/outputs'
     # output_path = f'outputs/SirajMPRA_Enformer_no_padding.npy'
-    output_path = f'outputs/SirajMPRA_Enformer_zero_padding.npy'
+    output_path = f'{output_dir}/SirajMPRA_Enformer_zero_padding.npy'
     # output_path = f'outputs/SirajMPRA_Enformer_N_padding.npy'
-    device = f'cuda:1'
 
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        print(f'cannot find {output_dir}, creating {output_dir}')
     if os.path.exists(output_path):
-        print(f'warning, already exists {output_path}')
+        print(f'already exists {output_path}, exit')
+        exit()
+    
     print(f'predicting {output_path}')
 
     # model = from_pretrained(model_path, target_length=2, use_tf_gamma=False)
     model = models.enformer_pytorch.from_pretrained(model_path)
-
+    model = model.to(device)
     dataset = datasets.SeqDataset(
         data_path=data_path,
         seq_column='seq', 
