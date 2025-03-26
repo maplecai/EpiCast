@@ -18,9 +18,11 @@ if __name__ == '__main__':
     saved_dir = args.saved_dir
     config_path = args.config_path
 
-    if config_path is None: # use the saved config
+    if config_path is None:
         config_path = os.path.join(saved_dir, 'config.yaml')
-    else: # use the given new config
+        print(f'use saved config: {config_path}')
+    else:
+        print(f'use new config: {config_path}')
         pass
     # config_path = 'configs/config_0311_SirajMPRA_test_1_cell_type.yaml'
 

@@ -91,8 +91,7 @@ class BSplineTransformation(nn.Module):
             self._spline_tr = spline_factory(spatial_dim, self._df, log=self._log)
             if self._scaled:
                 self._spline_tr = self._spline_tr / spatial_dim
-            if input.is_cuda:
-                self._spline_tr = self._spline_tr.cuda()
+            self._spline_tr = self._spline_tr.to(input.device)
         
         return  torch.matmul(input, self._spline_tr)
 

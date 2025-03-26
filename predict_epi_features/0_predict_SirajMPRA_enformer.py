@@ -1,10 +1,16 @@
+import os
 import sys
-sys.path.append("..")
-from MPRA_predict.utils import *
-from MPRA_predict.datasets import *
-
+import torch
+import numpy as np
+from tqdm import tqdm
 from torch.utils.data import DataLoader
-from MPRA_predict.models.enformer_pytorch import from_pretrained
+
+sys.path.append("..")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from MPRA_predict import models, datasets, metrics, utils
+from MPRA_predict.utils import *
+# from MPRA_predict.models.enformer_pytorch import from_pretrained
 
 
 # only get center pos pred
@@ -20,8 +26,8 @@ def get_pred(model, test_data_loader, device='cuda'):
                 x = batch['seq']
             x = x.to(device)
             output = model(x)
-            output = output['human']
-            # output = output['human'][:, 447:449]
+            # output = output['human']
+            output = output['human'][:, 447:449]
             y_pred.append(output.detach().cpu().numpy())
             del batch, x, output  # 清理内存
             torch.cuda.empty_cache() # 清理显存
@@ -35,25 +41,34 @@ if __name__ == '__main__':
     set_seed(0)
     model_path = f'../pretrained_models/enformer_weights'
     data_path = f'../data/SirajMPRA/SirajMPRA_563k.csv'
-    output_path = f'outputs/SirajMPRA_Enformer_no_padding.npy'
-    device = f'cuda:3'
+    # output_path = f'outputs/SirajMPRA_Enformer_no_padding.npy'
+    output_path = f'outputs/SirajMPRA_Enformer_zero_padding.npy'
+    # output_path = f'outputs/SirajMPRA_Enformer_N_padding.npy'
+    device = f'cuda:1'
 
     if os.path.exists(output_path):
         print(f'warning, already exists {output_path}')
     print(f'predicting {output_path}')
 
-    model = from_pretrained(model_path, target_length=2, use_tf_gamma=False)
+    # model = from_pretrained(model_path, target_length=2, use_tf_gamma=False)
+    model = models.enformer_pytorch.from_pretrained(model_path)
 
-    dataset = SeqDataset(
+    dataset = datasets.SeqDataset(
         data_path=data_path,
-        input_column='seq', 
+        seq_column='seq', 
         crop=False,
-        padding=False,
+        padding=True,
+        padding_method='N',
+        padded_length=196608,
         N_fill_value=0)
+        # padding = False,
+        # N_fill_value = 0.25,
     
-    test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=1)
+    test_data_loader = DataLoader(dataset, batch_size=6, shuffle=False, num_workers=4)
     pred = get_pred(model, test_data_loader, device)
     np.save(output_path, pred)
+
+
 
     # num_splits = 10    # num_splits是你要分割的部分数
     # split_size = len(dataset) // num_splits

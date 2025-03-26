@@ -8,34 +8,34 @@ from collections import OrderedDict
 from .MyBasset import ConvBlock, LinearBlock
 from .Attention import CrossAttention
 
-# class FusionLayer(nn.Module):
-#     def __init__(
-#         self,
-#         input_features=10,
-#         output_features=10,
-#         fusion_type='concat', 
-#         n_heads=8,
-#         d_embed=64,
-#         d_cross=64,
-#     ):
-#         super().__init__()
-#         self.input_features = input_features
-#         self.output_features = output_features
-#         self.fusion_type = fusion_type
-#         if self.fusion_type == 'concat':
-#             pass
-#         elif self.fusion_type == 'cross_attention':
-#             self.cross_attn = CrossAttention(
-#                 n_heads=n_heads,
-#                 d_embed=d_embed,
-#                 d_cross=d_cross,
-#             )
+class FusionLayer(nn.Module):
+    def __init__(
+        self,
+        input_features=10,
+        output_features=10,
+        fusion_type='concat', 
+        n_heads=8,
+        d_embed=64,
+        d_cross=64,
+    ):
+        super().__init__()
+        self.input_features = input_features
+        self.output_features = output_features
+        self.fusion_type = fusion_type
+        if self.fusion_type == 'concat':
+            pass
+        elif self.fusion_type == 'cross_attention':
+            self.cross_attn = CrossAttention(
+                n_heads=n_heads,
+                d_embed=d_embed,
+                d_cross=d_cross,
+            )
 
-#     def forward(self, x, y):
-#         if self.fusion_type == 'concat':
-#             return torch.cat([x, y], dim=1)
-#         elif self.fusion_type == 'cross_attention':
-#             return self.cross_attn(x, y)
+    def forward(self, x, y):
+        if self.fusion_type == 'concat':
+            return torch.cat([x, y], dim=1)
+        elif self.fusion_type == 'cross_attention':
+            return self.cross_attn(x, y)
 
 
 class MyBassetFusion(nn.Module):

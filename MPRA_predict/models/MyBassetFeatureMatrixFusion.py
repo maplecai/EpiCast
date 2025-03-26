@@ -6,9 +6,62 @@ from collections import OrderedDict
 from ruamel.yaml import YAML
 
 from .MyBasset import ConvBlock, LinearBlock
+from .Attention import CrossAttention
 
 
-class MyBassetFeatureMatrix(nn.Module):
+class FusionLayer(nn.Module):
+    def __init__(
+        self,
+        x_features=10,
+        y_features=10,
+        output_features=10,
+
+        fusion_type='concat', 
+
+        n_heads=8,
+        d_embed=64,
+        d_cross=64,
+    ):
+        super().__init__()
+        self.x_features = x_features
+        self.y_features = y_features
+        self.output_features = output_features
+        self.fusion_type = fusion_type
+
+        if fusion_type == 'concat':
+            # 直接cancat 线性映射
+            self.linear = nn.Linear(in_features=(x_features + y_features), out_features=output_features)
+        
+        elif fusion_type == 'linear_concat':
+            # 分别线性映射 x, y 再 concat
+            x_out_features = output_features//2
+            y_out_features = output_features - x_out_features
+            self.linear_x = nn.Linear(in_features=x_features, out_features=x_out_features)
+            self.linear_y = nn.Linear(in_features=y_features, out_features=y_out_features)
+
+        elif fusion_type == 'cross_attention':
+            # 注意力机制
+            self.cross_attn = CrossAttention(
+                n_heads=n_heads,
+                d_embed=d_embed,
+                d_cross=d_cross,
+            )
+
+    def forward(self, x, y):
+        if self.fusion_type == 'concat':
+            z = torch.cat([x, y], dim=1)
+            z = self.linear(z)
+        elif self.fusion_type == 'linear_concat':
+            x = self.linear_x(x)
+            y = self.linear_y(y)
+            z = torch.cat([x, y], dim=1)
+        elif self.fusion_type == 'cross_attention':
+            z = self.cross_attn(x, y)
+        return z
+
+
+
+class MyBassetFeatureMatrixFusion(nn.Module):
     """
     input:  seq (batch_size, 4, seq_length)
             feature (batch_size, num_cell_types, num_features)
@@ -22,6 +75,8 @@ class MyBassetFeatureMatrix(nn.Module):
 
             sigmoid=False,
             squeeze=True,
+
+            fusion_type='linear_concat',
 
             conv_channels_list=None,
             conv_kernel_size_list=None,
@@ -77,13 +132,21 @@ class MyBassetFeatureMatrix(nn.Module):
             test_input = torch.zeros(1, 4, self.input_seq_length)
             test_output = self.conv_layers(test_input)
             hidden_dim = test_output[0].reshape(-1).shape[0]
+        
+
+        self.fusion_layer = FusionLayer(
+            x_features=hidden_dim,
+            y_features=self.input_feature_dim,
+            output_features=hidden_dim,
+            fusion_type=fusion_type,
+        )
 
         self.linear_layers = nn.Sequential(OrderedDict([]))
 
         for i in range(len(linear_channels_list)):
             self.linear_layers.add_module(
                 f'linear_block_{i}', LinearBlock(
-                    in_channels=hidden_dim + self.input_feature_dim if i == 0 else linear_channels_list[i-1], 
+                    in_channels=hidden_dim if i == 0 else linear_channels_list[i-1], 
                     out_channels=linear_channels_list[i]))
         
             self.linear_layers.add_module(
@@ -114,7 +177,8 @@ class MyBassetFeatureMatrix(nn.Module):
         outputs = []
         for i in range(feature.shape[1]):
             feature_i = feature[:, i, :]  # Extract features for cell type i
-            x = torch.cat([seq_embed, feature_i], dim=1)  # Concatenate sequence embedding with features
+            x = self.fusion_layer(seq_embed, feature_i)
+            # x = torch.cat([seq_embed, feature_i], dim=1)  # Concatenate sequence embedding with features
             x = self.linear_layers(x)
             if self.sigmoid:
                 x = self.sigmoid_layer(x)
@@ -129,6 +193,13 @@ class MyBassetFeatureMatrix(nn.Module):
 
 if __name__ == '__main__':
 
+    fusion = FusionLayer(x_features=10, y_features=10, fusion_type='linear_concat')
+    x = torch.randn(2, 10)
+    y = torch.randn(2, 10)
+    z = fusion(x, y)
+    print(z.shape)
+
+
     yaml_str = '''
     model:
         type: 
@@ -137,6 +208,8 @@ if __name__ == '__main__':
             input_seq_length:       200
             input_feature_dim:      4
             output_dim:             1
+
+            fusion_type:            'linear_concat'
 
             conv_channels_list:     [256,256,256,256,256,256]
             conv_kernel_size_list:  [5,5,5,5,5,5]
@@ -147,12 +220,10 @@ if __name__ == '__main__':
 
             linear_channels_list:   [1024]
             linear_dropout_rate:    0.5
-
-            sigmoid: False
     '''
     yaml = YAML()
     config = yaml.load(yaml_str)
-    model = MyBassetFeatureMatrix(**config['model']['args'])
+    model = MyBassetFeatureMatrixFusion(**config['model']['args'])
 
     seq = torch.randn(2, 4, 200)
     feature = torch.randn(2, 5, 4)

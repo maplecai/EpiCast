@@ -8,24 +8,27 @@ import torchinfo
 from typing import Callable
 from tqdm import tqdm
 from .seq_utils import *
+import subprocess
 
 def to_device(data, device):
     if isinstance(data, (list, tuple)):
         return [to_device(x, device) for x in data]
     elif isinstance(data, dict):
         return {k: to_device(v, device) for k, v in data.items()}
-    else:
+    elif isinstance(data, torch.Tensor):
         return data.to(device)
+    else:
+        raise TypeError(f'data should be a list, tuple, dict or torch.Tensor, but got {type(data)}')
 
 
-def dist_all_gather(tensor):
+def dist_all_gather(tensor: torch.Tensor) -> torch.Tensor:
     tensor_list = [torch.zeros_like(tensor, device=tensor.device) for _ in range(dist.get_world_size())]
     dist.all_gather(tensor_list, tensor)
     tensor_list = torch.cat(tensor_list)
     return tensor_list
 
 
-def load_model(model, checkpoint_path):
+def load_model(model: nn.Module, checkpoint_path: str) -> nn.Module:
     state_dict = torch.load(checkpoint_path)
     if 'model_state_dict' in state_dict:
         model_state_dict = state_dict['model_state_dict']
@@ -37,26 +40,45 @@ def load_model(model, checkpoint_path):
     return model
 
 
+def save_model(model: nn.Module, checkpoint_path: str) -> None:
+    # checkpoint = {
+    #     'config': self.config,
+    #     'epoch': self.epoch,
+    #     'model_state_dict': self.model.state_dict(),
+    #     'optimizer_state_dict': self.optimizer.state_dict(),
+    #     }
+    # checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
+    model_state_dict = model.state_dict().copy()
+    model_state_dict = {
+        (k.replace('module.', '') if k.startswith('module.') else k): v
+        for k, v in model_state_dict.items()
+    }
+    torch.save(model_state_dict, checkpoint_path)
+    return
+
+
 def get_free_gpu_ids(min_memory_mb=40000):
-    """Return a list of GPU ids with more than min_memory MB free memory."""
-    free_memorys = []
-    for i in range(torch.cuda.device_count()):
-        free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
-        free_memory_mb = free_memory / (1024 ** 2)  # Convert to MB
-        free_memorys.append(free_memory_mb)
-    
-    free_gpus = [i for i in range(len(free_memorys)) if free_memorys[i] > min_memory_mb]
-    return free_gpus
+    free_list, total_list = get_gpu_info_from_nvidia_smi()
+    free_gpu_ids = [i for i in range(len(free_list)) if free_list[i] > min_memory_mb]
+    return free_gpu_ids
 
 
-def get_free_gpu_id():
-    free_memorys = []
-    for i in range(torch.cuda.device_count()):
-        free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
-        free_memory_mb = free_memory / (1024 ** 2)  # Convert to MB
-        free_memorys.append(free_memory_mb)
-    free_gpu_id = np.argmax(free_memorys)
-    return free_gpu_id
+def get_gpu_info_from_nvidia_smi():
+    # 执行nvidia-smi命令并读出结果
+    cmd = "nvidia-smi --query-gpu=memory.free,memory.total --format=csv,noheader,nounits"
+    output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip().split('\n')
+    # 每行形如 "37278, 40960"
+    free_list, total_list = [], []
+    for line in output:
+        free_str, total_str = line.split(',')
+        free_list.append(float(free_str))
+        total_list.append(float(total_str))
+    return free_list, total_list
+
+
+
+
+
 
 
 def get_nums_trainable_params(model:nn.Module) -> int:
@@ -120,48 +142,3 @@ class EarlyStopping:
                 self.trace_func(f'best score changed ({self.best_score:.6f} --> {score:.6f}).')
             self.best_score = score
             self.counter = 0
-
-
-
-
-# def load_partial_parameters(target_model, source_model_path, prefix_list=None, print_func=print):
-#     """
-#     Load parameters with specific prefix from a source model file into a target model.
-
-#     Args:
-#         target_model (torch.nn.Module): The target model instance to initialize.
-#         source_model_path (str): Path to the source model's state_dict.
-#         prefix_list (list of str, optional): List of prefixes to filter parameters to load. Default is None, which loads all common parameters.
-#         print_func (callable, optional): Function to print log messages. Default is print.
-#     """
-
-#     # Load source model parameters
-#     source_state_dict = torch.load(source_model_path)
-    
-#     # Get target model parameters
-#     target_state_dict = target_model.state_dict()
-    
-#     # Initialize parameters
-#     common_params = {k: v for k, v in source_state_dict.items() 
-#                      if k in target_state_dict and v.size() == target_state_dict[k].size()}
-    
-#     if prefix_list is None:
-#         new_state_dict = common_params
-#     else:
-#         new_state_dict = {}
-#         for k, v in common_params.items():
-#             for prefix in prefix_list:
-#                 if k.startswith(prefix):
-#                     new_state_dict[k] = v
-#                     break
-
-#         if new_state_dict:
-#             print_func(f'Loading parameters: {list(new_state_dict.keys())} from {source_model_path}')
-#         else:
-#             print_func(f'No matching parameters found with prefixes {prefix_list}')
-        
-#     # Update target state dict with the new parameters
-#     target_state_dict.update(new_state_dict)
-    
-#     # Load the updated state dict into the target model
-#     target_model.load_state_dict(target_state_dict)

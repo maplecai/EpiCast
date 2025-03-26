@@ -39,16 +39,33 @@ class SelfAttention(nn.Module):
 
 class CrossAttention(nn.Module):
     def __init__(self, n_heads, d_embed, d_cross, in_proj_bias=True, out_proj_bias=True):
-        super().__init__()
-        self.n_heads = n_heads
-        self.d_embed = d_embed
-        self.d_cross = d_cross
-        self.q_proj   = nn.Linear(d_embed, d_embed, bias=in_proj_bias)
-        self.k_proj   = nn.Linear(d_cross, d_embed, bias=in_proj_bias)
-        self.v_proj   = nn.Linear(d_cross, d_embed, bias=in_proj_bias)
+        """
+        初始化多头注意力机制的参数。
+        
+        参数:
+        - n_heads (int): 注意力头的数量。
+        - d_embed (int): 嵌入维度的大小。
+        - d_cross (int): 交叉维度的大小，通常用于编码-解码注意力中。
+        - in_proj_bias (bool): 是否在输入投影中使用偏置，默认为True。
+        - out_proj_bias (bool): 是否在输出投影中使用偏置，默认为True。
+        """
+        super().__init__()  # 初始化父类
+        self.n_heads = n_heads  # 注意力头的数量
+        self.d_embed = d_embed  # 嵌入维度的大小
+        self.d_cross = d_cross  # 交叉维度的大小
+        
+        # 初始化查询、键、值的线性变换投影
+        self.q_proj = nn.Linear(d_embed, d_embed, bias=in_proj_bias)  # 查询投影
+        self.k_proj = nn.Linear(d_cross, d_embed, bias=in_proj_bias)  # 键投影
+        self.v_proj = nn.Linear(d_cross, d_embed, bias=in_proj_bias)  # 值投影
+        
+        # 初始化输出投影的线性变换
         self.out_proj = nn.Linear(d_embed, d_embed, bias=out_proj_bias)
-        self.n_heads = n_heads
+        
+        # 确保嵌入维度可以被注意力头数整除
         assert d_embed % n_heads == 0
+        
+        # 计算每个注意力头的维度
         self.d_head = d_embed // n_heads
     
     def forward(self, x, y):

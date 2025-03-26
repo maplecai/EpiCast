@@ -29,7 +29,10 @@ class Trainer:
         self.distributed = config['distributed']
         if not self.distributed:
             self.local_rank = 0
-            self.gpu_id = config['gpu_ids'][0]
+            if self.config['gpu_ids'] == 'auto':
+                self.gpu_id = utils.get_free_gpu_ids()[0]
+            else:
+                self.gpu_id = config['gpu_ids'][0]
             self.device = torch.device(f'cuda:{self.gpu_id}')
             torch.cuda.set_device(self.device)
             self.logger.info(f"Start non DDP training on rank {self.local_rank}, {self.device}.")
@@ -96,17 +99,6 @@ class Trainer:
             state_dict = torch.load(saved_model_path)
             self.model.load_state_dict(state_dict)
             self.log(f"load saved model from {saved_model_path}")
-
-
-        # if config.get('freeze_layers', False) == True:
-        #     self.log(f"freeze conv layers")
-        #     for name, param in self.model.named_parameters():
-        #         if name.startwith('conv_layers'):
-        #             param.requires_grad = False
-        #         elif name.startwith('linear_layers'):
-        #             param.requires_grad = True
-        #         else:
-        #             param.requires_grad = True
 
         self.model = self.model.to(self.device)
         if self.distributed:
@@ -188,7 +180,9 @@ class Trainer:
 
                     if self.early_stopper.update_flag == True:
                         if self.local_rank == 0:
-                            self.save_model()
+                            checkpoint_path = os.path.join(self.config['save_dir'], f'checkpoint.pth')
+                            utils.save_model(self.model, checkpoint_path)
+                            self.log(f'save model at {checkpoint_path}')
                     if self.early_stopper.stop_flag == True:
                         break
 
@@ -323,21 +317,7 @@ class Trainer:
         save_file_path = os.path.join(self.config['save_dir'], f'test_pred.npy')
         np.save(save_file_path, pred_list)
         torch.cuda.empty_cache()
-
-
-    def save_model(self):
-        # checkpoint = {
-        #     'config': self.config,
-        #     'epoch': self.epoch,
-        #     'model_state_dict': self.model.state_dict(),
-        #     'optimizer_state_dict': self.optimizer.state_dict(),
-        #     }
-        # checkpoint_path = os.path.join(checkpoint_dir, f'epoch{self.epoch}.pth')
-        
-        checkpoint = self.model.module.state_dict() if self.distributed else self.model.state_dict()
-        checkpoint_path = os.path.join(self.config['save_dir'], f'checkpoint.pth')
-        torch.save(checkpoint, checkpoint_path)
-        self.logger.debug(f'save model at {checkpoint_path}')
+        return
 
 
 if __name__ == '__main__':
