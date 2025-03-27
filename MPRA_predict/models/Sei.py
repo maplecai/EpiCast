@@ -77,50 +77,49 @@ def spline_factory(n, df, log=False):
 
 
 class BSplineTransformation(nn.Module):
-
-    def __init__(self, degrees_of_freedom, log=False, scaled=False):
+    def __init__(self, degrees_of_freedom, log=False, scaled=False, seq_len=None):
         super(BSplineTransformation, self).__init__()
         self._spline_tr = None
         self._log = log
         self._scaled = scaled
         self._df = degrees_of_freedom
 
-    def forward(self, input):
-        if self._spline_tr is None:
-            spatial_dim = input.size()[-1]
-            self._spline_tr = spline_factory(spatial_dim, self._df, log=self._log)
-            if self._scaled:
-                self._spline_tr = self._spline_tr / spatial_dim
-            self._spline_tr = self._spline_tr.to(input.device)
-        
-        return  torch.matmul(input, self._spline_tr)
+        spatial_dim = seq_len
+        self._spline_tr = spline_factory(spatial_dim, self._df, log=self._log)
+        if self._scaled:
+            self._spline_tr = self._spline_tr / spatial_dim
+        self._spline_tr = nn.Parameter(self._spline_tr)
+
+
+    def forward(self, input):        
+        return torch.matmul(input, self._spline_tr)
 
 
 
-class BSplineConv1D(nn.Module):
+# class BSplineConv1D(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size, degrees_of_freedom, stride=1,
-                 padding=0, dilation=1, groups=1, bias=True, log=False, scaled = True):
-        super(BSplineConv1D, self).__init__()
-        self._df = degrees_of_freedom
-        self._log = log
-        self._scaled = scaled
+#     def __init__(self, in_channels, out_channels, kernel_size, degrees_of_freedom, stride=1,
+#                  padding=0, dilation=1, groups=1, bias=True, log=False, scaled = True):
+#         super(BSplineConv1D, self).__init__()
+#         self._df = degrees_of_freedom
+#         self._log = log
+#         self._scaled = scaled
 
-        self.spline = nn.Conv1d(1, degrees_of_freedom, kernel_size, stride, padding, dilation,
-            bias=False)
-        self.spline.weight = spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size)
-        if scaled:
-            self.spline.weight = self.spline.weight / kernel_size            
-        self.spline.weight = nn.Parameter(self.spline.weight)
-        self.spline.weight.requires_grad = False
-        self.conv1d = nn.Conv1d(in_channels * degrees_of_freedom, out_channels, 1, 
-            groups = groups, bias=bias)
+#         self.spline = nn.Conv1d(1, degrees_of_freedom, kernel_size, stride, padding, dilation,
+#             bias=False)
+#         self.spline.weight = spline_factory(kernel_size, self._df, log=log).view(self._df, 1, kernel_size)
+#         if scaled:
+#             self.spline.weight = self.spline.weight / kernel_size            
+#         self.spline.weight = nn.Parameter(self.spline.weight)
+#         self.spline.weight.requires_grad = False
+#         self.conv1d = nn.Conv1d(in_channels * degrees_of_freedom, out_channels, 1, 
+#             groups = groups, bias=bias)
 
-    def forward(self, input):
-        batch_size, n_channels, length = input.size()
-        spline_out = self.spline(input.view(batch_size * n_channels,1,length))
-        conv1d_out = self.conv1d(spline_out.view(batch_size, n_channels * self._df,  length))
-        return conv1d_out
+#     def forward(self, input):
+#         batch_size, n_channels, length = input.size()
+#         spline_out = self.spline(input.view(batch_size * n_channels,1,length))
+#         conv1d_out = self.conv1d(spline_out.view(batch_size, n_channels * self._df,  length))
+#         return conv1d_out
 
 
 class Sei(nn.Module):
@@ -193,7 +192,7 @@ class Sei(nn.Module):
         self._spline_df = int(128/8)        
         self.spline_tr = nn.Sequential(
             nn.Dropout(p=0.5),
-            BSplineTransformation(self._spline_df, scaled=False))
+            BSplineTransformation(self._spline_df, scaled=False, seq_len=256))
 
         self.classifier = nn.Sequential(
             nn.Linear(960 * self._spline_df, n_genomic_features),
@@ -218,8 +217,10 @@ class Sei(nn.Module):
         lout3 = self.lconv3(out2 + lout2)
         out3 = self.conv3(lout3)
 
-        dconv_out1 = self.dconv1(out3 + lout3)
-        cat_out1 = out3 + dconv_out1
+        cat_out0 = out3 + lout3
+
+        dconv_out1 = self.dconv1(cat_out0)
+        cat_out1 = out3 + dconv_out1       # why not use cat_out0 instead of out3 ??
         dconv_out2 = self.dconv2(cat_out1)
         cat_out2 = cat_out1 + dconv_out2
         dconv_out3 = self.dconv3(cat_out2)
@@ -227,86 +228,22 @@ class Sei(nn.Module):
         dconv_out4 = self.dconv4(cat_out3)
         cat_out4 = cat_out3 + dconv_out4
         dconv_out5 = self.dconv5(cat_out4)
-        out = cat_out4 + dconv_out5
+        cat_out5 = cat_out4 + dconv_out5
         
-        spline_out = self.spline_tr(out)
+        spline_out = self.spline_tr(cat_out5)
         reshape_out = spline_out.view(spline_out.size(0), 960 * self._spline_df)
         predict = self.classifier(reshape_out)
         return predict
 
 
 
-    def test(self, x):
-        if x.shape[2] == 4:
-            x = x.transpose(1, 2) # (b, l, 4) -> (b, 4, l)
+if __name__ == '__main__':
+    
+    model = Sei()
+    model_state_dict = torch.load('pretrained_models/Sei/sei.pth')
+    model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
+    model.load_state_dict(model_state_dict, strict=False)
+    model = model.to('cuda:0')
 
-        lout1 = self.lconv1(x)
-        out1 = self.conv1(lout1)
-
-        lout2 = self.lconv2(out1 + lout1)
-        out2 = self.conv2(lout2)
-
-        lout3 = self.lconv3(out2 + lout2)
-        out3 = self.conv3(lout3)
-
-        dconv_out1 = self.dconv1(out3 + lout3)
-        cat_out1 = out3 + dconv_out1
-        dconv_out2 = self.dconv2(cat_out1)
-        cat_out2 = cat_out1 + dconv_out2
-        dconv_out3 = self.dconv3(cat_out2)
-        cat_out3 = cat_out2 + dconv_out3
-        dconv_out4 = self.dconv4(cat_out3)
-        cat_out4 = cat_out3 + dconv_out4
-        dconv_out5 = self.dconv5(cat_out4)
-        out = cat_out4 + dconv_out5
-
-        return out
-
-
-
-#     def get_embedding(self, x):
-#         """Forward propagation of a batch.
-#         """
-#         if x.shape[2] == 4:
-#             x = x.transpose(1, 2) # (b, l, 4) -> (b, 4, l)
-
-#         lout1 = self.lconv1(x)
-#         out1 = self.conv1(lout1)
-
-#         lout2 = self.lconv2(out1 + lout1)
-#         out2 = self.conv2(lout2)
-
-#         lout3 = self.lconv3(out2 + lout2)
-#         out3 = self.conv3(lout3)
-
-#         dconv_out1 = self.dconv1(out3 + lout3)
-#         cat_out1 = out3 + dconv_out1
-#         dconv_out2 = self.dconv2(cat_out1)
-#         cat_out2 = cat_out1 + dconv_out2
-#         dconv_out3 = self.dconv3(cat_out2)
-#         cat_out3 = cat_out2 + dconv_out3
-#         dconv_out4 = self.dconv4(cat_out3)
-#         cat_out4 = cat_out3 + dconv_out4
-#         dconv_out5 = self.dconv5(cat_out4)
-#         out = cat_out4 + dconv_out5
-        
-#         spline_out = self.spline_tr(out)
-#         embedding = spline_out.view(spline_out.size(0), 960 * self._spline_df)
-#         predict = self.classifier(embedding)
-#         return predict, embedding
-
-# def criterion():
-#     """
-#     The criterion the model aims to minimize.
-#     """
-#     return nn.BCELoss()
-
-# def get_optimizer(lr):
-#     """
-#     The optimizer and the parameters with which to initialize the optimizer.
-#     At a later time, we initialize the optimizer by also passing in the model
-#     parameters (`model.parameters()`). We cannot initialize the optimizer
-#     until the model has been initialized.
-#     """
-#     return (torch.optim.SGD,
-#             {"lr": lr, "weight_decay": 1e-7, "momentum": 0.9})
+    import torchinfo
+    torchinfo.summary(model, input_size=(2, 4096, 4))

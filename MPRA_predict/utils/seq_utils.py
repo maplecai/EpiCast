@@ -43,7 +43,7 @@ def rc_onehots(onehots: np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
     return rc_onehot(onehots)
 
 
-def str2onehot(seq: str, N_fill_value: int = 0.25) -> np.ndarray:
+def str2onehot(seq: str, N_fill_value: int = 0.25, dtype=torch.Tensor) -> np.ndarray | torch.Tensor:
     '''
     str -> onehot
     N_fill_value: 碱基N对应的值 0.25(default)
@@ -91,18 +91,20 @@ def onehots2strs(onehots: np.ndarray | torch.Tensor) -> list[str]:
 
 
 def crop_seq(seq: str, length: int, crop_method: str = 'center') -> str:
-    assert length <= len(seq), 'crop length must <= sequence length'
+    seq_len = len(seq)
+    assert length <= seq_len, 'crop length must <= sequence length'
     if crop_method == 'center':
-        start = (len(seq) - length) // 2
+        start = (seq_len - length) // 2
     elif crop_method == 'left':
         start = 0
     elif crop_method == 'right':
-        start = len(seq) - length
+        start = seq_len - length
     elif crop_method == 'random':
         start = np.random.randint(0, len(seq) - length)
     else:
         raise ValueError('crop_method must be "center", "left", "right" or "random"')
-    return seq[start: start + length]
+    cropped_seq = seq[start: start + length]
+    return cropped_seq
 
 
 def crop_seqs(seqs: list[str], length: int, crop_method: str = 'center') -> list[str]:
@@ -122,8 +124,10 @@ def crop_seqs(seqs: list[str], length: int, crop_method: str = 'center') -> list
 
 
 def pad_seq(seq: str, padded_length: int, padding_method='N', padding_postition='both', upstream_seq: str=None, downstream_seq: str=None) -> str:
-    assert padded_length >= len(seq), 'padded_length must >= sequence length'
-    padding_len = padded_length - len(seq)
+    seq_len = len(seq)
+    assert padded_length >= seq_len, 'padded_length must >= sequence length'
+    padding_len = padded_length - seq_len
+
     if padding_postition == 'both':
         left_len = padding_len // 2
         right_len = padding_len - left_len
@@ -140,14 +144,15 @@ def pad_seq(seq: str, padded_length: int, padding_method='N', padding_postition=
         upstream_seq = 'N' * left_len
         downstream_seq = 'N' * right_len
     elif padding_method == 'random':
-        upstream_seq = "".join(np.random.choice(['A', 'C', 'G', 'T'], left_len))
-        downstream_seq = "".join(np.random.choice(['A', 'C', 'G', 'T'], right_len))
+        bases = np.array(['A', 'C', 'G', 'T'])
+        upstream_seq = ''.join(bases[np.random.randint(0, 4, left_len)])
+        downstream_seq = ''.join(bases[np.random.randint(0, 4, right_len)])
     elif padding_method == 'given':
-        upstream_seq = upstream_seq[-left_len:]
-        downstream_seq = downstream_seq[:right_len]
+        upstream_seq = upstream_seq[-left_len:] if left_len > 0 else ''
+        downstream_seq = downstream_seq[:right_len] if right_len > 0 else ''
     else:
         raise ValueError('padding_method must be "N", "random", or "given"')
-    padded_seq = upstream_seq + seq + downstream_seq
+    padded_seq = ''.join([upstream_seq, seq, downstream_seq])
     return padded_seq
 
 

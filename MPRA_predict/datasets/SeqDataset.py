@@ -28,7 +28,6 @@ class SeqDataset(Dataset):
         N_fill_value=0.25,
         augmentations=[],
 
-
         ###
         seq_column=None,
         feature_column=None,

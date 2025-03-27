@@ -23,11 +23,28 @@ def get_pred(model, test_data_loader, device='cuda'):
             else:
                 x = batch
             x = x.to(device)
+
+            # if i == 1: 
+
+            #     from torch.profiler import profile, record_function, ProfilerActivity
+            #     with profile(
+            #         activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            #         record_shapes=True,
+            #         profile_memory=True,
+            #         with_stack=True
+            #     ) as prof:
+            #         with record_function("model_inference"):
+            #             output = model(x)
+            #     print(prof.key_averages().table(
+            #         sort_by="cuda_time_total",  # 可改为 cpu_time_total / self_cpu_time_total 等
+            #         row_limit=20
+            #     ))
+            #     break
+
             output = model(x)
-            # output = model.test(x)
-            # y_pred.append(output.detach().cpu().numpy())
+            y_pred.append(output.detach().cpu().numpy())
     #         del batch, x, output  # 清理内存
-    # torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
     y_pred = np.concatenate(y_pred, axis=0)
     return y_pred
 
@@ -36,12 +53,20 @@ def get_pred(model, test_data_loader, device='cuda'):
 if __name__ == '__main__':
 
     set_seed(0)
+
+    # print("PyTorch version:", torch.__version__)
+    # print("CUDA version:", torch.version.cuda)
+    # print("cuDNN version:", torch.backends.cudnn.version())
+    # print(torch.__config__.show())
+    torch.backends.cudnn.enabled = False
+    # torch.backends.cudnn.benchmark = True
+
     device = f'cuda:0'
     model_path = f'pretrained_models/Sei/sei.pth'
     data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
     # output_path = f'predict_epi_features/outputs/SirajMPRA_Sei_prediction_zero_padding.npy'
     output_dir = f'predict_epi_features/outputs'
-    output_path = f'{output_dir}/SirajMPRA_Sei_prediction_N_padding.npy'
+    output_path = f'{output_dir}/test.npy'
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -55,8 +80,34 @@ if __name__ == '__main__':
     model = models.Sei()
     model_state_dict = torch.load(model_path)
     model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
-    model.load_state_dict(model_state_dict)
+    model.load_state_dict(model_state_dict, strict=False)
     model = model.to(device)
+
+
+#     config_str = '''
+# model:
+#   type: MyBasset
+#   args:
+#     input_seq_length: 4096
+#     output_dim: 1
+#     sigmoid: false
+#     squeeze: false
+
+#     conv_channels_list: [256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+#       256, 256, 256, 256, 256, 256]
+#     conv_kernel_size_list: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+#     conv_padding_list: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+#     pool_kernel_size_list: [1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
+#     conv_dropout_rate: 0.2
+
+#     linear_channels_list: [1024, 1024]
+#     linear_dropout_rate: 0.5
+
+#     '''
+#     config = yaml.load(config_str)
+#     model = init_obj(models, config['model'])
+#     model = model.to(device)
+    
 
     dataset = datasets.SeqDataset(
         data_path=data_path,
@@ -67,11 +118,8 @@ if __name__ == '__main__':
         padded_length=4096,
         N_fill_value=0.25)
 
-    # dataset = datasets.RandomDataset(
-    #     shape=(4000, 4096, 4)
-    # )
-    
-    test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=16)
+
+    test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
     pred = get_pred(model, test_data_loader, device)
     np.save(output_path, pred)
 
