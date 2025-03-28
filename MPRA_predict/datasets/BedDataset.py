@@ -70,12 +70,12 @@ class BedDataset(Dataset):
         self.random_shift = random_shift
         self.random_shift_range = random_shift_range
 
-        assert (data_path is None) != (data_df is None), "data_path和data_df必须有且只有一个不是None"
-
-        if data_path is not None:
+        if data_path is not None and data_df is None:
             self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
-        else:
+        elif data_path is None and data_df is not None:
             self.df = data_df
+        else:
+            raise ValueError("data_path or data_df must be provided.")
 
         if apply_filter:
             if filter_in_list is not None:

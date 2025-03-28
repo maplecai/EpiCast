@@ -79,11 +79,6 @@ class SeqDataset(Dataset):
         else:
             raise ValueError("data_path or data_df must be provided.")
 
-        if data_path is not None:
-            self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
-        else:
-            self.df = data_df
-
         # filter data by filter_column
         if apply_filter:
             if filter_in_list is not None:

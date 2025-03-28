@@ -12,6 +12,7 @@ from MPRA_predict import models, datasets, metrics, utils
 from MPRA_predict.utils import *
 
 def get_pred(model, test_data_loader, device='cuda'):
+    model = model.to(device)
     y_pred = []
     model.eval()
     with torch.no_grad():
@@ -23,24 +24,6 @@ def get_pred(model, test_data_loader, device='cuda'):
             else:
                 x = batch
             x = x.to(device)
-
-            # if i == 1: 
-
-            #     from torch.profiler import profile, record_function, ProfilerActivity
-            #     with profile(
-            #         activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-            #         record_shapes=True,
-            #         profile_memory=True,
-            #         with_stack=True
-            #     ) as prof:
-            #         with record_function("model_inference"):
-            #             output = model(x)
-            #     print(prof.key_averages().table(
-            #         sort_by="cuda_time_total",  # 可改为 cpu_time_total / self_cpu_time_total 等
-            #         row_limit=20
-            #     ))
-            #     break
-
             output = model(x)
             y_pred.append(output.detach().cpu().numpy())
     #         del batch, x, output  # 清理内存
@@ -74,40 +57,12 @@ if __name__ == '__main__':
     if os.path.exists(output_path):
         print(f'already exists {output_path}, exit')
         exit()
-    
     print(f'predicting {output_path}')
 
     model = models.Sei()
     model_state_dict = torch.load(model_path)
     model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
     model.load_state_dict(model_state_dict, strict=False)
-    model = model.to(device)
-
-
-#     config_str = '''
-# model:
-#   type: MyBasset
-#   args:
-#     input_seq_length: 4096
-#     output_dim: 1
-#     sigmoid: false
-#     squeeze: false
-
-#     conv_channels_list: [256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
-#       256, 256, 256, 256, 256, 256]
-#     conv_kernel_size_list: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-#     conv_padding_list: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-#     pool_kernel_size_list: [1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2]
-#     conv_dropout_rate: 0.2
-
-#     linear_channels_list: [1024, 1024]
-#     linear_dropout_rate: 0.5
-
-#     '''
-#     config = yaml.load(config_str)
-#     model = init_obj(models, config['model'])
-#     model = model.to(device)
-    
 
     dataset = datasets.SeqDataset(
         data_path=data_path,
