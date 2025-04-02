@@ -68,14 +68,124 @@ if __name__ == '__main__':
     set_seed(0)
     device = f'cuda:0'
     model_path = f'pretrained_models/enformer_weights'
-    data_path = f'pretrained_models/Enformer/enformer_sequences_test.csv'
+    data_path = f'pretrained_models/Enformer_data/enformer_sequences_test.csv'
     # data_path = f'../data/SirajMPRA/SirajMPRA_562654.csv'
 
     model = enformer_pytorch.from_pretrained(model_path)
 
+
+
+
+
+
+
+
+
+    for seed in range(5):
+        for cropped_length in [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 196608]:
+            set_seed(seed)
+            
+            output_path = f'padding_effect/outputs/Enformer_pred_crop_{cropped_length}_genome_{seed}.npy'
+            if os.path.exists(output_path):
+                print(f'already exists {output_path}, skip')
+                continue
+            print(f'predicting {output_path}')
+
+            dataset = datasets.SeqDataset(
+                data_path=data_path,
+                seq_column='seq', 
+                crop=True,
+                crop_position='center',
+                cropped_length=cropped_length,
+                padding=True,
+                padding_position='both',
+                padded_length=196608,
+
+                # # N
+                # padding_method='N',
+                # # zero
+                # padding_method='N',
+                # N_fill_value=0,
+                # # random
+                # padding_method='random',
+                # genome
+                padding_method='genome',
+                genome=Fasta('data/genome/hg38.fa')
+                # # repeat
+                # padding_method='repeat',
+            )
+            
+            test_data_loader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=1)
+            pred = get_pred(model, test_data_loader, device)
+            # pred = pred[:, 447:449]
+            np.save(output_path, pred)
+
+
+
+
+
+
+
+
+
+
+    for seed in range(5):
+        for cropped_length in [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 196608]:
+            set_seed(seed)
+            
+            output_path = f'padding_effect/outputs/Enformer_pred_crop_{cropped_length}_random_{seed}.npy'
+            if os.path.exists(output_path):
+                print(f'already exists {output_path}, skip')
+                continue
+            print(f'predicting {output_path}')
+
+            dataset = datasets.SeqDataset(
+                data_path=data_path,
+                seq_column='seq', 
+                crop=True,
+                crop_position='center',
+                cropped_length=cropped_length,
+                padding=True,
+                padding_position='both',
+                padded_length=196608,
+
+                # # N
+                # padding_method='N',
+                # # zero
+                # padding_method='N',
+                # N_fill_value=0,
+                # random
+                padding_method='random',
+                # # genome
+                # padding_method='genome',
+                # genome=Fasta('data/genome/hg38.fa')
+                # # repeat
+                # padding_method='repeat',
+            )
+            
+            test_data_loader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=1)
+            pred = get_pred(model, test_data_loader, device)
+            # pred = pred[:, 447:449]
+            np.save(output_path, pred)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     # pad zero
     for cropped_length in [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 196608]:
-        output_path = f'padding_effect/outputs/Enformer_pred_crop_{cropped_length}_repeat.npy'
+        output_path = f'padding_effect/outputs/Enformer_pred_crop_{cropped_length}_repeat_N_new.npy'
         if os.path.exists(output_path):
             print(f'already exists {output_path}, skip')
             continue
@@ -85,13 +195,14 @@ if __name__ == '__main__':
             data_path=data_path,
             seq_column='seq', 
             crop=True,
-            crop_method='center',
+            crop_position='center',
             cropped_length=cropped_length,
             padding=True,
+            padding_position='both',
             padded_length=196608,
 
-            # # N
-            # padding_method='N',
+            # N
+            padding_method='N',
             # # zero
             # padding_method='N',
             # N_fill_value=0,
@@ -100,11 +211,57 @@ if __name__ == '__main__':
             # genome
             # padding_method='genome',
             # genome=Fasta('data/genome/hg38.fa')
-            # repeat
-            padding_method='repeat',
+            # # repeat
+            # padding_method='repeat',
         )
         
         test_data_loader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=4)
         pred = get_pred(model, test_data_loader, device)
         # pred = pred[:, 447:449]
         np.save(output_path, pred)
+
+
+
+
+
+
+
+
+
+    for cropped_length in [256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 196608]:
+        output_path = f'padding_effect/outputs/Enformer_pred_crop_{cropped_length}_zero_new.npy'
+        if os.path.exists(output_path):
+            print(f'already exists {output_path}, skip')
+            continue
+        print(f'predicting {output_path}')
+
+        dataset = datasets.SeqDataset(
+            data_path=data_path,
+            seq_column='seq', 
+            crop=True,
+            crop_position='center',
+            cropped_length=cropped_length,
+            padding=True,
+            padding_position='both',
+            padded_length=196608,
+
+            # # N
+            # padding_method='N',
+            # zero
+            padding_method='N',
+            N_fill_value=0,
+            # # random
+            # padding_method='random',
+            # genome
+            # padding_method='genome',
+            # genome=Fasta('data/genome/hg38.fa')
+            # # repeat
+            # padding_method='repeat',
+        )
+        
+        test_data_loader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=4)
+        pred = get_pred(model, test_data_loader, device)
+        # pred = pred[:, 447:449]
+        np.save(output_path, pred)
+
+

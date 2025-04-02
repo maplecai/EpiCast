@@ -18,12 +18,14 @@ class SeqDataset(Dataset):
         slice_range=None,
 
         crop=False,
-        crop_method='center',
+        crop_position='center',
         cropped_length=None,
         
         padding=False,
+        padding_position='both',
         padding_method='N',
         padded_length=None,
+        genome=None,
 
         N_fill_value=0.25,
         augmentations=[],
@@ -37,7 +39,7 @@ class SeqDataset(Dataset):
         cell_types=None,
         assays=None,
         ###
-        genome=None,
+
     ) -> None:
         
         super().__init__()
@@ -54,12 +56,14 @@ class SeqDataset(Dataset):
         self.slice_range = slice_range
 
         self.crop = crop
-        self.crop_method = crop_method
+        self.crop_position = crop_position
         self.cropped_length = cropped_length
 
         self.padding = padding
+        self.padding_position = padding_position
         self.padding_method = padding_method
         self.padded_length = padded_length
+        self.genome = genome
 
         self.N_fill_value = N_fill_value
         self.augmentations = augmentations
@@ -72,7 +76,7 @@ class SeqDataset(Dataset):
         self.cell_types = cell_types
         self.assays = assays
 
-        self.genome = genome
+        
 
         # read dataframe
         if data_path is not None and data_df is None:
@@ -136,9 +140,9 @@ class SeqDataset(Dataset):
         if self.seqs is not None:
             seq = self.seqs[index]
             if self.crop:
-                seq = crop_seq(seq, self.cropped_length, self.crop_method)
+                seq = crop_seq(seq, self.cropped_length, self.crop_position)
             if self.padding:
-                seq = pad_seq(seq, self.padded_length, self.padding_method, genome=self.genome)
+                seq = pad_seq(seq, self.padded_length, padding_postition=self.padding_position, padding_method=self.padding_method, genome=self.genome)
             seq = torch.tensor(str2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
             sample['seq'] = seq
 

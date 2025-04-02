@@ -90,25 +90,32 @@ def onehots2strs(onehots: np.ndarray | torch.Tensor) -> list[str]:
     return seqs
 
 
-def crop_seq(seq: str, length: int, crop_method: str = 'center') -> str:
+def crop_seq(
+        seq: str, 
+        length: int, 
+        crop_position: str = 'center',
+    ) -> str:
+
     seq_len = len(seq)
     assert length <= seq_len, 'crop length must <= sequence length'
-    if crop_method == 'center':
+    if crop_position == 'center':
         start = (seq_len - length) // 2
-    elif crop_method == 'left':
+    elif crop_position == 'left':
         start = 0
-    elif crop_method == 'right':
+    elif crop_position == 'right':
         start = seq_len - length
-    elif crop_method == 'random':
+    elif crop_position == 'random':
         start = np.random.randint(0, len(seq) - length)
+    elif crop_position.isdigit():
+        start = int(crop_position)
     else:
-        raise ValueError('crop_method must be "center", "left", "right" or "random"')
+        raise ValueError('crop_position must be "center", "left", "right" or "random"')
     cropped_seq = seq[start: start + length]
     return cropped_seq
 
 
-def crop_seqs(seqs: list[str], length: int, crop_method: str = 'center') -> list[str]:
-    return [crop_seq(seq, length, crop_method) for seq in seqs]
+def crop_seqs(seqs: list[str], length: int, crop_position: str = 'center') -> list[str]:
+    return [crop_seq(seq, length, crop_position) for seq in seqs]
 
 
 # def crop_onehot(onehot: np.ndarray, length: int) -> np.ndarray:
@@ -125,23 +132,28 @@ def crop_seqs(seqs: list[str], length: int, crop_method: str = 'center') -> list
 def random_genome_seq(genome: Fasta, seq_length: int):
     if seq_length <= 0:
         raise ValueError('random_genome_seq length must > 0')
-    valid_chroms = [c for c in genome.keys() if len(genome[c]) >= seq_length]
-    if not valid_chroms:
-        raise ValueError(f"No chromosome is long enough for length {seq_length}!")
-    chrom = np.random.choice(valid_chroms)
+    chrom_list = [f'chr{i}' for i in range(1, 23)]
+    # print(genome.keys())
+    # valid_chroms = [c for c in genome.keys() if len(genome[c]) >= seq_length]
+    # if not valid_chroms:
+    #     raise ValueError(f"No chromosome is long enough for length {seq_length}!")
+    chrom = np.random.choice(chrom_list)
     chrom_len = len(genome[chrom])
     
     start = np.random.randint(0, chrom_len - seq_length + 1)
     end = start + seq_length
-    return genome[chrom][start:end].seq.upper()
+    seq = str(genome[chrom][start:end]).upper()
+    if '>' in seq:
+        print(f"Found > in genome[{chrom}][{start}:{end}]: {seq}")
+    return seq
 
 
 
 def pad_seq(
         seq: str, 
         padded_length: int, 
-        padding_method='N', 
-        padding_postition='both', 
+        padding_method:str ='N', 
+        padding_postition: str='both', 
         given_left_seq: str=None, 
         given_right_seq: str=None,
         genome: Fasta=None,
@@ -160,9 +172,11 @@ def pad_seq(
     elif padding_postition == 'right':
         left_len = 0
         right_len = padding_len
+    elif padding_postition.isdigit():
+        left_len = int(padding_postition)
+        right_len = padding_len - left_len
     else:
-        raise ValueError('padding_postition must be "both", "left", or "right"')
-
+        raise ValueError('padding_postition must be "both", "left", "right" or a integer')
 
     if padding_method == 'N':
         left_seq = 'N' * left_len
