@@ -37,6 +37,7 @@ class SeqDataset(Dataset):
         cell_types=None,
         assays=None,
         ###
+        genome=None,
     ) -> None:
         
         super().__init__()
@@ -70,6 +71,8 @@ class SeqDataset(Dataset):
         self.matrixize_feature = matrixize_feature
         self.cell_types = cell_types
         self.assays = assays
+
+        self.genome = genome
 
         # read dataframe
         if data_path is not None and data_df is None:
@@ -135,7 +138,7 @@ class SeqDataset(Dataset):
             if self.crop:
                 seq = crop_seq(seq, self.cropped_length, self.crop_method)
             if self.padding:
-                seq = pad_seq(seq, self.padded_length, self.padding_method)
+                seq = pad_seq(seq, self.padded_length, self.padding_method, genome=self.genome)
             seq = torch.tensor(str2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
             sample['seq'] = seq
 

@@ -72,8 +72,8 @@ if __name__ == '__main__':
     model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
     model.load_state_dict(model_state_dict, strict=False)
     
-    for cropped_length in [256, 512, 1024, 2048, 4096]:
-        output_path = f'padding_effect/outputs/Sei_pred_crop_{cropped_length}_random.npy'
+    for cropped_length in [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]:
+        output_path = f'padding_effect/outputs/Sei_pred_crop_{cropped_length}_repeat.npy'
 
         if os.path.exists(output_path):
             print(f'already exists {output_path}, skip')
@@ -87,11 +87,20 @@ if __name__ == '__main__':
             crop_method='center',
             cropped_length=cropped_length,
             padding=True,
-            # padding_method='N', # pad zero or N
-            padding_method='random', # pad random
             padded_length=4096,
-            # N_fill_value=0, # pad zero
-            N_fill_value=0.25, # pad N or random
+
+            # # N
+            # padding_method='N',
+            # # zero
+            # padding_method='N',
+            # N_fill_value=0,
+            # # random
+            # padding_method='random',
+            # genome
+            # padding_method='genome',
+            # genome=Fasta('data/genome/hg38.fa')
+            # repeat
+            padding_method='repeat',
         )
         
         test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=1)

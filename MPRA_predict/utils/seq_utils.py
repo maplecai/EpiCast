@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from pyfaidx import Fasta
 
 def reverse(seq: str) -> str:
     '''反向'''
@@ -122,10 +122,33 @@ def crop_seqs(seqs: list[str], length: int, crop_method: str = 'center') -> list
 #     start = (onehots.shape[1] - length) // 2
 #     return onehots[:, start: start + length]
 
+def random_genome_seq(genome: Fasta, seq_length: int):
+    if seq_length <= 0:
+        raise ValueError('random_genome_seq length must > 0')
+    valid_chroms = [c for c in genome.keys() if len(genome[c]) >= seq_length]
+    if not valid_chroms:
+        raise ValueError(f"No chromosome is long enough for length {seq_length}!")
+    chrom = np.random.choice(valid_chroms)
+    chrom_len = len(genome[chrom])
+    
+    start = np.random.randint(0, chrom_len - seq_length + 1)
+    end = start + seq_length
+    return genome[chrom][start:end].seq.upper()
 
-def pad_seq(seq: str, padded_length: int, padding_method='N', padding_postition='both', upstream_seq: str=None, downstream_seq: str=None) -> str:
+
+
+def pad_seq(
+        seq: str, 
+        padded_length: int, 
+        padding_method='N', 
+        padding_postition='both', 
+        given_left_seq: str=None, 
+        given_right_seq: str=None,
+        genome: Fasta=None,
+    ) -> str:
     seq_len = len(seq)
-    assert padded_length >= seq_len, 'padded_length must >= sequence length'
+    if seq_len > padded_length:
+        raise ValueError('padded_length must >= sequence length')
     padding_len = padded_length - seq_len
 
     if padding_postition == 'both':
@@ -140,24 +163,43 @@ def pad_seq(seq: str, padded_length: int, padding_method='N', padding_postition=
     else:
         raise ValueError('padding_postition must be "both", "left", or "right"')
 
+
     if padding_method == 'N':
-        upstream_seq = 'N' * left_len
-        downstream_seq = 'N' * right_len
+        left_seq = 'N' * left_len
+        right_seq = 'N' * right_len
     elif padding_method == 'random':
         bases = np.array(['A', 'C', 'G', 'T'])
-        upstream_seq = ''.join(bases[np.random.randint(0, 4, left_len)])
-        downstream_seq = ''.join(bases[np.random.randint(0, 4, right_len)])
+        left_seq = ''.join(bases[np.random.randint(0, 4, left_len)])
+        right_seq = ''.join(bases[np.random.randint(0, 4, right_len)])
+    elif padding_method == 'genome':
+        left_seq = random_genome_seq(genome, left_len) if left_len > 0 else ''
+        right_seq = random_genome_seq(genome, right_len) if right_len > 0 else ''
+    elif padding_method == 'repeat':
+        if left_len > 0:
+            repeats_needed = left_len // seq_len + 1
+            repeated_seq = seq * repeats_needed
+            left_seq = repeated_seq[-left_len:]
+        else:
+            left_seq = ''
+        if right_len > 0:
+            repeats_needed = right_len // seq_len + 1
+            repeated_seq = seq * repeats_needed
+            right_seq = repeated_seq[:right_len]
+        else:
+            right_seq = ''
     elif padding_method == 'given':
-        upstream_seq = upstream_seq[-left_len:] if left_len > 0 else ''
-        downstream_seq = downstream_seq[:right_len] if right_len > 0 else ''
+        if len(given_left_seq) < left_len or len(given_right_seq) < right_len:
+            raise ValueError('given_left_seq and given_right_seq must be at least as long as the padding length')
+        left_seq = given_left_seq[-left_len:] if left_len > 0 else ''
+        right_seq = given_right_seq[:right_len] if right_len > 0 else ''
     else:
         raise ValueError('padding_method must be "N", "random", or "given"')
-    padded_seq = ''.join([upstream_seq, seq, downstream_seq])
+    padded_seq = ''.join([left_seq, seq, right_seq])
     return padded_seq
 
 
-def pad_seqs(seqs: list[str], padded_length: int, padding_method='N', upstream_seq: str=None, downstream_seq: str=None) -> list[str]:
-    return [pad_seq(seq, padded_length, padding_method, upstream_seq, downstream_seq) for seq in seqs]
+def pad_seqs(seqs: list[str], *args, **kwargs) -> list[str]:
+    return [pad_seq(seq, *args, **kwargs) for seq in seqs]
 
 
 # def pad_onehot_N(onehot, padded_length, N_fill_value=0.25):
@@ -184,7 +226,8 @@ def pad_seqs(seqs: list[str], padded_length: int, padding_method='N', upstream_s
 
 
 def random_seq(length: int) -> str:
-    return ''.join(np.random.choice(['A', 'C', 'G', 'T'], length))
+    bases = np.array(['A', 'C', 'G', 'T'])
+    return ''.join(bases[np.random.randint(0, 4, length)])
 
 
 def random_seqs(length: int, num: int) -> list[str]:
