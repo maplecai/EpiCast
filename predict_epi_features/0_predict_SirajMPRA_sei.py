@@ -26,7 +26,7 @@ def get_pred(model, test_data_loader, device='cuda'):
             x = x.to(device)
             output = model(x)
             y_pred.append(output.detach().cpu().numpy())
-    #         del batch, x, output  # 清理内存
+            del batch, x, output  # 清理内存
     torch.cuda.empty_cache()
     y_pred = np.concatenate(y_pred, axis=0)
     return y_pred
@@ -41,13 +41,12 @@ if __name__ == '__main__':
     # print("CUDA version:", torch.version.cuda)
     # print("cuDNN version:", torch.backends.cudnn.version())
     # print(torch.__config__.show())
-    torch.backends.cudnn.enabled = False
+    # torch.backends.cudnn.enabled = False
     # torch.backends.cudnn.benchmark = True
 
     device = f'cuda:0'
     model_path = f'pretrained_models/Sei/sei.pth'
     data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
-    # output_path = f'predict_epi_features/outputs/SirajMPRA_Sei_prediction_zero_padding.npy'
     output_dir = f'predict_epi_features/outputs'
     output_path = f'{output_dir}/test.npy'
 

@@ -11,6 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from MPRA_predict import models, datasets, metrics, utils
 from MPRA_predict.utils import *
 
+
 def get_pred(model, test_data_loader, device='cuda'):
     model = model.to(device)
     y_pred = []

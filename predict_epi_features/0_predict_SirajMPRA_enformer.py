@@ -11,13 +11,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from MPRA_predict import models, datasets, metrics, utils
 from MPRA_predict.utils import *
 
-
-# only get center pos pred
 def get_pred(model, test_data_loader, device='cuda'):
+    model = model.to(device)
     y_pred = []
     model.eval()
     with torch.no_grad():
-        for batch in tqdm(test_data_loader):
+        for i, batch in enumerate(tqdm(test_data_loader)):
             if isinstance(batch, (list, tuple)):
                 x = batch[0]
             elif isinstance(batch, dict):
@@ -26,11 +25,10 @@ def get_pred(model, test_data_loader, device='cuda'):
                 x = batch
             x = x.to(device)
             output = model(x)
-            # output = output['human']
             output = output['human'][:, 447:449]
             y_pred.append(output.detach().cpu().numpy())
             del batch, x, output  # 清理内存
-            torch.cuda.empty_cache() # 清理显存
+    torch.cuda.empty_cache()
     y_pred = np.concatenate(y_pred, axis=0)
     return y_pred
 
@@ -39,6 +37,14 @@ def get_pred(model, test_data_loader, device='cuda'):
 if __name__ == '__main__':
 
     set_seed(0)
+
+    # print("PyTorch version:", torch.__version__)
+    # print("CUDA version:", torch.version.cuda)
+    # print("cuDNN version:", torch.backends.cudnn.version())
+    # print(torch.__config__.show())
+    # torch.backends.cudnn.enabled = False
+    # torch.backends.cudnn.benchmark = True
+
     device = f'cuda:0'
     model_path = f'pretrained_models/enformer_weights'
     data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
