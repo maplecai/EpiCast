@@ -25,8 +25,8 @@ if __name__ == '__main__':
     config['gpu_ids'] = [3]
     config['load_saved_model'] = True
     config['saved_model_path'] = os.path.join(saved_dir, 'checkpoint.pth')
-    config['cell_types'] = ['HepG2', 'K562', 'SK-N-SH', 'A549', 'HCT116']
-    config['test_dataset']['args']['cell_types'] = ['HepG2', 'K562', 'SK-N-SH', 'A549', 'HCT116']
+    config['cell_types'] = ['K562', 'HepG2', 'SK-N-SH', 'A549', 'HCT116']
+    config['test_dataset']['args']['cell_types'] = ['K562', 'HepG2', 'SK-N-SH', 'A549', 'HCT116']
     # 之后需要研究一下这两行能不能用yaml引用合并
 
     trainer = Trainer(config)

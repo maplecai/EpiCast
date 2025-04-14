@@ -13,7 +13,7 @@ if __name__ == '__main__':
     #     f'OMP_NUM_THREADS=4 torchrun --nnodes=1 --nproc_per_node=2 {script_path} -c {config_path}',
     #     shell=True)
 
-    for cell_type in ['HepG2', 'K562', 'SK-N-SH', 'A549', 'HCT116']:
+    for cell_type in ['K562', 'HepG2', 'SK-N-SH', 'A549', 'HCT116']:
         with open(config_path, 'r') as f:
             config = yaml.load(f)
         
