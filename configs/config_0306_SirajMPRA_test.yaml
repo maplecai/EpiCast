@@ -13,7 +13,7 @@ load_saved_model: true
 saved_model_path: checkpoint.pth
 
 
-cell_types: &cell_types ['HepG2', 'K562', 'SK-N-SH', 'A549', 'HCT116']
+cell_types: &cell_types ['K562', 'HepG2', 'SK-N-SH', 'A549', 'HCT116']
 assays: &assays ['DNase', 'H3K4me3', 'H3K27ac','CTCF']
 
 train_dataset:

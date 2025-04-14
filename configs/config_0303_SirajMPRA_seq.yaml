@@ -11,7 +11,7 @@ scheduler_interval: step
 batch_size: 4096
 load_saved_model: false
 
-cell_types: &cell_types ['HepG2', 'K562', 'SK-N-SH', 'A549', 'HCT116']
+cell_types: &cell_types ['K562', 'HepG2', 'SK-N-SH', 'A549', 'HCT116']
 assays: &assays ['DNase', 'H3K4me1', 'H3K4me3', 'H3K9me3', 'H3K27me3', 'H3K27ac', 'H3K36me3', 'CTCF']
 
 train_dataset:
