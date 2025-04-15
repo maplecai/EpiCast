@@ -145,94 +145,94 @@ class LinearBlock(nn.Module):
 #         return x
 
 
-class MyBassetEncoder(nn.Module):
-    def __init__(
-            self, 
-            # input_seq_length=230, 
-            # output_dim=1, 
-            conv_channels_list=None,
-            conv_kernel_size_list=None,
-            conv_padding_list=None,
-            pool_kernel_size_list=None,
-            pool_padding_list=None,
-            conv_dropout_rate=0.1,
-            gap_layer=False,
-    ):
-        super().__init__()
+# class MyBassetEncoder(nn.Module):
+#     def __init__(
+#             self, 
+#             # input_seq_length=230, 
+#             # output_dim=1, 
+#             conv_channels_list=None,
+#             conv_kernel_size_list=None,
+#             conv_padding_list=None,
+#             pool_kernel_size_list=None,
+#             pool_padding_list=None,
+#             conv_dropout_rate=0.1,
+#             gap_layer=False,
+#     ):
+#         super().__init__()
 
-        # if conv_padding_list is None:
-        #     conv_padding_list = [kernel_size // 2 for kernel_size in conv_kernel_size_list]
-        if conv_padding_list is None:
-            conv_padding_list = [0] * len(conv_kernel_size_list)
-        if pool_padding_list is None:
-            pool_padding_list = [0] * len(pool_kernel_size_list)
+#         # if conv_padding_list is None:
+#         #     conv_padding_list = [kernel_size // 2 for kernel_size in conv_kernel_size_list]
+#         if conv_padding_list is None:
+#             conv_padding_list = [0] * len(conv_kernel_size_list)
+#         if pool_padding_list is None:
+#             pool_padding_list = [0] * len(pool_kernel_size_list)
         
-        self.conv_layers = nn.Sequential(OrderedDict([]))
+#         self.conv_layers = nn.Sequential(OrderedDict([]))
 
-        for i in range(len(conv_kernel_size_list)):
-            self.conv_layers.add_module(
-                f'conv_block_{i}', ConvBlock(
-                    in_channels=4 if i == 0 else conv_channels_list[i-1], 
-                    out_channels=conv_channels_list[i], 
-                    kernel_size=conv_kernel_size_list[i], 
-                    stride=1, 
-                    padding=conv_padding_list[i]))
+#         for i in range(len(conv_kernel_size_list)):
+#             self.conv_layers.add_module(
+#                 f'conv_block_{i}', ConvBlock(
+#                     in_channels=4 if i == 0 else conv_channels_list[i-1], 
+#                     out_channels=conv_channels_list[i], 
+#                     kernel_size=conv_kernel_size_list[i], 
+#                     stride=1, 
+#                     padding=conv_padding_list[i]))
                 
-            self.conv_layers.add_module(
-                f'max_pool_{i}', nn.MaxPool1d(
-                    kernel_size=pool_kernel_size_list[i], 
-                    padding=pool_padding_list[i],
-                    ceil_mode = True))
+#             self.conv_layers.add_module(
+#                 f'max_pool_{i}', nn.MaxPool1d(
+#                     kernel_size=pool_kernel_size_list[i], 
+#                     padding=pool_padding_list[i],
+#                     ceil_mode = True))
         
-            self.conv_layers.add_module(
-                f'conv_dropout_{i}', nn.Dropout(p=conv_dropout_rate))
+#             self.conv_layers.add_module(
+#                 f'conv_dropout_{i}', nn.Dropout(p=conv_dropout_rate))
         
-        if gap_layer:
-            self.conv_layers.add_module(
-                'gap_layer', nn.AdaptiveAvgPool1d(1))
+#         if gap_layer:
+#             self.conv_layers.add_module(
+#                 'gap_layer', nn.AdaptiveAvgPool1d(1))
         
         
-    def forward(self, x):
-        x = self.conv_layers(x)
-        return x
+#     def forward(self, x):
+#         x = self.conv_layers(x)
+#         return x
 
 
 
-class MyBassetDecoder(nn.Module):
-    def __init__(
-            self, 
-            input_dim,
-            output_dim=None,
-            linear_channels_list=[],
-            linear_dropout_rate=0.5,
-            last_linear_layer=False,
-            sigmoid=False,
-    ):
-        super().__init__()
+# class MyBassetDecoder(nn.Module):
+#     def __init__(
+#             self, 
+#             input_dim,
+#             output_dim=None,
+#             linear_channels_list=[],
+#             linear_dropout_rate=0.5,
+#             last_linear_layer=False,
+#             sigmoid=False,
+#     ):
+#         super().__init__()
         
-        self.linear_layers = nn.Sequential(OrderedDict([]))
+#         self.linear_layers = nn.Sequential(OrderedDict([]))
 
-        for i in range(len(linear_channels_list)):
-            self.linear_layers.add_module(
-                f'linear_block_{i}', LinearBlock(
-                    in_channels=input_dim if i == 0 else linear_channels_list[i-1], 
-                    out_channels=linear_channels_list[i]))
+#         for i in range(len(linear_channels_list)):
+#             self.linear_layers.add_module(
+#                 f'linear_block_{i}', LinearBlock(
+#                     in_channels=input_dim if i == 0 else linear_channels_list[i-1], 
+#                     out_channels=linear_channels_list[i]))
         
-            self.linear_layers.add_module(
-                f'linear_dropout_{i}', nn.Dropout(p=linear_dropout_rate))
+#             self.linear_layers.add_module(
+#                 f'linear_dropout_{i}', nn.Dropout(p=linear_dropout_rate))
         
-        if last_linear_layer == True:
-            self.linear_layers.add_module(
-                f'last_linear', nn.Linear(
-                    in_features=input_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
-                    out_features=output_dim,))
+#         if last_linear_layer == True:
+#             self.linear_layers.add_module(
+#                 f'last_linear', nn.Linear(
+#                     in_features=input_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
+#                     out_features=output_dim,))
 
-        if sigmoid == True:
-            self.linear_layers.add_module(f'sigmoid', nn.Sigmoid())
+#         if sigmoid == True:
+#             self.linear_layers.add_module(f'sigmoid', nn.Sigmoid())
 
-    def forward(self, x):
-        x = self.linear_layers(x)
-        return x
+#     def forward(self, x):
+#         x = self.linear_layers(x)
+#         return x
 
 
 
@@ -245,8 +245,8 @@ class MyBasset(nn.Module):
             input_seq_length=200,
             output_dim=1,
 
-            squeeze=True,
             sigmoid=False,
+            squeeze=True,
 
             conv_channels_list=None,
             conv_kernel_size_list=None,
@@ -258,7 +258,6 @@ class MyBasset(nn.Module):
 
             linear_channels_list=None,
             linear_dropout_rate=0.5,
-            last_linear_layer=True,
         ):                                
         super().__init__()
 
@@ -294,10 +293,10 @@ class MyBasset(nn.Module):
         
         if global_average_pooling:
             self.conv_layers.add_module(
-                'gap_layer', nn.AdaptiveAvgPool1d(1))
+                f'gap_layer', nn.AdaptiveAvgPool1d(1))
 
         with torch.no_grad():
-            test_input = torch.randn(1, 4, self.input_seq_length)
+            test_input = torch.zeros(1, 4, self.input_seq_length)
             test_output = self.conv_layers(test_input)
             hidden_dim = test_output[0].reshape(-1).shape[0]
         self.linear_layers = nn.Sequential(OrderedDict([]))
@@ -311,7 +310,6 @@ class MyBasset(nn.Module):
             self.linear_layers.add_module(
                 f'linear_dropout_{i}', nn.Dropout(p=linear_dropout_rate))
         
-        if last_linear_layer == True:
             self.linear_layers.add_module(
                 f'linear_last', nn.Linear(
                     in_features=hidden_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
@@ -328,7 +326,7 @@ class MyBasset(nn.Module):
         elif isinstance(inputs, torch.Tensor):
             seq = inputs
         else:
-            raise ValueError('inputs must be a dict, list, tuple, or torch.Tensor')
+            raise ValueError('inputs type must be dict or list or tuple or tensor')
         
         if seq.shape[2] == 4:
             seq = seq.permute(0, 2, 1)
@@ -341,34 +339,6 @@ class MyBasset(nn.Module):
             x = x.squeeze(-1)
         return x
 
-
-    # def _forward(self, x):
-    #     x = self.conv_layers(x)
-    #     x = x.view(x.size(0), -1)
-    #     x = self.linear_layers(x)
-    #     return x
-    
-
-    # def forward(self, x):
-    #     if x.shape[2] == 4:
-    #         x = x.permute(0, 2, 1)
-
-    #     if self.rc_augmentation == False:
-    #         x = self._forward(x)
-
-    #     else:
-    #         if self.rc_region is None:
-    #             x_aug = torch.flip(x, dims=[1,2])
-    #         else:
-    #             left, right = self.rc_region
-    #             x_aug = torch.flip(x[:, :, left:right], dims=[1,2])
-    #             x_aug = torch.cat((x[:, :, :left], x_aug, x[:, :, right:]), dim=2)
-    #         x = (self._forward(x) + self._forward(x_aug)) / 2
-
-    #     if self.squeeze:
-    #         x = x.squeeze(-1)
-
-    #     return x
 
 
 if __name__ == '__main__':
@@ -394,7 +364,7 @@ if __name__ == '__main__':
             sigmoid: True
         '''
     
-    config = yaml.load(yaml_str, Loader=yaml.FullLoader)
+    config = yaml.load(yaml_str)
     model = MyBasset(**config['model']['args'])
 
     torchinfo.summary(model, input_size=(1, 200, 4))

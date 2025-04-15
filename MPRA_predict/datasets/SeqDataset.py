@@ -35,9 +35,6 @@ class SeqDataset(Dataset):
         feature_column=None,
         label_column=None,
         
-        matrixize_feature=False,
-        cell_types=None,
-        assays=None,
         ###
 
     ) -> None:
@@ -71,10 +68,6 @@ class SeqDataset(Dataset):
         self.seq_column = seq_column
         self.feature_column = feature_column
         self.label_column = label_column
-
-        self.matrixize_feature = matrixize_feature
-        self.cell_types = cell_types
-        self.assays = assays
 
         
 
@@ -111,16 +104,8 @@ class SeqDataset(Dataset):
         self.labels = None
         if seq_column:
             self.seqs = self.df[seq_column].to_numpy().astype(str)
-        if feature_column and matrixize_feature:
-            raise ValueError("feature_column and feature_matrix cannot be used at the same time.")
         if feature_column:
             self.features = self.df[feature_column].to_numpy()
-            self.features = torch.tensor(self.features, dtype=torch.float)
-        if matrixize_feature:
-            self.features = np.zeros((len(self.df), len(cell_types), len(assays)))
-            for i, cell_type in enumerate(cell_types):
-                for j, assay in enumerate(assays):
-                    self.features[:, i, j] = self.df[f'{cell_type}_{assay}'].to_numpy()
             self.features = torch.tensor(self.features, dtype=torch.float)
         if label_column:
             self.labels = self.df[label_column].to_numpy()
