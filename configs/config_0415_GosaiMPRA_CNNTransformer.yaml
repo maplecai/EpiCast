@@ -43,24 +43,35 @@ test_dataset:
     <<: *args
     apply_filter: false
 
+
 model:
-  type: MyBasset
-  args:
-    input_seq_length: 200
-    output_dim: 5
-    sigmoid: false
-    squeeze: true
+    type: MyCNNTransformer
+    args:
+        input_seq_length: 200
+        input_feature_shape: null
+        output_dim: 5
+        sigmoid: false
+        squeeze: true
 
-    conv_channels_list: [256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
-      256, 256, 256, 256, 256, 256]
-    conv_kernel_size_list: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-    conv_padding_list: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    pool_kernel_size_list: [1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2]
-    conv_dropout_rate: 0.2
-    global_average_pooling: true
+        conv_channels_list: [256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+        256, 256, 256, 256, 256, 256]
+        conv_kernel_size_list: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+        conv_padding_list: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        pool_kernel_size_list: [1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2]
+        conv_dropout_rate: 0.2
+        global_average_pooling: false
+        
+        
+        num_trans_blocks: 3
+        trans_d_embed: 256
+        trans_n_heads: 4
+        trans_d_mlp: 256
+        trans_dropout_rate: 0.2
+        
+        linear_channels_list: []
+        linear_dropout_rate: 0.5
 
-    linear_channels_list: [1024]
-    linear_dropout_rate: 0.5
+
 
 
 optimizer:

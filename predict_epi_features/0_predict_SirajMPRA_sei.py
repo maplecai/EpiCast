@@ -37,18 +37,12 @@ if __name__ == '__main__':
 
     set_seed(0)
 
-    # print("PyTorch version:", torch.__version__)
-    # print("CUDA version:", torch.version.cuda)
-    # print("cuDNN version:", torch.backends.cudnn.version())
-    # print(torch.__config__.show())
-    # torch.backends.cudnn.enabled = False
-    # torch.backends.cudnn.benchmark = True
-
-    device = f'cuda:0'
+    device = f'cuda:3'
     model_path = f'pretrained_models/Sei/sei.pth'
-    data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
+    # data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
+    data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len200_norm.csv'
     output_dir = f'predict_epi_features/outputs'
-    output_path = f'{output_dir}/test.npy'
+    output_path = f'{output_dir}/GosaiMPRA_Sei_pred.npy'
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
