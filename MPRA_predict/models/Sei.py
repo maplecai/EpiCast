@@ -88,6 +88,7 @@ class BSplineTransformation(nn.Module):
         self._spline_tr = spline_factory(spatial_dim, self._df, log=self._log)
         if self._scaled:
             self._spline_tr = self._spline_tr / spatial_dim
+        
         self._spline_tr = nn.Parameter(self._spline_tr)
 
 

@@ -7,7 +7,10 @@ import seaborn as sns
 
 sns.set_theme(context="talk", style="whitegrid")
 
-color_list = matplotlib.colormaps.get_cmap('Set2').colors
+Set2_colors = matplotlib.colormaps.get_cmap('Set2').colors
+tab10_colors = matplotlib.colormaps.get_cmap('tab10').colors
+tab20_colors = matplotlib.colormaps.get_cmap('tab20').colors
+
 
 mpl_params = {
     # 字体参数
