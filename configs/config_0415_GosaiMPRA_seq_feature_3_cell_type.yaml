@@ -1,32 +1,33 @@
-distributed: true # 是否使用分布式训练
-gpu_ids: [1,2] # 可用的gpu id
-world_size: 2 # gpu数量
+# distributed: true # 是否使用分布式训练
+# gpu_ids: [2, 3] # 可用的gpu id
+# world_size: 2 # gpu数量
+
+distributed: false # 是否使用分布式训练
+gpu_ids: [3] # 可用的gpu id
+
 
 seed: 0 # 随机数种子
 save_dir: saved # 保存的根路径
-num_epochs: 1000 # 训练的epoch总数
+num_epochs: 1000 # 最大epoch数
 num_log_steps: 10 # 每多少个step输出log, 0 means no output
 num_valid_epochs: 1 # 每多少个epoch运行valid
 scheduler_interval: step
 batch_size: 4096
 load_saved_model: false
 
-num_cell_types: 4
 cell_types: &cell_types [HepG2, K562, SK-N-SH]
 assays: &assays [DNase, H3K4me3, H3K27ac, CTCF]
 
 train_dataset:
-  type: &type SeqDataset
+  type: &type SeqFeatureMatrixDataset
   args: &args
-    data_path: ./data/SirajMPRA/SirajMPRA_562654_0317.csv
+    data_path: ./data/GosaiMPRA/GosaiMPRA_my_processed_data_len200.csv #
     apply_filter: true
     filter_column: chr
     filter_in_list: [chr3, chr4, chr5, chr6, chr7, chr8, chr9, chr10, chr11, chr12,
       chr13, chr14, chr15, chr16, chr17, chr18, chr19, chr20, chr21, chr22]
     seq_column: seq
-    feature_column:
     label_column: *cell_types
-    matrixize_feature: true
     cell_types: *cell_types
     assays: *assays
 
