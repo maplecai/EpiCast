@@ -47,10 +47,11 @@ if __name__ == '__main__':
 
     device = f'cuda:0'
     model_path = f'pretrained_models/enformer_weights'
-    data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
+    # data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
+    data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len200_norm.csv'
     output_dir = f'predict_epi_features/outputs'
     # output_path = f'outputs/SirajMPRA_Enformer_no_padding.npy'
-    output_path = f'{output_dir}/SirajMPRA_Enformer_zero_padding.npy'
+    output_path = f'{output_dir}/GosaiMPRA_Enformer_zero_padding.npy'
     # output_path = f'outputs/SirajMPRA_Enformer_N_padding.npy'
 
 
