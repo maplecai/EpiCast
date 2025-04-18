@@ -11,6 +11,7 @@ from tqdm import tqdm
 from datetime import datetime
 from ruamel.yaml import YAML
 yaml = YAML()
+from icecream import ic
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', 100)

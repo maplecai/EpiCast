@@ -142,3 +142,35 @@ class EarlyStopping:
                 self.trace_func(f'best score changed ({self.best_score:.6f} --> {score:.6f}).')
             self.best_score = score
             self.counter = 0
+
+
+
+
+
+from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingWarmRestarts
+
+class WarmupCosineAnnealingWarmRestarts(torch.optim.lr_scheduler.LRScheduler):
+    def __init__(self, optimizer, warmup_epochs, T_0, T_mult=1, eta_min=0):
+        # super().__init__(optimizer)
+        self.optimizer = optimizer
+        self.warmup_epochs = warmup_epochs
+        self.cosine_scheduler = CosineAnnealingWarmRestarts(
+            self.optimizer, 
+            T_0=T_0,
+            T_mult=T_mult,
+            eta_min=eta_min,
+        )
+        self.warmup_scheduler = LambdaLR(
+            self.optimizer,
+            lr_lambda=lambda epoch: min(epoch / self.warmup_epochs, 1.0)
+        )
+        
+    def step(self, epoch=None):
+        if epoch is None:
+            epoch = self.last_epoch + 1
+        self.last_epoch = epoch
+
+        if epoch < self.warmup_epochs:
+            self.warmup_scheduler.step(epoch)
+        else:
+            self.cosine_scheduler.step(epoch - self.warmup_epochs)
