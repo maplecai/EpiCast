@@ -41,9 +41,10 @@ if __name__ == '__main__':
     model_path = f'pretrained_models/Sei/sei.pth'
     # data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
     data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len200_norm.csv'
-    output_dir = f'predict_epi_features/outputs'
-    output_path = f'{output_dir}/GosaiMPRA_Sei_pred.npy'
 
+    output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred.npy'
+
+    output_dir = os.path.dirname(output_path)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f'cannot find {output_dir}, creating {output_dir}')
@@ -56,6 +57,7 @@ if __name__ == '__main__':
     model_state_dict = torch.load(model_path)
     model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
     model.load_state_dict(model_state_dict, strict=False)
+    model = model.to(device)
 
     dataset = datasets.SeqDataset(
         data_path=data_path,
@@ -65,21 +67,10 @@ if __name__ == '__main__':
         padding_method='N',
         padded_length=4096,
         N_fill_value=0.25)
-
-
     test_data_loader = DataLoader(dataset, batch_size=256, shuffle=False, num_workers=4, pin_memory=True)
     pred = get_pred(model, test_data_loader, device)
     np.save(output_path, pred)
 
 
-
-    # num_splits = 10    # num_splits是你要分割的部分数
-    # split_size = len(dataset) // num_splits
-    # for i in range(num_splits):
-    #     start_idx = i * split_size
-    #     end_idx = (i + 1) * split_size if i != num_splits - 1 else len(dataset)
-
-    #     subset = Subset(dataset, range(start_idx, end_idx))
-    #     subloader = DataLoader(subset, batch_size=6, shuffle=False, num_workers=0)
-    #     y_pred = get_pred(model, subloader, device)
-    #     np.save(f'{output_path}_{i}.npy', np.array(y_pred))
+# MPRA_UPSTREAM  = 'ACGAAAATGTTGGATGCTCATACTCGTCCTTTTTCAATATTATTGAAGCATTTATCAGGGTTACTAGTACGTCTCTCAAGGATAAGTAAGTAATATTAAGGTACGGGAGGTATTGGACAGGCCGCAATAAAATATCTTTATTTTCATTACATCTGTGTGTTGGTTTTTTGTGTGAATCGATAGTACTAACATACGCTCTCCATCAAAACAAAACGAAACAAAACAAACTAGCAAAATAGGCTGTCCCCAGTGCAAGTGCAGGTGCCAGAACATTTCTCTGGCCTAACTGGCCGCTTGACG'
+# MPRA_DOWNSTREAM= 'CACTGCGGCTCCTGCGATCTAACTGGCCGGTACCTGAGCTCGCTAGCCTCGAGGATATCAAGATCTGGCCTCGGCGGCCAAGCTTAGACACTAGAGGGTATATAATGGAAGCTCGACTTCCAGCTTGGCAATCCGGTACTGTTGGTAAAGCCACCATGGTGAGCAAGGGCGAGGAGCTGTTCACCGGGGTGGTGCCCATCCTGGTCGAGCTGGACGGCGACGTAAACGGCCACAAGTTCAGCGTGTCCGGCGAGGGCGAGGGCGATGCCACCTACGGCAAGCTGACCCTGAAGTTCATCT'

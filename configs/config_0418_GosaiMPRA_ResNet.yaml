@@ -45,47 +45,39 @@ test_dataset:
 
 
 model:
-    type: MyCNNTransformer
-    args:
-        input_seq_length: 200
-        input_feature_shape: null
-        output_dim: 5
-        sigmoid: false
-        squeeze: true
+  type: MyResNet
+  args:
+    input_length:           200
+    input_channels:         4
+    output_dim:             5
+    sigmoid:                false
+    squeeze:                true
 
-        conv_channels_list: [256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
-        256, 256, 256, 256, 256, 256]
-        conv_kernel_size_list: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-        conv_padding_list: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        pool_kernel_size_list: [1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2, 1, 1, 2]
-        conv_dropout_rate: 0.1
-        global_average_pooling: false
-        
-        num_trans_blocks: 3
-        trans_d_embed: 256
-        trans_n_heads: 4
-        trans_d_mlp: 256
-        trans_dropout_rate: 0.1
-        
-        linear_channels_list: []
-        linear_dropout_rate: 0.1
+    conv_channels_list:     [256,256,256,256,256,256]
+    conv_kernel_size_list:  [5,5,5,5,5,5]
+    conv_padding_list:      [2,2,2,2,2,2]
+    pool_kernel_size_list:  [2,2,2,2,2,2]
+    conv_dropout_rate:      0.2
+    gap:                    true
+
+    linear_channels_list:   [1024]
+    linear_dropout_rate:    0.5
 
 optimizer:
   type: AdamW
   args:
-    lr: 5.0e-4
+    lr: 1.0e-3
     weight_decay: 1.0e-4
-
-# lr_scheduler:
-#   type: CosineAnnealingWarmRestarts
-#   args:
-#     T_0: 20
+  transformer_args:
+    lr: 1.0e-4
+    weight_decay: 1.0e-4
 
 lr_scheduler:
   type: WarmupCosineAnnealingWarmRestarts
   args:
-    warmup_epochs: 20
-    T_0: 20
+    warmup_epochs: 10
+    T_0: 10
+    T_mult: 2
 
 loss_func:
   type: MyMSELoss

@@ -171,6 +171,7 @@ class MyCNNTransformer(nn.Module):
             trans_n_heads=8, 
             trans_d_mlp=256,
             trans_dropout_rate=0.1,
+            trans_output='cls',
 
             linear_channels_list=None,
             linear_dropout_rate=0.5,
@@ -182,6 +183,7 @@ class MyCNNTransformer(nn.Module):
         self.output_dim             = output_dim
         self.sigmoid                = sigmoid
         self.squeeze                = squeeze
+        self.trans_output           = trans_output
 
         if conv_padding_list is None:
             conv_padding_list = [0] * len(conv_kernel_size_list)
@@ -241,6 +243,11 @@ class MyCNNTransformer(nn.Module):
                     d_mlp=trans_d_mlp, 
                     dropout_rate=trans_dropout_rate))
         
+        # with torch.no_grad():
+        #     test_input = torch.zeros(1, 4, self.input_seq_length)
+        #     test_output = self.conv_layers(test_input)
+        #     hidden_dim = test_output[0].reshape(-1).shape[0]
+
         self.linear_layers = nn.Sequential(OrderedDict([]))
         for i in range(len(linear_channels_list)):
             self.linear_layers.add_module(
@@ -274,7 +281,10 @@ class MyCNNTransformer(nn.Module):
         seq = torch.concat([cls, seq], dim=1)
         seq = self.trans_layers(seq)
 
-        cls = seq[:, 0]
+        if self.trans_output == 'cls':
+            cls = seq[:, 0]
+        elif self.trans_output == 'seq':
+            cls = seq[:, 1:].mean(1)
         cls = cls.view(cls.size(0), -1)
         out = self.linear_layers(cls)
 

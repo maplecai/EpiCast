@@ -41,7 +41,7 @@ class _Transition(nn.Sequential):
         self.add_module('relu', nn.ReLU(inplace=False))
         self.add_module('conv', nn.Conv1d(num_input_features, num_output_features,
                                           kernel_size=1, stride=1, bias=False))
-        self.add_module('pool', nn.AvgPool1d(kernel_size=2, stride=2))
+        self.add_module('pool', nn.AvgPool1d(kernel_size=2, stride=2, ceil_mode=True))
 
 
 
@@ -95,7 +95,8 @@ class DenseLSTM(nn.Module):
                 trans = _Transition(num_input_features=num_features, num_output_features=num_features // 2)
                 self.features.add_module('transition%d' % (i + 1), trans)
                 num_features = num_features // 2
-                length = np.floor((length - 1 - 1) / 2 + 1)
+                # length = np.floor((length - 1 - 1) / 2 + 1)
+                length = np.ceil((length - 1 - 1) / 2 + 1)
 
         # Final batch norm
         self.features.add_module('norm5', nn.BatchNorm1d(num_features))
@@ -126,35 +127,9 @@ class DenseLSTM(nn.Module):
         return out
 
 
+if __name__ == "__main__":
+    import torchinfo
 
-
-
-
-# class DenseLSTMWithLinear(nn.Module):
-#     """
-#     DenseLSTM with Linear regression
-#     input seq and features, seq after DenseLSTM get a feature, then all features Linear regression
-#     """
-#     def __init__(self, **kwargs):
-#         super().__init__()
-#         self.dense_lstm = DenseLSTM(**kwargs)
-#         self.linear = nn.Linear(in_features=2, out_features=1)
-
-        
-#     def forward(self, seq, feature):
-#         seq_feature = self.dense_lstm(seq)
-#         features = torch.cat((seq_feature.unsqueeze(-1), feature.unsqueeze(-1)), dim=1)
-#         out = self.linear(features)
-#         out = out.squeeze(-1)
-#         return out
-
-
-
-# if __name__ == "__main__":
-#     seq = torch.ones(size=(16,4,100))
-#     feature = torch.ones(size=(16,))
-#     model = DenseLSTMWithLinear(input_length=100)
-
-#     out = model(seq, feature)
-#     print(out)
-
+    inputs = torch.ones(size=(1,4,100))
+    model = DenseLSTM(input_length=100, num_init_features=64, growth_rate=64, block_config=(2,2,2,2))
+    torchinfo.summary(model, input_data=inputs, depth=5, col_names=["input_size", "output_size", "num_params"])

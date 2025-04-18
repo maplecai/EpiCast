@@ -17,3 +17,5 @@ from . import enformer_pytorch
 
 
 from .MyCNNTransformer import MyCNNTransformer
+from .MyDenseNet import DenseNet
+from .MyResNet import MyResNet, MyResNet2

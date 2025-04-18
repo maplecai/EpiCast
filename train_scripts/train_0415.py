@@ -53,10 +53,12 @@ class Trainer:
         # setup dataloader
         self.train_dataset = utils.init_obj(
             datasets, 
-            config['train_dataset'])
+            config['train_dataset'],
+        )
         self.valid_dataset = utils.init_obj(
             datasets, 
-            config['valid_dataset'])
+            config['valid_dataset'],
+        )
         
         if not self.distributed:
             self.train_loader = DataLoader(
@@ -64,13 +66,15 @@ class Trainer:
                 batch_size=config['batch_size'],
                 shuffle=True,
                 num_workers=4,
-                pin_memory=True,)
+                pin_memory=True,
+            )
             self.valid_loader = DataLoader(
                 dataset=self.valid_dataset, 
                 batch_size=config['batch_size'],
                 shuffle=False,
                 num_workers=4,
-                pin_memory=True,)
+                pin_memory=True,
+            )
         else:
             self.train_sampler = DistributedSampler(self.train_dataset, shuffle=True)
             self.valid_sampler = DistributedSampler(self.valid_dataset, shuffle=False)
@@ -80,14 +84,16 @@ class Trainer:
                 sampler=self.train_sampler,
                 num_workers=1,
                 pin_memory=True,
-                drop_last=False)
+                drop_last=False,
+            )
             self.valid_loader = DataLoader(
                 dataset=self.valid_dataset, 
                 batch_size=config['batch_size'],
                 sampler=self.valid_sampler,
                 num_workers=1,
                 pin_memory=True,
-                drop_last=False)
+                drop_last=False,
+            )
             
         # setup model
         self.model = utils.init_obj(models, config['model'])
@@ -103,84 +109,66 @@ class Trainer:
             self.model = DistributedDataParallel(
                 self.model, 
                 device_ids=[self.gpu_id], 
-                find_unused_parameters=False)
+                find_unused_parameters=False,
+            )
         
         # setup training
         self.loss_func = utils.init_obj(
             metrics, 
-            config['loss_func'])
-        # self.trainable_params = filter(
-        #     lambda p: p.requires_grad, 
-        #     self.model.parameters())
-        # self.optimizer = utils.init_obj(
-        #     torch.optim, 
-        #     config['optimizer'], 
-        #     self.trainable_params)
-
-
-
-        # 区分不同层学习率
-        lr_main = config['optimizer']['args']['lr']
-        lr_transformer = config['optimizer']['args'].get('transformer_lr', lr_main)
-        weight_decay = config['optimizer']['args'].get('weight_decay', 0.0)
-
-        transformer_params = []
-        other_params = []
-
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                if 'transformer' in name:
-                    transformer_params.append(param)
-                else:
-                    other_params.append(param)
-
-        param_groups = [
-            {
-                'params': transformer_params,
-                'lr': lr_transformer,
-                'weight_decay': weight_decay,
-            },
-            {
-                'params': other_params,
-                'lr': lr_main,
-                'weight_decay': weight_decay,
-            },
-        ]
-        self.optimizer = utils.init_obj(
-            torch.optim,
-            config['optimizer'],
-            param_groups
+            config['loss_func']
         )
 
+        if 'transformer_args' in self.config['optimizer']:
+            # 区分不同层学习率
+            transformer_params = []
+            other_params = []
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    if 'transformer' in name:
+                        transformer_params.append(param)
+                    else:
+                        other_params.append(param)
+            param_groups = [
+                {
+                    'params': transformer_params,
+                    **config['optimizer']['transformer_args'],
+                },
+                {
+                    'params': other_params,
+                    **config['optimizer']['args'],
+                },
+            ]
+            self.optimizer = utils.init_obj(
+                torch.optim,
+                config['optimizer'],
+                param_groups
+            )
 
-
-
-
-
-
-
-
-
+        else:
+            trainable_params = [param for param in self.model.parameters() if param.requires_grad]
+            self.optimizer = utils.init_obj(
+                torch.optim, 
+                config['optimizer'], 
+                trainable_params
+            )
 
         self.lr_scheduler = utils.init_obj(
             utils, 
             config['lr_scheduler'], 
-            self.optimizer)
+            self.optimizer
+        )
         self.early_stopper = utils.init_obj(
             utils, 
             config['early_stopper'], 
             save_dir=os.path.join(config['save_dir']), 
-            trace_func=self.log)
+            trace_func=self.log
+        )
         
         # setup metrics
         self.cell_types = config['cell_types']
-        self.metric_funcs = [
-            utils.init_obj(metrics, m) for m in config.get('metric_funcs', [])]
-        self.metric_names = [
-            m['type'] for m in config.get('metric_funcs', [])]
-        self.metric_df = pd.DataFrame(
-            index=self.cell_types, 
-            columns=self.metric_names)
+        self.metric_funcs = [utils.init_obj(metrics, m) for m in config.get('metric_funcs', [])]
+        self.metric_names = [m['type'] for m in config.get('metric_funcs', [])]
+        self.metric_df = pd.DataFrame(index=self.cell_types, columns=self.metric_names)
 
 
     def train(self):
@@ -196,7 +184,10 @@ class Trainer:
                 self.model, 
                 input_data=[sample], 
                 verbose=0, 
-                depth=5))
+                depth=5,
+                col_names=["input_size", "output_size", "num_params"],
+                row_settings=["var_names"],
+            ))
             
         self.log(f'cell_types = {self.cell_types}')
         self.log(f'len(train_dataset) = {len(self.train_dataset)}')
