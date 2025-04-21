@@ -38,7 +38,8 @@ class LinearBlock(nn.Module):
     def __init__(
             self, 
             in_channels, 
-            out_channels,):
+            out_channels, 
+        ):
         super(LinearBlock, self).__init__()
         self.linear = nn.Linear(in_channels, out_channels)
         self.bn = nn.BatchNorm1d(out_channels)

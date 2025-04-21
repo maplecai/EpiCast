@@ -14,7 +14,7 @@ if __name__ == '__main__':
         shell=True)
 
 
-    # # for cell_type in ['K562', 'HepG2', 'SK-N-SH', 'A549', 'HCT116']:
+    # # for cell_type in ['K562', 'HepG2', 'SK-N-SH', 'HCT116', 'A549']:
     # for cell_type in ['A549', 'HCT116']:
     #     new_config_path = f'{config_path[:-5]}_without_{cell_type}.yaml'
             
