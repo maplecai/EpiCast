@@ -1,39 +1,41 @@
+# distributed: true # 是否使用分布式训练
+# gpu_ids: [2, 3] # 可用的gpu id
+# world_size: 2 # gpu数量
+
 distributed: false # 是否使用分布式训练
-gpu_ids: auto # 可用的gpu id
+gpu_ids: [0] # 可用的gpu id
+
 
 seed: 0 # 随机数种子
 save_dir: saved # 保存的根路径
-num_epochs: 1000 # 训练的epoch总数
+num_epochs: 1000 # 最大epoch数
 num_log_steps: 10 # 每多少个step输出log, 0 means no output
 num_valid_epochs: 1 # 每多少个epoch运行valid
 scheduler_interval: step
 batch_size: 4096
-load_saved_model: true
-saved_model_path: checkpoint.pth
+load_saved_model: false
 
-num_cell_types: &num_cell_types 5
-cell_types: &cell_types ['K562', 'HepG2', 'SK-N-SH', 'HCT116', 'A549']
-assays: &assays ['DNase', 'H3K4me3', 'H3K27ac','CTCF']
+cell_types: &cell_types [K562, HepG2, SK-N-SH, 'A549', 'HCT116']
+# assays: &assays [DNase, H3K4me3, H3K27ac, CTCF]
 
 train_dataset:
   type: &type SeqDataset
   args: &args
-    data_path: './data/SirajMPRA/SirajMPRA_562654_0317.csv'
+    data_path: ./data/GosaiMPRA/GosaiMPRA_my_processed_data_len200_norm.csv
     apply_filter: true
-    filter_column: 'chr'
-    filter_in_list: ['chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11', 'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21', 'chr22']
-    seq_column: 'seq'
-    feature_column: null
+    filter_column: chr
+    filter_in_list: [chr3, chr4, chr5, chr6, chr7, chr8, chr9, chr10, chr11, chr12,
+      chr13, chr14, chr15, chr16, chr17, chr18, chr19, chr20, chr21, chr22]
+    seq_column: seq
     label_column: *cell_types
-    matrixize_feature: true
-    cell_types: *cell_types
-    assays: *assays
+    # cell_types: *cell_types
+    # assays: *assays
 
 valid_dataset:
   type: *type
   args:
     <<: *args
-    filter_in_list: ['chr1']
+    filter_in_list: [chr1]
 
 test_dataset:
   type: *type
@@ -41,38 +43,43 @@ test_dataset:
     <<: *args
     apply_filter: false
 
+
 model:
-  type: MyBassetFeatureMatrixFusion
+  type: MyResNet2
   args:
-    input_seq_length:       200
-    output_dim:             1
-    input_feature_dim:      4
+    input_length:           200
+    input_channels:         4
+    output_dim:             5
     sigmoid:                false
     squeeze:                true
 
-    fusion_type:            linear_concat
-
-    conv_channels_list:     [256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256,256]
-    conv_kernel_size_list:  [3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3]
-    conv_padding_list:      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-    pool_kernel_size_list:  [1,1,2,1,1,2,1,1,2,1,1,2,1,1,2,1,1,2]
+    conv_first_channels:    256
+    conv_first_kernel_size: 7
+    conv_layer_order:       bn_relu_conv_add
+    conv_channels_list:     [256,256,256,256,256,256]
+    conv_kernel_size_list:  [3,3,3,3,3,3]
+    pool_kernel_size_list:  [2,2,2,2,2,2]
     conv_dropout_rate:      0.2
+    gap:                    true
 
     linear_channels_list:   [1024]
     linear_dropout_rate:    0.5
 
-
-
 optimizer:
-  type: Adam
+  type: AdamW
   args:
     lr: 1.0e-3
     weight_decay: 1.0e-4
+  transformer_args:
+    lr: 1.0e-4
+    weight_decay: 1.0e-4
 
 lr_scheduler:
-  type: CosineAnnealingWarmRestarts
-  args: 
-    T_0: 20
+  type: WarmupCosineAnnealingWarmRestarts
+  args:
+    warmup_epochs: 10
+    T_0: 10
+    T_mult: 2
 
 loss_func:
   type: MyMSELoss
@@ -81,18 +88,14 @@ metric_funcs:
 - type: MyMSELoss
 - type: Pearson
 - type: Spearman
-# - type: MyBCELoss
-# - type: Accuracy
-# - type: AUROC
-# - type: AUPRC
 
 early_stopper:
   type: EarlyStopping
   args:
-    monitor: 'Pearson'
+    monitor: Pearson
     patience: 40
     delta: 0
-    mode: 'max'
+    mode: max
     verbose: true
 
 logger:
@@ -128,6 +131,6 @@ logger:
   root:
     level: DEBUG
     handlers:
-      - console_handler
-      - info_file_handler
-      - debug_file_handler
+    - console_handler
+    - info_file_handler
+    - debug_file_handler

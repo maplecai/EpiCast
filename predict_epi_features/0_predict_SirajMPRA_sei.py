@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
     set_seed(0)
 
-    device = f'cuda:0'
+    device = f'cuda:2'
     model_path = f'pretrained_models/Sei/sei.pth'
     # data_path = f'data/SirajMPRA/SirajMPRA_562654.csv'
     data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len200_norm.csv'

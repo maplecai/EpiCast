@@ -12,6 +12,9 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import torchinfo
+from ruamel.yaml import YAML
+from io import StringIO
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from MPRA_predict import models, datasets, metrics, utils
@@ -49,6 +52,11 @@ class Trainer:
             self.log = self.logger.info
         else:
             self.log = self.logger.debug
+        
+        yaml = YAML()
+        stream = StringIO()
+        yaml.dump(self.config, stream)
+        self.log(stream.getvalue())
 
         # setup dataloader
         self.train_dataset = utils.init_obj(

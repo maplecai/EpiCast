@@ -129,3 +129,27 @@ def spearman(x: np.ndarray, y: np.ndarray) -> float:
         print('after remove nan, len(x) < 2, spearman = nan')
         r, p = np.nan, np.nan
     return r, p
+
+
+
+def flatten_seq_features(seq, feature_matrix, target=None):
+    batch_size, seq_channels, seq_length = seq.shape
+    _, num_celltypes, feature_dim = feature_matrix.shape
+
+
+    flat_seq = seq.unsqueeze(1).expand(-1, num_celltypes, -1, -1).reshape(batch_size * num_celltypes, seq_channels, seq_length)
+    flat_feature = feature_matrix.reshape(batch_size * num_celltypes, feature_dim)
+
+    if target is not None:
+        flat_target = target.reshape(batch_size * num_celltypes)
+        return flat_seq, flat_feature, flat_target
+    else:
+        return flat_seq, flat_feature
+
+
+
+def unflatten_target(flat_target, batch_size, num_celltypes):
+    target = flat_target.view(batch_size, num_celltypes)
+    return target
+
+

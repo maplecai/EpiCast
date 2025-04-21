@@ -12,3 +12,5 @@ from .SeqDataset import SeqDataset
 # from .XpressoDatasetNew import XpressoDatasetNew
 # from .SeqFeatureLabelDataset import SeqFeatureLabelDataset
 from .RandomDataset import RandomDataset
+
+from .SeqFeatureMatrixDataset import SeqFeatureMatrixDataset
