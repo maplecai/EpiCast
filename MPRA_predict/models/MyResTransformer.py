@@ -38,7 +38,8 @@ class MyResTransformer(nn.Module):
         trans_n_heads=8, 
         trans_d_mlp=256,
         trans_dropout_rate=0.1,
-        trans_output='cls',
+        trans_output='seq_mean',
+        trans_add_cls=False,
 
         linear_channels_list=None,
         linear_dropout_rate=0.5,
@@ -48,11 +49,12 @@ class MyResTransformer(nn.Module):
         self.input_seq_length   = input_seq_length
         self.input_seq_channels = input_seq_channels
         self.input_feature_dim  = input_feature_dim
-        self.input_feature_times= input_feature_times
+        # self.input_feature_times= input_feature_times
         self.output_dim         = output_dim
         self.sigmoid            = sigmoid
         self.squeeze            = squeeze
         self.trans_output       = trans_output
+        self.trans_add_cls      = trans_add_cls
 
         if conv_channels_list is None:
             conv_channels_list = []
@@ -116,13 +118,16 @@ class MyResTransformer(nn.Module):
         # compute the shape
         with torch.no_grad():
             x = torch.zeros(1, self.input_seq_channels, self.input_seq_length)
-            x = self.conv_layers(x)
-            # x = x.view(x.size(0), -1)
-            # current_dim = x.size(1)
+            x = self.conv_layers(x) # (batch_size, conv_channels, seq_length)
+            conv_out_dim = x.size(1)
+
+
+        if trans_add_cls is True:
+            self.cls_token = nn.Parameter(torch.randn(1, 1, conv_out_dim))
+            nn.init.normal_(self.cls_token, mean=0.0, std=0.02)# 初始化可能很重要！
 
         if input_feature_dim > 0:
-            self.cls_embedding_layer = nn.Linear(input_feature_dim, trans_d_embed)
-            nn.init.normal_(self.cls_embedding_layer.weight, mean=0.0, std=0.02) # 初始化可能很重要！
+            self.feature_embedding_layer = nn.Linear(input_feature_dim, trans_d_embed)
 
         self.trans_layers = nn.Sequential(OrderedDict([]))
         for i in range(num_trans_blocks):
@@ -140,13 +145,13 @@ class MyResTransformer(nn.Module):
             x = self.trans_layers(x)
             x = x.mean(1)
             # x = x.view(x.size(0), -1)
-            current_dim = x.size(1)
+            trans_out_dim = x.size(1)
 
         self.linear_layers = nn.Sequential(OrderedDict([]))
         for i in range(len(linear_channels_list)):
             self.linear_layers.add_module(
                 f'linear_block_{i}', LinearBlock(
-                    in_channels=current_dim if i == 0 else linear_channels_list[i-1], 
+                    in_channels=trans_out_dim if i == 0 else linear_channels_list[i-1], 
                     out_channels=linear_channels_list[i],
                 )
             )
@@ -155,7 +160,7 @@ class MyResTransformer(nn.Module):
             )
         self.linear_layers.add_module(
             f'linear_last', nn.Linear(
-                in_features=current_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
+                in_features=trans_out_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
                 out_features=output_dim,
             )
         )
@@ -167,6 +172,7 @@ class MyResTransformer(nn.Module):
     def forward_seq(self, seq):
         seq = self.conv_layers(seq)
         seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
+        
         seq = self.trans_layers(seq)
 
         if self.trans_output == 'seq_mean':
@@ -188,18 +194,8 @@ class MyResTransformer(nn.Module):
         seq = self.conv_layers(seq)
         seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
 
-        cls = self.cls_embedding_layer(feature)
-        cls = cls.unsqueeze(1)
+        out = self.forward_trans_layers_seq_and_feature(seq, feature)
 
-        cls_seq = torch.concat([cls, seq], dim=1)
-        cls_seq = self.trans_layers(cls_seq)
-
-        if self.trans_output == 'cls':
-            out = cls_seq[:, 0]
-        elif self.trans_output == 'seq_mean':
-            out = cls_seq[:, 1:].mean(1)
-
-        # out = out.view(out.size(0), -1)
         out = self.linear_layers(out)
 
         if self.sigmoid:
@@ -209,6 +205,35 @@ class MyResTransformer(nn.Module):
         return out
 
 
+    def forward_trans_layers_seq_and_feature(self, seq, feature):
+        # seq.shape = (batch_size, seq_length, hidden_dim)
+        # feature.shape = (batch_size, hidden_dim)
+        feature = self.feature_embedding_layer(feature)
+        feature = feature.unsqueeze(1) # (batch_size, 1, hidden_dim)
+
+        if self.trans_add_cls:
+            cls_token = self.cls_token.expand(seq.size(0), -1, -1)
+            total_seq = torch.concat([cls_token, seq, feature], dim=1)
+            total_seq = self.trans_layers(total_seq)
+
+            if self.trans_output == 'cls':
+                out = total_seq[:, 0]
+            elif self.trans_output == 'seq_mean':
+                out = total_seq[:, 1:-1].mean(1)
+            elif self.trans_output == 'seq_feature_mean':
+                out = total_seq[:, 1:].mean(1)
+            else:
+                raise ValueError(f"Invalid {self.trans_output = }")
+
+        else:
+            total_seq = torch.concat([seq, feature], dim=1)
+            total_seq = self.trans_layers(total_seq)
+
+            if self.trans_output == 'seq_mean':
+                out = total_seq[:, 0:-1].mean(1)
+            elif self.trans_output == 'seq_feature_mean':
+                out = total_seq[:, 0:].mean(1)
+        return out
 
 
     def forward_seq_and_features(self, seq, features):
@@ -232,19 +257,10 @@ class MyResTransformer(nn.Module):
         seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
 
         outs = []
-        for i in range(self.input_feature_times):
+        for i in range(features.shape[1]):
             feature_i = features[:, i, :]  # cell type i features
 
-            cls = self.cls_embedding_layer(feature_i)
-            cls = cls.unsqueeze(1)
-
-            cls_seq = torch.concat([cls, seq], dim=1)
-            cls_seq = self.trans_layers(cls_seq)
-
-            if self.trans_output == 'cls':
-                out = cls_seq[:, 0]
-            elif self.trans_output == 'seq_mean':
-                out = cls_seq[:, 1:].mean(1)
+            out = self.forward_trans_layers_seq_and_feature(seq, feature_i)
 
             out = self.linear_layers(out)
 
@@ -271,19 +287,19 @@ class MyResTransformer(nn.Module):
         if seq.shape[2] == 4:
             seq = seq.permute(0, 2, 1)
 
-
         if self.input_feature_dim == 0:
             out = self.forward_seq(seq)
             return out
 
-        elif self.input_feature_dim > 0 and self.input_feature_times == 0:
-            out = self.forward_seq_and_feature(seq, feature)
-            return out
-
-
-        elif self.input_feature_dim > 0 and self.input_feature_times > 0:
-            out = self.forward_seq_and_features(seq, feature)
-            return out
+        elif self.input_feature_dim > 0:
+            if len(feature.shape) == 2:
+                out = self.forward_seq_and_feature(seq, feature)
+                return out
+            elif len(feature.shape) == 3:
+                out = self.forward_seq_and_features(seq, feature)
+                return out
+            else:
+                raise ValueError(f'Invalid {feature.shape=}')
 
         else:
             raise ValueError(f'Invalid {self.input_feature_dim=} or {self.input_feature_times=}')

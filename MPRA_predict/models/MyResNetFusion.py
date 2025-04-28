@@ -121,6 +121,7 @@ class MyResNetFusion(nn.Module):
                 kernel_size=conv_first_kernel_size, 
                 stride=1,
                 padding=conv_padding,
+                layer_order=conv_layer_order,
                 activation=conv_activation,
                 )
             )
@@ -135,7 +136,7 @@ class MyResNetFusion(nn.Module):
                     padding=conv_padding,
                     layer_order=conv_layer_order,
                     activation=conv_activation,
-                    )
+                )
             )
 
             if pool_kernel_size_list[i] != 1:

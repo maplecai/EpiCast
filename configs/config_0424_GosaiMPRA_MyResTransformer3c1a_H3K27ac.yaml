@@ -15,32 +15,50 @@ batch_size: 4096
 load_saved_model: false
 
 cell_types: &cell_types [K562, HepG2, SK-N-SH]
-assays: &assays [DNase, H3K4me3, H3K27ac, CTCF]
+assays: &assays [H3K27ac]
 
-train_dataset:
+template_dataset:
   type: &type SeqFeatureMatrixDataset
   args: &args
-    data_path: ./data/GosaiMPRA/GosaiMPRA_with_epi_norm.csv
-    apply_filter: true
-    filter_column: chr
-    filter_in_list: [chr3, chr4, chr5, chr6, chr7, chr8, chr9, chr10, chr11, chr12,
-      chr13, chr14, chr15, chr16, chr17, chr18, chr19, chr20, chr21, chr22, chrX, chrY]
+    data_path: ./data/GosaiMPRA/GosaiMPRA_seq_epi_norm.csv
+    apply_filter: false
     seq_column: seq
     label_column: *cell_types
     cell_types: *cell_types
     assays: *assays
 
+train_dataset:
+  type: *type
+  args:
+    <<: *args
+    apply_filter: true
+    filter_column: chr
+    filter_in_list: [chr3, chr4, chr5, chr6, chr7, chr8, chr9, chr10, chr11, chr12,
+      chr13, chr14, chr15, chr16, chr17, chr18, chr19, chr20, chr21, chr22, chrX,
+      chrY]
+
 valid_dataset:
   type: *type
   args:
     <<: *args
+    apply_filter: true
+    filter_column: chr
     filter_in_list: [chr1]
 
 test_dataset:
   type: *type
   args:
     <<: *args
-    apply_filter: false
+    apply_filter: true
+    filter_column: chr
+    filter_in_list: [chr2]
+
+total_dataset:
+  type: *type
+  args:
+    <<: *args
+    label_column: [K562, HepG2, SK-N-SH, HCT116, A549]
+    cell_types: [K562, HepG2, SK-N-SH, HCT116, A549]
 
 
 model:
@@ -48,8 +66,8 @@ model:
   args:
     input_seq_length:       200
     input_seq_channels:     4
-    input_feature_dim:      4
-    input_feature_times:    3
+    input_feature_dim:      1
+    # input_feature_times:    3
     output_dim:             1
     sigmoid:                false
     squeeze:                true
@@ -65,7 +83,7 @@ model:
     pool_kernel_size_list:  [2,2,2,2,2,2]
     gap:                    false
 
-    num_trans_blocks:       3
+    num_trans_blocks:       6
     trans_d_embed:          256
     trans_n_heads:          4
     trans_d_mlp:            256

@@ -3,7 +3,8 @@
 # world_size: 2 # gpu数量
 
 distributed: false # 是否使用分布式训练
-gpu_ids: [1] # 可用的gpu id
+gpu_ids: [0] # 可用的gpu id
+
 
 seed: 0 # 随机数种子
 save_dir: saved # 保存的根路径
@@ -14,7 +15,7 @@ scheduler_interval: step
 batch_size: 4096
 load_saved_model: false
 
-cell_types: &cell_types [K562, HepG2, SK-N-SH]
+cell_types: &cell_types [K562]
 assays: &assays [DNase, H3K4me3, H3K27ac, CTCF]
 
 train_dataset:
@@ -42,39 +43,34 @@ test_dataset:
     <<: *args
     apply_filter: false
 
-
 model:
-  type: MyResTransformer
+  type: MyResNetFusion
   args:
     input_seq_length:       200
     input_seq_channels:     4
     input_feature_dim:      4
-    input_feature_times:    3
+    input_feature_times:    1
     output_dim:             1
-    sigmoid:                false
-    squeeze:                true
+    sigmoid:                False
+    squeeze:                True
 
     conv_first_channels:    256
     conv_first_kernel_size: 7
-    conv_layer_order:       conv_relu_bn_add
+    conv_layer_order:       conv_bn_add_relu
     conv_channels_list:     [256,256,256,256,256,256]
     conv_kernel_size_list:  [3,3,3,3,3,3]
-    conv_dropout_rate:      0.2
-    conv_padding:           same
-    conv_activation:        relu
     pool_kernel_size_list:  [2,2,2,2,2,2]
+    conv_dropout_rate:      0.2
     gap:                    false
 
-    num_trans_blocks:       3
-    trans_d_embed:          256
-    trans_n_heads:          4
-    trans_d_mlp:            256
-    trans_dropout_rate:     0.1
-    trans_output:           seq_mean
+    fusion_type:            linear_concat
+    fusion_x_transform:     false
+    fusion_y_transform:     false
+    fusion_x_output_dim:    512
+    fusion_y_output_dim:    512
 
     linear_channels_list:   [1024]
     linear_dropout_rate:    0.5
-
 
 
 optimizer:

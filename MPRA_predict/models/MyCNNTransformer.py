@@ -55,7 +55,7 @@ class LinearBlock(nn.Module):
 class SelfAttention(nn.Module):
     def __init__(self, d_embed, n_heads, dropout_rate=0.1, use_position_embedding=True):
         super().__init__()
-        assert d_embed % n_heads == 0
+        assert d_embed % n_heads == 0, "d_embed must be divisible by n_heads"
         self.d_embed = d_embed
         self.n_heads = n_heads
         self.d_head = d_embed // n_heads
@@ -85,13 +85,13 @@ class SelfAttention(nn.Module):
             k = self.rotary_emb.rotate_queries_or_keys(k, seq_dim=2)
 
         weight = einops.einsum(q, k, 'b h q d, b h k d -> b h q k')
-        #weight = torch.matmul(q, k.transpose(-2, -1))
         weight = weight / np.sqrt(self.d_head)
+        if mask is not None:
+            weight = weight.masked_fill(mask == 0, float('-inf'))
         weight = F.softmax(weight, dim=-1)
         weight = self.dropout(weight)
 
         output = einops.einsum(weight, v, 'b h q k, b h k d -> b h q d')
-        #output = torch.matmul(weight, v)
         output = output.transpose(1, 2).reshape(batch_size, seq_len, d_embed)
         output = self.out_linear(output)
         return output
