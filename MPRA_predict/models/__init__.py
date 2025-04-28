@@ -19,4 +19,5 @@ from .MyCNNTransformer import MyCNNTransformer
 from .MyDenseNet import DenseNet
 from .MyResNet import MyResNet
 from .MyResTransformer import MyResTransformer
+# from .MyResTransformer2 import MyResTransformer2
 from .MyResNetFusion import MyResNetFusion
