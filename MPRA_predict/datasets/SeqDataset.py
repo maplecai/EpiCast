@@ -22,7 +22,7 @@ class SeqDataset(Dataset):
         cropped_length=None,
         
         padding=False,
-        padding_position='both',
+        padding_position='both_sides',
         padding_method='N',
         padded_length=None,
         genome=None,
@@ -127,7 +127,7 @@ class SeqDataset(Dataset):
             if self.crop:
                 seq = crop_seq(seq, self.cropped_length, self.crop_position)
             if self.padding:
-                seq = pad_seq(seq, self.padded_length, padding_postition=self.padding_position, padding_method=self.padding_method, genome=self.genome)
+                seq = pad_seq(seq, self.padded_length, padding_position=self.padding_position, padding_method=self.padding_method, genome=self.genome)
             seq = torch.tensor(str2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
             sample['seq'] = seq
 
