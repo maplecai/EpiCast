@@ -93,7 +93,10 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
+
 def logit(x):
+    eps = 1e-3
+    x = np.clip(x, eps, 1 - eps)
     return np.log(x/(1-x))
 
 
