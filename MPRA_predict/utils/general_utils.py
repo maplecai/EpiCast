@@ -47,9 +47,13 @@ def save_pickle(file_dir: str, data) -> None:
 
 def load_h5(file_dir: str):
     with h5py.File(file_dir, 'r') as f:
-        # data = f
-        first_key = list(f.keys())[0]
-        data = f[first_key][:]
+        keys = list(f.keys())
+        if len(keys) == 1:
+            data = f[keys[0]][:]
+        else:
+            print('file has more than one key')
+            print(f'keys: {keys}')
+            data = f
     return data
 
 def save_h5(file_dir: str, data) -> None:

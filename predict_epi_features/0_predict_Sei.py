@@ -46,8 +46,8 @@ if __name__ == '__main__':
 
     set_seed(0)
 
-    device = f'cuda:3'
-    model_path = f'data/Sei/model/sei.pth'
+    device = f'cuda:0'
+    model_path = f'data/Sei/resources/sei.pth'
     data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len800.csv'
 
     output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred_800.h5'
