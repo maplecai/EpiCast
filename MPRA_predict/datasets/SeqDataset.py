@@ -26,6 +26,9 @@ class SeqDataset(Dataset):
         padding_method='N',
         padded_length=None,
         genome=None,
+        padding_left_seq=None,
+        padding_right_seq=None,
+
 
         N_fill_value=0.25,
         augmentations=[],
@@ -61,6 +64,8 @@ class SeqDataset(Dataset):
         self.padding_method = padding_method
         self.padded_length = padded_length
         self.genome = genome
+        self.padding_left_seq = padding_left_seq
+        self.padding_right_seq = padding_right_seq
 
         self.N_fill_value = N_fill_value
         self.augmentations = augmentations
@@ -127,7 +132,7 @@ class SeqDataset(Dataset):
             if self.crop:
                 seq = crop_seq(seq, self.cropped_length, self.crop_position)
             if self.padding:
-                seq = pad_seq(seq, self.padded_length, padding_position=self.padding_position, padding_method=self.padding_method, genome=self.genome)
+                seq = pad_seq(seq, self.padded_length, padding_position=self.padding_position, padding_method=self.padding_method, genome=self.genome, given_left_seq=self.padding_right_seq, given_right_seq=self.padding_right_seq)
             seq = torch.tensor(str2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
             sample['seq'] = seq
 
