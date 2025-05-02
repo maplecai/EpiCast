@@ -184,31 +184,50 @@ def pad_seq(seq: str, padded_length: int, padding_method:str ='N', padding_posit
     if padding_method == 'N':
         left_seq = 'N' * left_len
         right_seq = 'N' * right_len
+
     elif padding_method == 'random':
         bases = np.array(['A', 'C', 'G', 'T'])
         left_seq = ''.join(bases[np.random.randint(0, 4, left_len)])
         right_seq = ''.join(bases[np.random.randint(0, 4, right_len)])
+
     elif padding_method == 'genome':
         left_seq = random_genome_seq(genome, left_len) if left_len > 0 else ''
         right_seq = random_genome_seq(genome, right_len) if right_len > 0 else ''
+
     elif padding_method == 'repeat':
-        if left_len > 0:
+        if left_len == 0:
+            left_seq = ''
+        else:
             repeats_needed = left_len // seq_len + 1
             repeated_seq = seq * repeats_needed
             left_seq = repeated_seq[-left_len:]
+        if right_len == 0:
+            right_seq = ''
         else:
-            left_seq = ''
-        if right_len > 0:
             repeats_needed = right_len // seq_len + 1
             repeated_seq = seq * repeats_needed
             right_seq = repeated_seq[:right_len]
-        else:
-            right_seq = ''
+
     elif padding_method == 'given':
         if len(given_left_seq) < left_len or len(given_right_seq) < right_len:
             raise ValueError('given_left_seq and given_right_seq must be at least as long as the padding length')
         left_seq = given_left_seq[-left_len:] if left_len > 0 else ''
         right_seq = given_right_seq[:right_len] if right_len > 0 else ''
+
+    elif padding_method == 'given+N':
+        if left_len == 0:
+            left_seq = ''
+        elif len(given_left_seq) < left_len:
+            left_seq = 'N' * (left_len - len(given_left_seq)) + given_left_seq
+        else:
+            left_seq = given_left_seq[-left_len:]
+        if right_len == 0:
+            right_seq = ''
+        elif len(given_right_seq) < right_len:
+            right_seq =  given_right_seq + 'N' * (right_len - len(given_right_seq))
+        else:
+            right_seq = given_right_seq[:right_len]
+        
     else:
         raise ValueError('padding_method must be "N", "random", or "given"')
     
