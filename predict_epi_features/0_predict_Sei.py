@@ -46,11 +46,15 @@ if __name__ == '__main__':
 
     set_seed(0)
 
-    device = f'cuda:0'
-    model_path = f'data/Sei/resources/sei.pth'
-    data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len800.csv'
+    # data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len800.csv'
+    # output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred_800.h5'
 
-    output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred_800.h5'
+    data_path = f'data/AgarwalMPRA/AgarwalMPRA_joint_56k.csv'
+    output_path = f'predict_epi_features/outputs/AgarwalMPRA_Sei_pred.h5'
+
+
+    device = f'cuda:1'
+    model_path = f'data/Sei/resources/sei.pth'
 
     output_dir = os.path.dirname(output_path)
     if not os.path.exists(output_dir):
@@ -69,7 +73,7 @@ if __name__ == '__main__':
 
     dataset = datasets.SeqDataset(
         data_path=data_path,
-        seq_column='seq_800', 
+        seq_column='seq', 
         crop=False,
         padding=True,
         padding_method='N',
