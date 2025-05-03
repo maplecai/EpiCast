@@ -153,7 +153,7 @@ class H5BatchWriter:
             self, 
             path, 
             dset_name='data',
-            dtype=np.float16, 
+            dtype=np.float32, # torch.float32
             compression=None
         ):
         self.f           = h5py.File(path, "w")

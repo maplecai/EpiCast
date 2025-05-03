@@ -95,7 +95,8 @@ def sigmoid(x):
 
 
 def logit(x):
-    eps = 1e-3
+    eps = 1e-6
+    x = np.asarray(x, dtype=np.float64)
     x = np.clip(x, eps, 1 - eps)
     return np.log(x/(1-x))
 

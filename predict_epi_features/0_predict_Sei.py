@@ -46,8 +46,8 @@ if __name__ == '__main__':
 
     set_seed(0)
 
-    # data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len800.csv'
-    # output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred_800.h5'
+    # data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data.csv'
+    # output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred.h5'
 
     data_path = f'data/AgarwalMPRA/AgarwalMPRA_joint_56k.csv'
     output_path = f'predict_epi_features/outputs/AgarwalMPRA_Sei_pred.h5'
