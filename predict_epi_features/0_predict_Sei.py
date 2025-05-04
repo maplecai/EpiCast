@@ -34,23 +34,16 @@ def get_pred(model, test_data_loader, device='cuda', writer: H5BatchWriter=None,
     writer.close()
 
 
-    #     y_pred.append(output.detach().cpu().numpy())
-    #     del batch, x, output  # 清理内存
-    # torch.cuda.empty_cache()
-    # y_pred = np.concatenate(y_pred, axis=0)
-    # return y_pred
-
-
 
 if __name__ == '__main__':
 
     set_seed(0)
 
-    # data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data.csv'
-    # output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred.h5'
+    data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data.csv'
+    output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred_800_float32.h5'
 
-    data_path = f'data/AgarwalMPRA/AgarwalMPRA_joint_56k.csv'
-    output_path = f'predict_epi_features/outputs/AgarwalMPRA_Sei_pred.h5'
+    # data_path = f'data/AgarwalMPRA/AgarwalMPRA_joint_56k.csv'
+    # output_path = f'predict_epi_features/outputs/AgarwalMPRA_Sei_pred_float32.h5'
 
 
     device = f'cuda:1'
