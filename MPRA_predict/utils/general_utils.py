@@ -134,7 +134,8 @@ def detect_delimiter(csv_file_path):
         elif ',' in first_line:
             return ','
         else:
-            raise ValueError('delimiter is not , or \t')
+            return ','
+            # raise ValueError('delimiter is not , or \t')
 
 
 
