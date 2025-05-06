@@ -49,8 +49,8 @@ if __name__ == '__main__':
     device = f'cuda:2'
     model_path = f'data/Sei/resources/sei.pth'
     
-    data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len200_norm.csv'
-    output_path = f'predict_epi_features/outputs/GosaiMPRA_Sei_pred_800_float32.h5'
+    data_path = f'data/Gosai_MPRA/Gosai_MPRA_my_processed_data_len200_norm.csv'
+    output_path = f'predict_epi_features/outputs/Gosai_MPRA_Sei_pred_800_float32.h5'
 
     output_dir = os.path.dirname(output_path)
     if not os.path.exists(output_dir):

@@ -96,7 +96,7 @@
 
 # if __name__ == '__main__':
 #     dataset = SeqLabelMultiCellTypeDataset(
-#         seq_exp_path = '/home/hxcai/cell_type_specific_CRE/data/GosaiMPRA/GosaiMPRA_len200_100000.csv',
+#         seq_exp_path = '/home/hxcai/cell_type_specific_CRE/data/Gosai_MPRA/Gosai_MPRA_len200_100000.csv',
 #         input_column = 'seq',
 #         output_columns = ['K562', 'HepG2'])
     

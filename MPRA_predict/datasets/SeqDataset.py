@@ -29,7 +29,6 @@ class SeqDataset(Dataset):
         padding_left_seq=None,
         padding_right_seq=None,
 
-
         N_fill_value=0.25,
         augmentations=[],
 

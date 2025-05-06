@@ -4,7 +4,6 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-import h5py
 
 sys.path.append("..")
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -26,17 +25,13 @@ def get_pred(model, test_data_loader, device='cuda', writer: H5BatchWriter=None,
             x = batch
         x = x.to(device)
         output = model(x)
-        output = output['human'] # [:, 447:449]
+
         output = output.detach().cpu().numpy()
         writer.save(output)
         if (i+1) % flush_every == 0:
             writer.flush()
     writer.flush()
     writer.close()
-    # torch.cuda.empty_cache()
-    # y_pred = np.concatenate(y_pred, axis=0)
-    
-    return y_pred
 
 
 
@@ -44,10 +39,22 @@ if __name__ == '__main__':
 
     set_seed(0)
 
-    device = f'cuda:0'
-    model_path = f'pretrained_models/enformer_weights'
-    data_path = f'data/Gosai_MPRA/Gosai_MPRA_my_processed_data_len800.csv'
-    output_path = f'predict_epi_features/outputs/Gosai_MPRA_Enformer_pred_1024.h5'
+    # data_path = f'data/Gosai_MPRA/Gosai_MPRA_my_processed_data.csv'
+    # output_path = f'predict_epi_features/outputs/Gosai_MPRA_Sei_pred_800_float32.h5'
+
+    # data_path = f'data/Agarwal_MPRA/Agarwal_MPRA_joint_56k.csv'
+    # output_path = f'predict_epi_features/outputs/Agarwal_MPRA_Sei_pred_200.h5'
+
+    # data_path = f'data/CAGI5_MPRA/CAGI5_MPRA.csv'
+    # output_path = f'predict_epi_features/outputs/CAGI5_MPRA_Sei_pred.h5'
+
+    data_path = f'data/Reddy_MPRA/Reddy_MPRA.csv'
+    output_path = f'predict_epi_features/outputs/Reddy_MPRA_Sei_pred.h5'
+
+
+
+    device = f'cuda:3'
+    model_path = f'data/Sei/resources/sei.pth'
 
     output_dir = os.path.dirname(output_path)
     if not os.path.exists(output_dir):
@@ -58,22 +65,26 @@ if __name__ == '__main__':
         exit()
     print(f'predicting {output_path}')
 
-    model = models.enformer_pytorch.from_pretrained(model_path, target_length=4, use_tf_gamma=False)
+    model = models.Sei()
+    model_state_dict = torch.load(model_path)
+    model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
+    model.load_state_dict(model_state_dict, strict=False)
     model = model.to(device)
 
     dataset = datasets.SeqDataset(
         data_path=data_path,
-        seq_column='seq_800', 
+        seq_column='seq', 
+
         crop=False,
+        # crop=True,
+        # cropped_length=200,
+
         padding=True,
         padding_method='N',
-        padded_length=512,
+        padded_length=4096,
         N_fill_value=0.25,
     )
-    
-    test_data_loader = DataLoader(dataset, batch_size=1024, shuffle=False, num_workers=8)
-
+    test_data_loader = DataLoader(dataset, batch_size=512, shuffle=False, num_workers=4, pin_memory=True)
     writer = H5BatchWriter(output_path)
-    pred = get_pred(model, test_data_loader, device, writer)
+    pred = get_pred(model, test_data_loader, device, writer, 100)
     # np.save(output_path, pred)
-

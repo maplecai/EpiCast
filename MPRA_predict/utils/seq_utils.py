@@ -163,7 +163,7 @@ def random_genome_seq(genome: Fasta, seq_length: int) -> str:
 def pad_seq(seq: str, padded_length: int, padding_method:str ='N', padding_position: str='both_sides', given_left_seq: str=None, given_right_seq: str=None, genome: Fasta=None) -> str:
     seq_len = len(seq)
     if seq_len > padded_length:
-        raise ValueError('padded_length must >= sequence length')
+        raise ValueError(f'seq_len={seq_len} > padded_length={padded_length}')
     padding_len = padded_length - seq_len
 
     if padding_position == 'both_sides':
@@ -177,6 +177,9 @@ def pad_seq(seq: str, padded_length: int, padding_method:str ='N', padding_posit
         right_len = padding_len
     elif padding_position.isdigit():
         left_len = int(padding_position)
+        right_len = padding_len - left_len
+    elif padding_position == 'random':
+        left_len = np.random.randint(0, padding_len)
         right_len = padding_len - left_len
     else:
         raise ValueError('padding_postition must be "both_sides", "left", "right" or a integer')

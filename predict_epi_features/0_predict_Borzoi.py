@@ -139,8 +139,8 @@ def get_pred_tf(model, test_data_loader, writer: H5BatchWriter, flush_every=1):
 
 if __name__ == '__main__':
 
-    data_path = f'data/GosaiMPRA/GosaiMPRA_my_processed_data_len200_norm.csv'
-    output_path = f'predict_epi_features/outputs/GosaiMPRA_Borzoi_pred.h5'
+    data_path = f'data/Gosai_MPRA/Gosai_MPRA_my_processed_data_len200_norm.csv'
+    output_path = f'predict_epi_features/outputs/Gosai_MPRA_Borzoi_pred.h5'
 
     set_seed(0)
 
