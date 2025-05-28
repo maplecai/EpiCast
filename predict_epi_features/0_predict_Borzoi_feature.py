@@ -17,51 +17,6 @@ from baskerville.seqnn import SeqNN
 
 
 
-class H5BatchWriter:
-    """
-    逐批追加写 HDF5：
-      >>> writer = H5BatchWriter("pred.h5", "pred", dtype=np.float16)
-      >>> writersave(batch_pred)
-      >>> writer.close()              # 用完记得关
-    """
-    def __init__(self, path, dset_name,
-                 dtype=np.float16, compression=None):
-        self.f           = h5py.File(path, "w")
-        self.dset        = None
-        self.dset_name   = dset_name
-        self.dtype       = dtype
-        self.compression = compression
-        self.offset      = 0          # 写入样本计数
-
-    def save(self, batch_arr):
-        batch_arr = batch_arr.astype(self.dtype, copy=False)
-        bsz       = len(batch_arr)
-
-        # 第一次来时创建数据集（可无限增长）
-        if self.dset is None:
-            full_shape = (None,) + batch_arr.shape[1:]
-            self.dset  = self.f.create_dataset(
-                self.dset_name, shape=(0,) + batch_arr.shape[1:],
-                maxshape=full_shape, chunks=True,
-                compression=self.compression, dtype=self.dtype)
-
-        # 扩容 + 写入
-        new_size = self.offset + bsz
-        self.dset.resize(new_size, axis=0)
-        self.dset[self.offset:new_size] = batch_arr
-        self.offset = new_size
-
-    def flush(self):
-        self.f.flush()
-
-    def close(self):
-        self.f.flush()
-        self.f.close()
-
-
-
-
-
 
 
 class MyBorzoi():

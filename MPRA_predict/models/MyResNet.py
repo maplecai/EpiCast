@@ -28,7 +28,7 @@ class ConvBlock(nn.Module):
         self.stride = stride
         self.padding = padding
         self.activation = activation
-        self.layer_order = layer_order.replace('add', '')
+        self.layer_order = layer_order.replace('_add', '')
 
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, stride, padding)
         if activation == 'relu':
@@ -188,23 +188,23 @@ class MyResNet(nn.Module):
         if conv_layer_order == 'bn_relu_conv_add':
             self.conv_layers.add_module(
                 f'conv_first', nn.Conv1d(
-                in_channels=input_seq_channels,
-                out_channels=conv_first_channels, 
-                kernel_size=conv_first_kernel_size, 
-                stride=1,
-                padding=conv_padding,
+                    in_channels=input_seq_channels,
+                    out_channels=conv_first_channels, 
+                    kernel_size=conv_first_kernel_size, 
+                    stride=1,
+                    padding=conv_padding,
                 )
             )
         else:
             self.conv_layers.add_module(
                 f'conv_block_first', ConvBlock(
-                in_channels=input_seq_channels,
-                out_channels=conv_first_channels, 
-                kernel_size=conv_first_kernel_size, 
-                stride=1,
-                padding=conv_padding,
-                layer_order=conv_layer_order,
-                activation=conv_activation,
+                    in_channels=input_seq_channels,
+                    out_channels=conv_first_channels, 
+                    kernel_size=conv_first_kernel_size, 
+                    stride=1,
+                    padding=conv_padding,
+                    layer_order=conv_layer_order,
+                    activation=conv_activation,
                 )
             )
 
@@ -223,15 +223,13 @@ class MyResNet(nn.Module):
 
             if pool_kernel_size_list[i] != 1:
                 self.conv_layers.add_module(
-                    f'max_pool_{i}', 
-                    nn.MaxPool1d(
+                    f'max_pool_{i}', nn.MaxPool1d(
                         kernel_size=pool_kernel_size_list[i], 
                         ceil_mode=True, # keep edge information
                     )
                 )
             self.conv_layers.add_module(
-                f'conv_dropout_{i}', 
-                nn.Dropout(conv_dropout_rate)
+                f'conv_dropout_{i}', nn.Dropout(conv_dropout_rate)
             )
         if gap:
             self.conv_layers.add_module(
@@ -270,7 +268,7 @@ class MyResNet(nn.Module):
 
     def forward(self, inputs: dict):
         seq = inputs.get('seq')
-        
+
         if seq.shape[2] == 4:
             seq = seq.permute(0, 2, 1)
 

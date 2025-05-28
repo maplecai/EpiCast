@@ -24,6 +24,8 @@ class MyResTransformer(nn.Module):
 
         conv_first_channels=256,
         conv_first_kernel_size=7,
+        pool_first_kernel_size=4,
+
         conv_padding='same',
         conv_activation='relu',
         conv_layer_order='conv_bn_add_relu',
@@ -84,6 +86,14 @@ class MyResTransformer(nn.Module):
                 activation=conv_activation,
                 )
             )
+        
+        if pool_first_kernel_size != 1:
+            self.conv_layers.add_module(
+                f'max_pool_first', nn.MaxPool1d(
+                    kernel_size=pool_first_kernel_size, 
+                    ceil_mode=True, # keep edge information
+                )
+            )
 
         for i in range(len(conv_channels_list)):
             self.conv_layers.add_module(
@@ -95,7 +105,7 @@ class MyResTransformer(nn.Module):
                     padding=conv_padding,
                     layer_order=conv_layer_order,
                     activation=conv_activation,
-                    )
+                )
             )
 
             if pool_kernel_size_list[i] != 1:
@@ -284,8 +294,10 @@ class MyResTransformer(nn.Module):
         seq = inputs.get('seq')
         feature = inputs.get('feature')
 
-        if seq.shape[2] == 4:
+        if seq.shape[2] == self.input_seq_channels:
             seq = seq.permute(0, 2, 1)
+
+        assert seq.shape == (seq.shape[0], self.input_seq_channels, self.input_seq_length)
 
         if self.input_feature_dim == 0:
             out = self.forward_seq(seq)
