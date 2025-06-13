@@ -11,7 +11,7 @@ from MPRA_predict import models, datasets, metrics, utils
 
 
 @torch.no_grad()
-def run_inference(model, test_loader, device, output_dir, output_name='pred.npy'):
+def run_inference(model, test_loader, device, output_path=None):
     # only single gpu
     model.eval()
     model = model.to(device)
@@ -24,8 +24,7 @@ def run_inference(model, test_loader, device, output_dir, output_name='pred.npy'
 
     pred_list = torch.cat(pred_list).cpu().numpy()
 
-    save_file_path = os.path.join(output_dir, output_name)
-    np.save(save_file_path, pred_list)
+    np.save(output_path, pred_list)
     torch.cuda.empty_cache()
     return
 
@@ -37,13 +36,15 @@ def run_inference(model, test_loader, device, output_dir, output_name='pred.npy'
 def main():
     args = argparse.ArgumentParser()
     args.add_argument('-s', '--saved_dir', type=str, default=None, help='saved folder dir',)
-    args.add_argument('-c', '--config_path', type=str, default=None, help='config folder path, default is saved_dir/config.yaml',)
+    args.add_argument('-c', '--config_path', type=str, default=None, help='config file path, default is saved_dir/config.yaml',)
     args.add_argument('-d', '--device', type=str, default='cuda:0', help='device',)
+    args.add_argument('-o', '--output_name', type=str, default='pred.npy', help='output file name',)
     
     args = args.parse_args()
     saved_dir = args.saved_dir
     config_path = args.config_path
     device = args.device
+    output_name = args.output_name
 
     if config_path is None:
         config_path = os.path.join(saved_dir, 'config.yaml')
@@ -73,8 +74,9 @@ def main():
         num_workers=1,
         pin_memory=True)
     
-
-    run_inference(model, total_loader, device, saved_dir, output_name='pred.npy')
+    output_path = os.path.join(saved_dir, output_name)
+    
+    run_inference(model, total_loader, device, output_path)
 
 
 

@@ -145,6 +145,9 @@ if __name__ == '__main__':
         pred = get_pred(model, test_data_loader, device, writer)
 
 
+    elif args.model == 'Borzoi':
+        pass
+    # TO DO
 
 
     # long long context

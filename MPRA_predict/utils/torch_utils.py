@@ -57,10 +57,15 @@ def save_model(model: nn.Module, checkpoint_path: str) -> None:
     return
 
 
-def get_free_gpu_ids(min_memory_mb=40000):
-    free_list, total_list = get_gpu_info_from_nvidia_smi()
-    free_gpu_ids = [i for i in range(len(free_list)) if free_list[i] > min_memory_mb]
-    return free_gpu_ids
+def get_free_gpu_ids(min_memory_mb=45000):
+    free_list, _ = get_gpu_info_from_nvidia_smi()
+    gpu_ids = np.argsort(free_list)[::-1]
+
+    if gpu_ids[0] < min_memory_mb:
+        print(f'max free memory = {free_list[gpu_ids[0]]}MB, using gpu {gpu_ids[0]}')
+
+    # free_gpu_ids = [i for i in range(len(free_list)) if free_list[i] > min_memory_mb]
+    return gpu_ids
 
 
 def get_gpu_info_from_nvidia_smi():

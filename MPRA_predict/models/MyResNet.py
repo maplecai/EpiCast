@@ -123,7 +123,7 @@ class ResConvBlock(nn.Module):
 
 
     def forward(self, x):
-        if self.layer_order == 'conv_bn_add_relu': # resnet original
+        if self.layer_order == 'conv_bn_add_relu': # resnet original structure
             z = self.act1(self.bn1(self.conv1(x)))
             z = self.bn2(self.conv2(z))
             out = z + self.shortcut(x)
@@ -136,7 +136,7 @@ class ResConvBlock(nn.Module):
             z = self.bn1(self.act1(self.conv1(x)))
             z = self.bn2(self.act2(self.conv2(z)))
             out = z + self.shortcut(x)
-        elif self.layer_order == 'bn_relu_conv_add': # resnet v2
+        elif self.layer_order == 'bn_relu_conv_add': # resnet v2 不用
             z = self.conv1(self.act1(self.bn1(x)))
             z = self.conv2(self.act2(self.bn2(z)))
             out = z + self.shortcut(x)
@@ -158,6 +158,8 @@ class MyResNet(nn.Module):
 
         conv_first_channels=256,
         conv_first_kernel_size=7,
+        pool_first_kernel_size=1,
+
         conv_padding='same',
         conv_activation='relu',
         conv_layer_order='conv_bn_add_relu',
@@ -185,26 +187,23 @@ class MyResNet(nn.Module):
 
         self.conv_layers = nn.Sequential(OrderedDict([]))
         
-        if conv_layer_order == 'bn_relu_conv_add':
-            self.conv_layers.add_module(
-                f'conv_first', nn.Conv1d(
-                    in_channels=input_seq_channels,
-                    out_channels=conv_first_channels, 
-                    kernel_size=conv_first_kernel_size, 
-                    stride=1,
-                    padding=conv_padding,
-                )
+        self.conv_layers.add_module(
+            f'conv_block_first', ConvBlock(
+                in_channels=input_seq_channels,
+                out_channels=conv_first_channels, 
+                kernel_size=conv_first_kernel_size, 
+                stride=1,
+                padding=conv_padding,
+                layer_order='conv_bn_relu',
+                activation=conv_activation,
             )
-        else:
+        )
+        
+        if pool_first_kernel_size != 1:
             self.conv_layers.add_module(
-                f'conv_block_first', ConvBlock(
-                    in_channels=input_seq_channels,
-                    out_channels=conv_first_channels, 
-                    kernel_size=conv_first_kernel_size, 
-                    stride=1,
-                    padding=conv_padding,
-                    layer_order=conv_layer_order,
-                    activation=conv_activation,
+                f'max_pool_first', nn.MaxPool1d(
+                    kernel_size=pool_first_kernel_size, 
+                    ceil_mode=True, # keep edge information
                 )
             )
 
@@ -244,30 +243,60 @@ class MyResNet(nn.Module):
             current_dim = x.size(1)
 
         self.linear_layers = nn.Sequential(OrderedDict([]))
+
+        current_dim = x.shape[1]
         for i in range(len(linear_channels_list)):
             self.linear_layers.add_module(
-                f'linear_block_{i}', LinearBlock(
-                    in_channels=current_dim if i == 0 else linear_channels_list[i-1], 
-                    out_channels=linear_channels_list[i],
+                f'linear_{i}', nn.Linear(
+                    in_features=current_dim, 
+                    out_features=linear_channels_list[i],
                 )
+            )
+            self.linear_layers.add_module(
+                f'linear_activation_{i}', nn.ReLU()
             )
             self.linear_layers.add_module(
                 f'linear_dropout_{i}', nn.Dropout(linear_dropout_rate)
             )
+            current_dim = linear_channels_list[i]
+
         self.linear_layers.add_module(
             f'linear_last', nn.Linear(
-                in_features=current_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
+                in_features=current_dim, 
                 out_features=output_dim,
             )
         )
+
+
+        # for i in range(len(linear_channels_list)):
+        #     self.linear_layers.add_module(
+        #         f'linear_block_{i}', LinearBlock(
+        #             in_channels=current_dim if i == 0 else linear_channels_list[i-1], 
+        #             out_channels=linear_channels_list[i],
+        #         )
+        #     )
+        #     self.linear_layers.add_module(
+        #         f'linear_dropout_{i}', nn.Dropout(linear_dropout_rate)
+        #     )
+        # self.linear_layers.add_module(
+        #     f'linear_last', nn.Linear(
+        #         in_features=current_dim if len(linear_channels_list) == 0 else linear_channels_list[-1], 
+        #         out_features=output_dim,
+        #     )
+        # )
 
         self.sigmoid_layer = nn.Sigmoid()
 
 
 
 
-    def forward(self, inputs: dict):
-        seq = inputs.get('seq')
+    def forward(self, inputs):
+        if isinstance(inputs, torch.Tensor):
+            seq = inputs
+        elif isinstance(inputs, dict):
+            seq = inputs.get('seq')
+        else:
+            raise ValueError(f'inputs must be a torch.Tensor or a dict with key "seq"')
 
         if seq.shape[2] == 4:
             seq = seq.permute(0, 2, 1)

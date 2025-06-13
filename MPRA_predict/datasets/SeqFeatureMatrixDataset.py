@@ -139,9 +139,9 @@ class SeqFeatureMatrixDataset(Dataset):
         
         if self.seqs is not None:
             seq = self.seqs[index]
-            if self.crop:
+            if self.crop and len(seq) > self.cropped_length:
                 seq = crop_seq(seq, self.cropped_length, self.crop_position)
-            if self.padding:
+            if self.padding and len(seq) < self.padded_length:
                 seq = pad_seq(seq, self.padded_length, padding_position=self.padding_position, padding_method=self.padding_method, genome=self.genome, given_left_seq=self.padding_right_seq, given_right_seq=self.padding_right_seq)
             seq = torch.tensor(str2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
             sample['seq'] = seq

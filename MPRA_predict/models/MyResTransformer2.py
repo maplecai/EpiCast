@@ -9,68 +9,15 @@ from collections import OrderedDict
 from .. import models, utils
 from .MyResNet import ConvBlock, ResConvBlock, LinearBlock
 from .MyCNNTransformer import TransformerBlock
-from .Attention import CrossAttention
 
 
-
-
-class ConcatLayer(nn.Module):
-    def __init__(self,):
-        super().__init__()
-    def forward(self, *inputs):
-        return torch.cat(inputs, dim=-1)
-
-
-
-
-
-class ConcatFusionLayer(nn.Module):
-    def __init__(
-        self,
-        x_input_dim=None,
-        y_input_dim=None,
-        x_transform=False,
-        y_transform=False,
-        x_output_dim=None,
-        y_output_dim=None,
-    ):
-        super().__init__()
-
-        self.x_transform = x_transform
-        self.y_transform = y_transform
-
-        # 分别线性映射 x, y 再 concat
-        if x_transform:
-            self.x_linear_layer = nn.Linear(x_input_dim, x_output_dim)
-        if y_transform:
-            self.y_linear_layer = nn.Linear(y_input_dim, y_output_dim)
-
-    def forward(self, x, y):
-        x = x.view(x.size(0), -1)
-        y = y.view(y.size(0), -1)
-        if self.x_transform:
-            x = self.x_linear_layer(x)
-        if self.y_transform:
-            y = self.y_linear_layer(y)
-        z = torch.cat([x, y], dim=1)
-
-        return z
-
-
-
-
-
-
-
-
-
-class MyResNetFusion(nn.Module):
+class MyResTransformer2(nn.Module):
     def __init__(
         self, 
         input_seq_length=200,
         input_seq_channels=4,
+        input_feature=False,
         input_feature_dim=0,
-        input_feature_times=0,
         output_dim=1,
         sigmoid=False,
         squeeze=True,
@@ -88,27 +35,30 @@ class MyResNetFusion(nn.Module):
         pool_kernel_size_list=None,
         gap=False,
 
-        fusion_type=None,
-        fusion_x_transform=False,
-        fusion_y_transform=False,
-        fusion_x_input_dim=None,
-        fusion_y_input_dim=None,
-        fusion_x_output_dim=None,
-        fusion_y_output_dim=None,
+        num_trans_blocks=3, 
+        trans_d_embed=256, 
+        trans_n_heads=8, 
+        trans_d_mlp=256,
+        trans_dropout_rate=0.1,
 
+        trans_output='seq_mean',
+        trans_add_cls=False,
 
         linear_channels_list=None,
         linear_dropout_rate=0.5,
-    ):                                
+    ):
         super().__init__()
 
         self.input_seq_length   = input_seq_length
         self.input_seq_channels = input_seq_channels
+        self.input_feature      = input_feature
         self.input_feature_dim  = input_feature_dim
-        self.input_feature_times= input_feature_times
         self.output_dim         = output_dim
         self.sigmoid            = sigmoid
         self.squeeze            = squeeze
+
+        self.trans_output       = trans_output
+        self.trans_add_cls      = trans_add_cls
 
         if conv_channels_list is None:
             conv_channels_list = []
@@ -116,7 +66,7 @@ class MyResNetFusion(nn.Module):
             linear_channels_list = []
 
         self.conv_layers = nn.Sequential(OrderedDict([]))
-
+        
         self.conv_layers.add_module(
             f'conv_block_first', ConvBlock(
                 in_channels=input_seq_channels,
@@ -124,11 +74,11 @@ class MyResNetFusion(nn.Module):
                 kernel_size=conv_first_kernel_size, 
                 stride=1,
                 padding=conv_padding,
-                layer_order=conv_layer_order,
+                layer_order='conv_bn_relu',
                 activation=conv_activation,
             )
         )
-
+        
         if pool_first_kernel_size != 1:
             self.conv_layers.add_module(
                 f'max_pool_first', nn.MaxPool1d(
@@ -160,44 +110,50 @@ class MyResNetFusion(nn.Module):
             self.conv_layers.add_module(
                 f'conv_dropout_{i}', nn.Dropout(conv_dropout_rate)
             )
+
         if gap:
             self.conv_layers.add_module(
                 'gap_layer', nn.AdaptiveAvgPool1d(1)
             )
 
         # compute the shape
-        with torch.no_grad():
-            x = torch.zeros(1, self.input_seq_channels, self.input_seq_length)
-            x = self.conv_layers(x)
-            x = x.view(x.size(0), -1)
 
+        if trans_add_cls:
+            self.cls_token = nn.Parameter(torch.zeros(1, 1, conv_kernel_size_list[-1]))
+        if input_feature:
+            self.feature_embedding_layer = nn.Linear(input_feature_dim, trans_d_embed)
 
-        if self.input_feature_dim != 0:
-            if fusion_type == 'concat':
-                self.fusion_layer = ConcatLayer()
+        # self.token_type_embedding_layer = nn.Embedding(3, trans_d_embed)
 
-            elif fusion_type == 'linear_concat':
-                self.fusion_layer = ConcatFusionLayer(
-                    x_input_dim=fusion_x_input_dim,
-                    y_input_dim=fusion_y_input_dim,
-                    x_transform=fusion_x_transform,
-                    y_transform=fusion_y_transform,
-                    x_output_dim=fusion_x_output_dim,
-                    y_output_dim=fusion_y_output_dim,
+        self.trans_layers = nn.Sequential(OrderedDict([]))
+        for i in range(num_trans_blocks):
+            self.trans_layers.add_module(
+                f'transformer_block_{i}', TransformerBlock(
+                    d_embed=trans_d_embed, 
+                    n_heads=trans_n_heads, 
+                    d_mlp=trans_d_mlp, 
+                    dropout_rate=trans_dropout_rate
                 )
+            )
 
-            with torch.no_grad():
-                f = torch.zeros(1, input_feature_dim)
-                x = self.fusion_layer(x, f)
+        with torch.no_grad():
+            dummy = torch.zeros(1, self.input_seq_channels, self.input_seq_length)
+            dummy = self.conv_layers(dummy) # (batch_size, conv_channels, seq_length)
+            dummy = dummy.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
+            dummy = self.trans_layers(dummy)
+            dummy = dummy.mean(1) # (batch_size, hidden_dim)
 
-            fusion_out_dim = x.size(1)
+
+
+
+        current_dim = dummy.shape[1]
 
         self.linear_layers = nn.Sequential(OrderedDict([]))
 
         if len(linear_channels_list) == 0:
             self.linear_layers.add_module(
                 f'linear', nn.Linear(
-                    in_features=fusion_out_dim, 
+                    in_features=current_dim, 
                     out_features=output_dim,
                 )
             )
@@ -205,7 +161,7 @@ class MyResNetFusion(nn.Module):
             for i in range(len(linear_channels_list)):
                 self.linear_layers.add_module(
                     f'linear_block_{i}', LinearBlock(
-                        in_channels=fusion_out_dim if i == 0 else linear_channels_list[i-1], 
+                        in_channels=current_dim if i == 0 else linear_channels_list[i-1], 
                         out_channels=linear_channels_list[i],
                     )
                 )
@@ -218,17 +174,20 @@ class MyResNetFusion(nn.Module):
                     out_features=output_dim,
                 )
             )
-
         self.sigmoid_layer = nn.Sigmoid()
+
+
+
 
 
 
     def forward_seq(self, seq):
         seq = self.conv_layers(seq)
+        seq = seq.permute(0, 2, 1)
 
-        seq = seq.view(seq.size(0), -1)
-        out = self.linear_layers(seq)
-
+        out = self.trans_layers(seq)
+        out = out.mean(1)
+        out = self.linear_layers(out)
         if self.sigmoid:
             out = self.sigmoid_layer(out)
         if self.squeeze:
@@ -239,8 +198,10 @@ class MyResNetFusion(nn.Module):
 
     def forward_seq_and_feature(self, seq, feature):
         seq = self.conv_layers(seq)
-        seq_feature = self.fusion_layer(seq, feature)
-        out = self.linear_layers(seq_feature)
+        seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
+
+        out = self.forward_trans_layers_seq_and_feature(seq, feature)
+        out = self.linear_layers(out)
 
         if self.sigmoid:
             out = self.sigmoid_layer(out)
@@ -249,20 +210,70 @@ class MyResNetFusion(nn.Module):
         return out
 
 
+    def forward_trans_layers_seq_and_feature(self, seq, feature):
+        # seq.shape = (batch_size, seq_length, hidden_dim)
+        # feature.shape = (batch_size, hidden_dim)
+        feature = self.feature_embedding_layer(feature)
+        feature = feature.unsqueeze(1) # (batch_size, 1, hidden_dim)
+
+        if self.trans_add_cls:
+            cls_token = self.cls_token.expand(seq.size(0), -1, -1)
+            total_seq = torch.concat([cls_token, seq, feature], dim=1)
+            total_seq = self.trans_layers(total_seq)
+
+            if self.trans_output == 'cls':
+                out = total_seq[:, 0]
+            elif self.trans_output == 'seq_mean':
+                out = total_seq[:, 1:-1].mean(1)
+            elif self.trans_output == 'seq_feature_mean':
+                out = total_seq[:, 1:].mean(1)
+            else:
+                raise ValueError(f"Invalid {self.trans_output = }")
+
+        else:
+            total_seq = torch.concat([seq, feature], dim=1)
+            total_seq = self.trans_layers(total_seq)
+
+            if self.trans_output == 'seq_mean':
+                out = total_seq[:, 0:-1].mean(1)
+            elif self.trans_output == 'seq_feature_mean':
+                out = total_seq[:, 0:].mean(1)
+        return out
 
 
     def forward_seq_and_features(self, seq, features):
+        # batch_size, num_celltypes, feature_dim = features.shape
+        # # print(features.shape)
+        # flat_seq, flat_feature = utils.flatten_seq_features(seq, features)
+        # flat_out = self.forward_seq_and_feature(flat_seq, flat_feature)
+        # out = utils.unflatten_target(flat_out, batch_size, num_celltypes)
+        # return out
+
+        # outs = []
+        # for i in range(self.input_feature_times):
+        #     feature_i = features[:, i, :]  # cell type i features
+        #     out = self.forward_seq_and_feature(seq, feature_i)
+        #     outs.append(out)
+        # outs = torch.stack(outs, dim=1)  # (batch_size, num_cell_types)
+        # return outs
+
+
         seq = self.conv_layers(seq)
+        seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
 
         outs = []
-        for i in range(self.input_feature_times):
+        for i in range(features.shape[1]):
             feature_i = features[:, i, :]  # cell type i features
-            seq_feature = self.fusion_layer(seq, feature_i)
-            out = self.linear_layers(seq_feature)
+
+            out = self.forward_trans_layers_seq_and_feature(seq, feature_i)
+
+            out = self.linear_layers(out)
+
             if self.sigmoid:
                 out = self.sigmoid_layer(out)
             if self.squeeze:
                 out = out.squeeze(-1)
+
             outs.append(out)
         outs = torch.stack(outs, dim=1)  # (batch_size, num_cell_types)
         return outs
@@ -274,22 +285,25 @@ class MyResNetFusion(nn.Module):
     def forward(self, inputs: dict):
         seq = inputs.get('seq')
         feature = inputs.get('feature')
-        if seq.shape[2] == 4:
+
+        if seq.shape[2] == self.input_seq_channels:
             seq = seq.permute(0, 2, 1)
 
+        assert seq.shape == (seq.shape[0], self.input_seq_channels, self.input_seq_length)
 
         if self.input_feature_dim == 0:
             out = self.forward_seq(seq)
             return out
 
-        elif self.input_feature_dim > 0 and self.input_feature_times == 0:
-            out = self.forward_seq_and_feature(seq, feature)
-            return out
-
-
-        elif self.input_feature_dim > 0 and self.input_feature_times > 0:
-            out = self.forward_seq_and_features(seq, feature)
-            return out
+        elif self.input_feature_dim > 0:
+            if len(feature.shape) == 2:
+                out = self.forward_seq_and_feature(seq, feature)
+                return out
+            elif len(feature.shape) == 3:
+                out = self.forward_seq_and_features(seq, feature)
+                return out
+            else:
+                raise ValueError(f'Invalid {feature.shape=}')
 
         else:
             raise ValueError(f'Invalid {self.input_feature_dim=} or {self.input_feature_times=}')
@@ -299,105 +313,9 @@ class MyResNetFusion(nn.Module):
 
 if __name__ == '__main__':
 
-#     yaml_str = '''
-# model:
-#     type: MyResNetFusion
-#     args:
-#         input_seq_length:       200
-#         input_seq_channels:     4
-#         input_feature_dim:      0
-#         input_feature_times:    0
-#         output_dim:             1
-#         sigmoid:                False
-#         squeeze:                True
-
-#         conv_first_channels:    256
-#         conv_first_kernel_size: 7
-#         conv_layer_order:       conv_bn_add_relu
-#         conv_channels_list:     [256,256,256,256,256,256]
-#         conv_kernel_size_list:  [3,3,3,3,3,3]
-#         pool_kernel_size_list:  [2,2,2,2,2,2]
-#         conv_dropout_rate:      0.2
-#         gap:                    true
-
-#         linear_channels_list: [1024]
-#         linear_dropout_rate: 0.5
-#         '''
-#     import yaml
-#     config = yaml.load(yaml_str, Loader=yaml.FullLoader)
-#     model = utils.init_obj(models, config['model'])
-
-#     seq = torch.zeros(size=(1, 4, 200))
-#     inputs = {'seq': seq}
-
-#     torchinfo.summary(
-#         model, 
-#         input_data=(inputs,), 
-#         depth=6, 
-#         col_names=["input_size", "output_size", "num_params"],
-#         row_settings=["var_names"],
-#     )
-
-
-
-
-
-
-
-
-#     yaml_str = '''
-# model:
-#     type: MyResNetFusion
-#     args:
-#         input_seq_length:       200
-#         input_seq_channels:     4
-#         input_feature_dim:      4
-#         input_feature_times:    0
-#         output_dim:             1
-#         sigmoid:                False
-#         squeeze:                True
-
-#         conv_first_channels:    256
-#         conv_first_kernel_size: 7
-#         conv_layer_order:       conv_bn_add_relu
-#         conv_channels_list:     [256,256,256,256,256,256]
-#         conv_kernel_size_list:  [3,3,3,3,3,3]
-#         pool_kernel_size_list:  [2,2,2,2,2,2]
-#         conv_dropout_rate:      0.2
-#         gap:                    true
-
-#         fusion_type:            linear_concat
-
-#         linear_channels_list: [1024]
-#         linear_dropout_rate: 0.5
-#         '''
-#     import yaml
-#     config = yaml.load(yaml_str, Loader=yaml.FullLoader)
-#     model = utils.init_obj(models, config['model'])
-
-#     seq = torch.zeros(size=(1, 4, 200))
-#     feature = torch.zeros(size=(1, 4))
-#     inputs = {'seq': seq, 'feature': feature}
-
-#     torchinfo.summary(
-#         model, 
-#         input_data=(inputs,), 
-#         depth=6, 
-#         col_names=["input_size", "output_size", "num_params"],
-#         row_settings=["var_names"],
-#     )
-
-
-
-
-
-
-
-
-
     yaml_str = '''
 model:
-    type: MyResNetFusion
+    type: MyResTransformer
     args:
         input_seq_length:       200
         input_seq_channels:     4
@@ -414,9 +332,13 @@ model:
         conv_kernel_size_list:  [3,3,3,3,3,3]
         pool_kernel_size_list:  [2,2,2,2,2,2]
         conv_dropout_rate:      0.2
-        gap:                    true
+        gap:                    false
 
-        fusion_type:            linear_concat
+        num_trans_blocks: 3
+        trans_d_embed: 256
+        trans_n_heads: 4
+        trans_d_mlp: 256
+        trans_dropout_rate: 0.2
 
         linear_channels_list: [1024]
         linear_dropout_rate: 0.5

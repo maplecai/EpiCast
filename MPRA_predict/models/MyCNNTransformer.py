@@ -1,9 +1,9 @@
+import math
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from collections import OrderedDict
-import einops
 from rotary_embedding_torch import RotaryEmbedding
 
 
@@ -72,28 +72,27 @@ class SelfAttention(nn.Module):
 
         self.dropout = nn.Dropout(dropout_rate)
 
-    def forward(self, x: torch.Tensor, mask=None):
+    def forward(self, x: torch.Tensor, mask: torch.Tensor = None):
         batch_size, seq_len, d_embed = x.shape
-        interim_shape = batch_size, seq_len, self.n_heads, self.d_head
+        interim_shape = (batch_size, seq_len, self.n_heads, self.d_head)
         q = self.q_linear(x).view(interim_shape).transpose(1, 2)
         k = self.k_linear(x).view(interim_shape).transpose(1, 2)
         v = self.v_linear(x).view(interim_shape).transpose(1, 2)
 
         if self.use_position_embedding:
-            # q and k have shape (batch_size, n_heads, seq_len, d_head)
+            # q.shape = k.shape = (batch_size, n_heads, seq_len, d_head)
             q = self.rotary_emb.rotate_queries_or_keys(q, seq_dim=2)
             k = self.rotary_emb.rotate_queries_or_keys(k, seq_dim=2)
 
-        weight = einops.einsum(q, k, 'b h q d, b h k d -> b h q k')
-        weight = weight / np.sqrt(self.d_head)
+        attn_scores = torch.einsum('b h q d, b h k d -> b h q k', q, k) / math.sqrt(self.d_head)
         if mask is not None:
-            weight = weight.masked_fill(mask == 0, float('-inf'))
-        weight = F.softmax(weight, dim=-1)
-        weight = self.dropout(weight)
+            attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
+        attn_weights = F.softmax(attn_scores, dim=-1)
+        attn_weights = self.dropout(attn_weights)
 
-        output = einops.einsum(weight, v, 'b h q k, b h k d -> b h q d')
-        output = output.transpose(1, 2).reshape(batch_size, seq_len, d_embed)
-        output = self.out_linear(output)
+        attn_output = torch.einsum('b h q k, b h k d -> b h q d', attn_weights, v)
+        attn_output = attn_output.transpose(1, 2).reshape(batch_size, seq_len, d_embed)
+        output = self.out_linear(attn_output)
         return output
 
 
@@ -111,7 +110,8 @@ class TransformerBlock(nn.Module):
             d_embed, 
             n_heads, 
             dropout_rate, 
-            use_position_embedding)
+            use_position_embedding
+        )
         
         self.mlp = nn.Sequential(
             nn.Linear(d_embed, d_mlp),
@@ -145,206 +145,202 @@ class TransformerBlock(nn.Module):
 
 
 
+# class MyCNNTransformer(nn.Module):
+#     def __init__(
+#             self, 
+#             input_seq_length=200,
+#             input_feature_shape=(4),
+#             output_dim=1,
 
+#             sigmoid=False,
+#             squeeze=True,
 
+#             conv_channels_list=None,
+#             conv_kernel_size_list=None,
+#             conv_padding_list=None,
+#             pool_kernel_size_list=None,
+#             pool_padding_list=None,
+#             conv_dropout_rate=0.2,
+#             global_average_pooling=False,
 
+#             num_trans_blocks=3, 
+#             trans_d_embed=256, 
+#             trans_n_heads=8, 
+#             trans_d_mlp=256,
+#             trans_dropout_rate=0.1,
+#             trans_output='cls',
 
-class MyCNNTransformer(nn.Module):
-    def __init__(
-            self, 
-            input_seq_length=200,
-            input_feature_shape=(4),
-            output_dim=1,
+#             linear_channels_list=None,
+#             linear_dropout_rate=0.5,
+#         ):
+#         super().__init__()
 
-            sigmoid=False,
-            squeeze=True,
+#         self.input_seq_length       = input_seq_length
+#         self.input_feature_shape    = input_feature_shape
+#         self.output_dim             = output_dim
+#         self.sigmoid                = sigmoid
+#         self.squeeze                = squeeze
+#         self.trans_output           = trans_output
 
-            conv_channels_list=None,
-            conv_kernel_size_list=None,
-            conv_padding_list=None,
-            pool_kernel_size_list=None,
-            pool_padding_list=None,
-            conv_dropout_rate=0.2,
-            global_average_pooling=False,
+#         if conv_padding_list is None:
+#             conv_padding_list = [0] * len(conv_kernel_size_list)
+#         if pool_padding_list is None:
+#             pool_padding_list = [0] * len(pool_kernel_size_list)
 
-            num_trans_blocks=3, 
-            trans_d_embed=256, 
-            trans_n_heads=8, 
-            trans_d_mlp=256,
-            trans_dropout_rate=0.1,
-            trans_output='cls',
-
-            linear_channels_list=None,
-            linear_dropout_rate=0.5,
-        ):
-        super().__init__()
-
-        self.input_seq_length       = input_seq_length
-        self.input_feature_shape    = input_feature_shape
-        self.output_dim             = output_dim
-        self.sigmoid                = sigmoid
-        self.squeeze                = squeeze
-        self.trans_output           = trans_output
-
-        if conv_padding_list is None:
-            conv_padding_list = [0] * len(conv_kernel_size_list)
-        if pool_padding_list is None:
-            pool_padding_list = [0] * len(pool_kernel_size_list)
-
-        self.conv_layers = nn.Sequential(OrderedDict([]))
-        for i in range(len(conv_kernel_size_list)):
-            self.conv_layers.add_module(
-                f'conv_block_{i}', ConvBlock(
-                    in_channels=4 if i == 0 else conv_channels_list[i-1], 
-                    out_channels=conv_channels_list[i], 
-                    kernel_size=conv_kernel_size_list[i], 
-                    stride=1, 
-                    padding=conv_padding_list[i]))
+#         self.conv_layers = nn.Sequential(OrderedDict([]))
+#         for i in range(len(conv_kernel_size_list)):
+#             self.conv_layers.add_module(
+#                 f'conv_block_{i}', ConvBlock(
+#                     in_channels=4 if i == 0 else conv_channels_list[i-1], 
+#                     out_channels=conv_channels_list[i], 
+#                     kernel_size=conv_kernel_size_list[i], 
+#                     stride=1, 
+#                     padding=conv_padding_list[i]))
                 
-            self.conv_layers.add_module(
-                f'max_pool_{i}', nn.MaxPool1d(
-                    kernel_size=pool_kernel_size_list[i], 
-                    padding=pool_padding_list[i],
-                    ceil_mode = True))
+#             self.conv_layers.add_module(
+#                 f'max_pool_{i}', nn.MaxPool1d(
+#                     kernel_size=pool_kernel_size_list[i], 
+#                     padding=pool_padding_list[i],
+#                     ceil_mode = True))
 
-            self.conv_layers.add_module(
-                f'conv_dropout_{i}', nn.Dropout(conv_dropout_rate))
+#             self.conv_layers.add_module(
+#                 f'conv_dropout_{i}', nn.Dropout(conv_dropout_rate))
 
-        if global_average_pooling:
-            self.conv_layers.add_module(
-                f'gap_layer', nn.AdaptiveAvgPool1d(1))
+#         if global_average_pooling:
+#             self.conv_layers.add_module(
+#                 f'gap_layer', nn.AdaptiveAvgPool1d(1))
 
-        # if input_feature_shape == None:
-        #     self.cls_embedding_layer = nn.Embedding(1, trans_d_embed)
-        # elif len(input_feature_shape) == 1:
-        #     self.cls_embedding_layer = nn.Embedding(input_feature_shape[0], trans_d_embed)
-        # elif len(input_feature_shape) == 2:
-        #     self.cls_embedding_layer = nn.Embedding(input_feature_shape[1], trans_d_embed)
-        # else:
-        #     raise ValueError('input_feature_shape must be 0, 1 or 2')
-        # nn.init.normal_(self.cls_embedding_layer.weight, mean=0.0, std=0.02) # 初始化可能很重要！
+#         # if input_feature_shape == None:
+#         #     self.cls_embedding_layer = nn.Embedding(1, trans_d_embed)
+#         # elif len(input_feature_shape) == 1:
+#         #     self.cls_embedding_layer = nn.Embedding(input_feature_shape[0], trans_d_embed)
+#         # elif len(input_feature_shape) == 2:
+#         #     self.cls_embedding_layer = nn.Embedding(input_feature_shape[1], trans_d_embed)
+#         # else:
+#         #     raise ValueError('input_feature_shape must be 0, 1 or 2')
+#         # nn.init.normal_(self.cls_embedding_layer.weight, mean=0.0, std=0.02) # 初始化可能很重要！
 
-        if input_feature_shape == None:
-            self.cls_embedding_layer = nn.Linear(1, trans_d_embed)
-        elif len(input_feature_shape) == 1:
-            self.cls_embedding_layer = nn.Linear(input_feature_shape[0], trans_d_embed)
-        elif len(input_feature_shape) == 2:
-            self.cls_embedding_layer = nn.Linear(input_feature_shape[1], trans_d_embed)
-        else:
-            raise ValueError('input_feature_shape must be 0, 1 or 2')
-        # nn.init.normal_(self.cls_embedding_layer.weight, mean=0.0, std=0.02) # 初始化可能很重要！
+#         if input_feature_shape == None:
+#             self.cls_embedding_layer = nn.Linear(1, trans_d_embed)
+#         elif len(input_feature_shape) == 1:
+#             self.cls_embedding_layer = nn.Linear(input_feature_shape[0], trans_d_embed)
+#         elif len(input_feature_shape) == 2:
+#             self.cls_embedding_layer = nn.Linear(input_feature_shape[1], trans_d_embed)
+#         else:
+#             raise ValueError('input_feature_shape must be 0, 1 or 2')
+#         # nn.init.normal_(self.cls_embedding_layer.weight, mean=0.0, std=0.02) # 初始化可能很重要！
 
 
-        self.trans_layers = nn.Sequential(OrderedDict([]))
-        for i in range(num_trans_blocks):
-            self.trans_layers.add_module(
-                f'transformer_block_{i}', TransformerBlock(
-                    d_embed=trans_d_embed, 
-                    n_heads=trans_n_heads, 
-                    d_mlp=trans_d_mlp, 
-                    dropout_rate=trans_dropout_rate))
+#         self.trans_layers = nn.Sequential(OrderedDict([]))
+#         for i in range(num_trans_blocks):
+#             self.trans_layers.add_module(
+#                 f'transformer_block_{i}', TransformerBlock(
+#                     d_embed=trans_d_embed, 
+#                     n_heads=trans_n_heads, 
+#                     d_mlp=trans_d_mlp, 
+#                     dropout_rate=trans_dropout_rate))
         
-        # with torch.no_grad():
-        #     test_input = torch.zeros(1, 4, self.input_seq_length)
-        #     test_output = self.conv_layers(test_input)
-        #     hidden_dim = test_output[0].reshape(-1).shape[0]
+#         # with torch.no_grad():
+#         #     test_input = torch.zeros(1, 4, self.input_seq_length)
+#         #     test_output = self.conv_layers(test_input)
+#         #     hidden_dim = test_output[0].reshape(-1).shape[0]
 
-        self.linear_layers = nn.Sequential(OrderedDict([]))
-        for i in range(len(linear_channels_list)):
-            self.linear_layers.add_module(
-                f'linear_block_{i}', LinearBlock(
-                    in_channels=trans_d_embed if i == 0 else linear_channels_list[i-1], 
-                    out_channels=linear_channels_list[i]))
+#         self.linear_layers = nn.Sequential(OrderedDict([]))
+#         for i in range(len(linear_channels_list)):
+#             self.linear_layers.add_module(
+#                 f'linear_block_{i}', LinearBlock(
+#                     in_channels=trans_d_embed if i == 0 else linear_channels_list[i-1], 
+#                     out_channels=linear_channels_list[i]))
         
-            self.linear_layers.add_module(
-                f'linear_dropout_{i}', nn.Dropout(linear_dropout_rate))
+#             self.linear_layers.add_module(
+#                 f'linear_dropout_{i}', nn.Dropout(linear_dropout_rate))
 
-        self.linear_layers.add_module(
-            f'linear_last', nn.Linear(
-                in_features=trans_d_embed if len(linear_channels_list) == 0 else linear_channels_list[-1], 
-                out_features=output_dim))
+#         self.linear_layers.add_module(
+#             f'linear_last', nn.Linear(
+#                 in_features=trans_d_embed if len(linear_channels_list) == 0 else linear_channels_list[-1], 
+#                 out_features=output_dim))
 
-        self.sigmoid_layer = nn.Sigmoid()
-
-
-
-    def forward_with_feature(self, seq, feature):
-        if seq.shape[2] == 4:
-            seq = seq.permute(0, 2, 1)
-
-        seq = self.conv_layers(seq)
-        seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
-
-        cls = self.cls_embedding_layer(feature)
-        cls = cls.unsqueeze(1)
-        # print(seq.shape, cls.shape)
-
-        seq = torch.concat([cls, seq], dim=1)
-        seq = self.trans_layers(seq)
-
-        if self.trans_output == 'cls':
-            cls = seq[:, 0]
-        elif self.trans_output == 'seq':
-            cls = seq[:, 1:].mean(1)
-        cls = cls.view(cls.size(0), -1)
-        out = self.linear_layers(cls)
-
-        if self.sigmoid:
-            out = self.sigmoid_layer(out)
-        if self.squeeze:
-            out = out.squeeze(-1)
-        return out
+#         self.sigmoid_layer = nn.Sigmoid()
 
 
 
-    def forward(self, inputs):
+#     def forward_with_feature(self, seq, feature):
+#         if seq.shape[2] == 4:
+#             seq = seq.permute(0, 2, 1)
+
+#         seq = self.conv_layers(seq)
+#         seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
+
+#         cls = self.cls_embedding_layer(feature)
+#         cls = cls.unsqueeze(1)
+#         # print(seq.shape, cls.shape)
+
+#         seq = torch.concat([cls, seq], dim=1)
+#         seq = self.trans_layers(seq)
+
+#         if self.trans_output == 'cls':
+#             cls = seq[:, 0]
+#         elif self.trans_output == 'seq':
+#             cls = seq[:, 1:].mean(1)
+#         cls = cls.view(cls.size(0), -1)
+#         out = self.linear_layers(cls)
+
+#         if self.sigmoid:
+#             out = self.sigmoid_layer(out)
+#         if self.squeeze:
+#             out = out.squeeze(-1)
+#         return out
+
+
+
+#     def forward(self, inputs):
         
-        if self.input_feature_shape == None:
-            if isinstance(inputs, dict):
-                seq = inputs.get('seq')
-            elif isinstance(inputs, (list, tuple)):
-                seq = inputs[0]
-            else:
-                raise ValueError('inputs type must be dict or list or tuple or tensor')
+#         if self.input_feature_shape == None:
+#             if isinstance(inputs, dict):
+#                 seq = inputs.get('seq')
+#             elif isinstance(inputs, (list, tuple)):
+#                 seq = inputs[0]
+#             else:
+#                 raise ValueError('inputs type must be dict or list or tuple or tensor')
 
-            pseudo_feature = torch.zeros(seq.size(0), 1).to(seq.device)
-            out = self.forward_with_feature(seq, pseudo_feature)
-            return out
+#             pseudo_feature = torch.zeros(seq.size(0), 1).to(seq.device)
+#             out = self.forward_with_feature(seq, pseudo_feature)
+#             return out
 
 
 
-        elif len(self.input_feature_shape) == 1:
-            if isinstance(inputs, dict):
-                seq = inputs.get('seq')
-                feature = inputs.get('feature')
-            elif isinstance(inputs, (list, tuple)):
-                seq = inputs[0]
-                feature = inputs[1]
-            else:
-                raise ValueError('inputs type must be dict or list or tuple or tensor')
+#         elif len(self.input_feature_shape) == 1:
+#             if isinstance(inputs, dict):
+#                 seq = inputs.get('seq')
+#                 feature = inputs.get('feature')
+#             elif isinstance(inputs, (list, tuple)):
+#                 seq = inputs[0]
+#                 feature = inputs[1]
+#             else:
+#                 raise ValueError('inputs type must be dict or list or tuple or tensor')
             
-            out = self.forward_with_feature(seq, feature)
-            return out
+#             out = self.forward_with_feature(seq, feature)
+#             return out
 
 
 
-        elif len(self.input_feature_shape) == 2:
-            if isinstance(inputs, dict):
-                seq = inputs.get('seq')
-                feature = inputs.get('feature')
-            elif isinstance(inputs, (list, tuple)):
-                seq = inputs[0]
-                feature = inputs[1]
-            else:
-                raise ValueError('inputs type must be dict or list or tuple or tensor')
+#         elif len(self.input_feature_shape) == 2:
+#             if isinstance(inputs, dict):
+#                 seq = inputs.get('seq')
+#                 feature = inputs.get('feature')
+#             elif isinstance(inputs, (list, tuple)):
+#                 seq = inputs[0]
+#                 feature = inputs[1]
+#             else:
+#                 raise ValueError('inputs type must be dict or list or tuple or tensor')
             
-            outs = []
-            for i in range(self.input_feature_shape[0]):
-                feature_i = feature[:, i, :]  # cell type i features
-                out = self.forward_with_feature(seq, feature_i)
-                outs.append(out)
-            outs = torch.stack(outs, dim=1)  # (batch_size, num_cell_types)
-            return outs
+#             outs = []
+#             for i in range(self.input_feature_shape[0]):
+#                 feature_i = feature[:, i, :]  # cell type i features
+#                 out = self.forward_with_feature(seq, feature_i)
+#                 outs.append(out)
+#             outs = torch.stack(outs, dim=1)  # (batch_size, num_cell_types)
+#             return outs
 
 
 
