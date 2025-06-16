@@ -7,8 +7,8 @@ import torchinfo
 from collections import OrderedDict
 
 from .. import models, utils
-from .MyResNet import ConvBlock, ResConvBlock, LinearBlock
-from .MyCNNTransformer import TransformerBlock
+from .ConvBlock import ConvBlock, ResConvBlock, LinearBlock
+from .TransformerBlock import TransformerBlock
 
 
 class MyResTransformer2(nn.Module):

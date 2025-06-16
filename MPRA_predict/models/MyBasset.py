@@ -6,32 +6,8 @@ import torchinfo
 from collections import OrderedDict
 from ruamel.yaml import YAML
 yaml = YAML()
+from .ConvBlock import ConvBlock, LinearBlock
 
-class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
-        super(ConvBlock, self).__init__()
-        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, stride, padding)
-        self.relu = nn.ReLU()
-        self.bn = nn.BatchNorm1d(out_channels)
-
-    def forward(self, x):
-        out = self.conv(x)
-        out = self.relu(out)
-        out = self.bn(out)
-        return out
-
-class LinearBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(LinearBlock, self).__init__()
-        self.linear = nn.Linear(in_channels, out_channels)
-        self.bn = nn.BatchNorm1d(out_channels)
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        out = self.linear(x)
-        out = self.bn(out)
-        out = self.relu(out)
-        return out
 
 
 # class Basset(nn.Module):

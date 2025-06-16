@@ -6,7 +6,8 @@ import torchinfo
 from collections import OrderedDict
 
 from .. import models, utils
-from .MyResNet import ConvBlock, ResConvBlock, MyResNet #, LinearBlock
+from .MyResNet import MyResNet #, LinearBlock
+from .ConvBlock import ConvBlock, ResConvBlock
 from .MLP import MLP
 
 
