@@ -7,10 +7,8 @@ import torchinfo
 from collections import OrderedDict
 
 from .. import models, utils
-from .MyResNet import ConvBlock, ResConvBlock #, LinearBlock
-from .MyCNNTransformer import TransformerBlock
-
-
+from .ConvBlock import ConvBlock, ResConvBlock #, LinearBlock
+from .TransformerBlock import TransformerBlock
 
 
 
@@ -135,7 +133,8 @@ class MyResTransformer(nn.Module):
         if input_epi:
             self.epi_embedding_layer = nn.Linear(input_epi_dim, trans_d_embed)
 
-        self.token_type_embedding_layer = nn.Embedding(3, trans_d_embed)
+        if trans_token_type_embedding:
+            self.token_type_embedding_layer = nn.Embedding(3, trans_d_embed)
 
         self.trans_layers = nn.Sequential(OrderedDict([]))
         for i in range(num_trans_blocks):
@@ -183,9 +182,6 @@ class MyResTransformer(nn.Module):
         )
 
         self.sigmoid_layer = nn.Sigmoid()
-
-
-
 
 
 
@@ -245,9 +241,7 @@ class MyResTransformer(nn.Module):
         # --------- 预处理序列 ---------
         if seq.shape[2] == self.input_seq_channels:
             seq = seq.permute(0, 2, 1)
-        assert seq.shape == (seq.shape[0],
-                            self.input_seq_channels,
-                            self.input_seq_length), f"{seq.shape = }"
+        assert seq.shape == (seq.shape[0], self.input_seq_channels, self.input_seq_length), f"{seq.shape = }"
 
         # --------- 没有表观特征 ---------
         if epi is None:
@@ -288,129 +282,8 @@ class MyResTransformer(nn.Module):
         return out
 
 
-
-
 # alternative name
 MyCNNTransformer = MyResTransformer
-
-
-
-
-
-
-
-    # def forward_seq_and_epi(self, seq, epi):
-    #     seq = self.conv_layers(seq)
-    #     seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
-
-    #     out = self.forward_trans_layers_seq_and_epi(seq, epi)
-
-    #     out = self.linear_layers(out)
-
-    #     if self.sigmoid:
-    #         out = self.sigmoid_layer(out)
-    #     if self.squeeze:
-    #         out = out.squeeze(-1)
-    #     return out
-
-
-    # def forward_trans_layers_seq_and_epi(self, seq, epi):
-    #     # seq.shape = (batch_size, seq_length, hidden_dim)
-    #     # epi.shape = (batch_size, hidden_dim)
-    #     epi = self.epi_embedding_layer(epi)
-    #     epi = epi.unsqueeze(1) # (batch_size, 1, hidden_dim)
-
-    #     if self.trans_add_cls:
-    #         cls_token = self.cls_token.expand(seq.size(0), -1, -1)
-    #         total_seq = torch.concat([cls_token, seq, epi], dim=1)
-    #         total_seq = self.trans_layers(total_seq)
-
-    #         if self.trans_output == 'cls':
-    #             out = total_seq[:, 0]
-    #         elif self.trans_output == 'seq_mean':
-    #             out = total_seq[:, 1:-1].mean(1)
-    #         elif self.trans_output == 'seq_epi_mean':
-    #             out = total_seq[:, 1:].mean(1)
-    #         else:
-    #             raise ValueError(f"Invalid {self.trans_output = }")
-
-    #     else:
-    #         total_seq = torch.concat([seq, epi], dim=1)
-    #         total_seq = self.trans_layers(total_seq)
-
-    #         if self.trans_output == 'seq_mean':
-    #             out = total_seq[:, 0:-1].mean(1)
-    #         elif self.trans_output == 'seq_epi_mean':
-    #             out = total_seq[:, 0:].mean(1)
-    #     return out
-
-
-    # def forward_seq_and_epis(self, seq, epis):
-    #     # batch_size, num_celltypes, epi_dim = epis.shape
-    #     # # print(epis.shape)
-    #     # flat_seq, flat_epi = utils.flatten_seq_epis(seq, epis)
-    #     # flat_out = self.forward_seq_and_epi(flat_seq, flat_epi)
-    #     # out = utils.unflatten_target(flat_out, batch_size, num_celltypes)
-    #     # return out
-
-    #     # outs = []
-    #     # for i in range(self.input_epi_times):
-    #     #     epi_i = epis[:, i, :]  # cell type i epis
-    #     #     out = self.forward_seq_and_epi(seq, epi_i)
-    #     #     outs.append(out)
-    #     # outs = torch.stack(outs, dim=1)  # (batch_size, num_cell_types)
-    #     # return outs
-
-
-    #     seq = self.conv_layers(seq)
-    #     seq = seq.permute(0, 2, 1) # (batch_size, seq_length, hidden_dim)
-
-    #     outs = []
-    #     for i in range(epis.shape[1]):
-    #         epi_i = epis[:, i, :]  # cell type i epis
-
-    #         out = self.forward_trans_layers_seq_and_epi(seq, epi_i)
-
-    #         out = self.linear_layers(out)
-
-    #         if self.sigmoid:
-    #             out = self.sigmoid_layer(out)
-    #         if self.squeeze:
-    #             out = out.squeeze(-1)
-
-    #         outs.append(out)
-    #     outs = torch.stack(outs, dim=1)  # (batch_size, num_cell_types)
-    #     return outs
-
-
-
-
-
-    # def forward(self, inputs: dict):
-    #     seq = inputs.get('seq')
-    #     epi = inputs.get('epi')
-
-    #     if seq.shape[2] == self.input_seq_channels:
-    #         seq = seq.permute(0, 2, 1)
-
-    #     assert seq.shape == (seq.shape[0], self.input_seq_channels, self.input_seq_length)
-
-    #     if self.input_epi_dim == 0:
-    #         out = self.forward_seq(seq)
-    #         return out
-
-    #     elif self.input_epi_dim > 0:
-    #         if len(epi.shape) == 2:
-    #             out = self.forward_seq_and_epi(seq, epi)
-    #             return out
-    #         elif len(epi.shape) == 3:
-    #             out = self.forward_seq_and_epis(seq, epi)
-    #             return out
-    #         else:
-    #             raise ValueError(f'Invalid {epi.shape=}')
-
-    #     else:
-    #         raise ValueError(f'Invalid {self.input_epi_dim=} or {self.input_epi_times=}')
 
 
 

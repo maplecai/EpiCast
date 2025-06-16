@@ -120,7 +120,6 @@ model:
     linear_dropout_rate:    0.5
 
 
-
 optimizer:
   type: AdamW
   args:

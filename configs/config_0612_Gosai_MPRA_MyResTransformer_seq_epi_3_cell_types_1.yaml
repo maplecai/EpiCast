@@ -20,7 +20,7 @@ assays: &assays [DNase, H3K4me3, H3K27ac, CTCF]
 template_dataset:
   type: &type SeqFeatureMatrixDataset
   args: &args
-    data_path: ./data/Gosai_MPRA/Gosai_MPRA_Sei_feature_0529_norm.csv
+    data_path: ./data/Gosai_MPRA/Gosai_MPRA_Sei_feature_0529.csv
     seq_column: seq
     label_column: *cell_types
     cell_types: *cell_types
@@ -57,6 +57,7 @@ total_dataset:
   type: *type
   args:
     <<: *args
+    label_column: ['K562', 'HepG2', 'SK-N-SH', 'HCT116', 'A549']
     cell_types: ['K562', 'HepG2', 'SK-N-SH', 'HCT116', 'A549']
 
 model:

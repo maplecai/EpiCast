@@ -10,15 +10,15 @@ from .DeepSEA import DeepSEA, Beluga
 from .Sei import Sei
 from . import enformer_pytorch
 
-from .MyBasset import MyBasset
-from .MyBassetFeature import MyBassetFeature, MyBassetFusion
-from .MyBassetFeatureMatrix import MyBassetFeatureMatrix
-from .MyBassetFeatureMatrixFusion import MyBassetFeatureMatrixFusion
+# from .MyBasset import MyBasset
+# from .MyBassetFeature import MyBassetFeature, MyBassetFusion
+# from .MyBassetFeatureMatrix import MyBassetFeatureMatrix
+# from .MyBassetFeatureMatrixFusion import MyBassetFeatureMatrixFusion
 
 # from .MyCNNTransformer import MyCNNTransformer
 from .MyDenseNet import DenseNet
 from .MyResNet import MyResNet
 from .MyResTransformer import MyResTransformer, MyCNNTransformer
 from .MyResTransformer2 import MyResTransformer2
-from .MyResNetFusion import MyResNetFusion
+# from .MyResNetFusion import MyResNetFusion
 from .MyResNetDecouple import MyResNetDecouple

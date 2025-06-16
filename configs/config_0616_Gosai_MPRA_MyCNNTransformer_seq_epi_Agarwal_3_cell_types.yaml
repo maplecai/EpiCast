@@ -14,18 +14,23 @@ scheduler_interval: step
 batch_size: 4096
 load_saved_model: false
 
-cell_types: &cell_types [K562, HepG2, SK-N-SH]
-assays: &assays [DNase, H3K4me3, H3K27ac, CTCF]
+cell_types: &cell_types ['K562', 'HepG2', 'WTC11']
+assays: &assays ['DNase', 'H3K4me3', 'H3K27ac']
 
 template_dataset:
   type: &type SeqFeatureMatrixDataset
   args: &args
-    data_path: ./data/Gosai_MPRA/Gosai_MPRA_Sei_feature_0529_norm.csv
+    data_path: ./data/Agarwal_MPRA/Agarwal_MPRA_Sei_feature_norm_0616.csv
     seq_column: seq
     label_column: *cell_types
     cell_types: *cell_types
     assays: *assays
     apply_filter: false
+    crop: true
+    cropped_length: 200
+    padding: true
+    padded_length: 200
+    padding_method: 'N'
 
 train_dataset:
   type: *type
@@ -57,15 +62,16 @@ total_dataset:
   type: *type
   args:
     <<: *args
-    cell_types: ['K562', 'HepG2', 'SK-N-SH', 'HCT116', 'A549']
+    label_column: ['K562', 'HepG2', 'WTC11']
+    cell_types: ['K562', 'HepG2', 'WTC11']
 
 model:
-  type: MyResTransformer
+  type: MyCNNTransformer
   args:
     input_seq_length:       200
     input_seq_channels:     4
     input_epi:              true
-    input_epi_dim:          4
+    input_epi_dim:          3
     output_dim:             1
     sigmoid:                false
     squeeze:                true
@@ -87,7 +93,6 @@ model:
     trans_n_heads:          4
     trans_d_mlp:            1024
     trans_dropout_rate:     0.1
-
     trans_add_cls:          true
     trans_output:           cls
     trans_token_type_embedding: true

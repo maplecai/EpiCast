@@ -133,6 +133,19 @@ def spearman(x: np.ndarray, y: np.ndarray) -> float:
 
 
 
+def mse(x: np.ndarray, y: np.ndarray) -> float:
+    x, y = remove_nan(x, y)
+    if len(x) >= 2:
+        mse = mean_squared_error(x, y)
+    else:
+        print('after remove nan, len(x) < 2, mse = nan')
+        mse = np.nan
+    return mse
+
+
+
+
+
 def flatten_seq_features(seq, feature_matrix, target=None):
     batch_size, seq_channels, seq_length = seq.shape
     _, num_celltypes, feature_dim = feature_matrix.shape

@@ -7,9 +7,9 @@ import torchinfo
 from collections import OrderedDict
 
 from .. import models, utils
-from .MyResNet import ConvBlock, ResConvBlock, LinearBlock
-from .MyCNNTransformer import TransformerBlock
-from .Attention import CrossAttention
+from .ConvBlock import ConvBlock, ResConvBlock
+from .TransformerBlock import TransformerBlock
+# from .Attention import CrossAttention
 
 
 
