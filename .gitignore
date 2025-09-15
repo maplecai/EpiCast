@@ -9,6 +9,7 @@
 *.npy
 *.html
 *.pth
+*.pdf
 
 # folder
 .vscode/

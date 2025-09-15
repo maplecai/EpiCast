@@ -7,10 +7,11 @@ import seaborn as sns
 
 sns.set_theme(context="talk", style="whitegrid")
 
-Set2_colors = matplotlib.colormaps.get_cmap('Set2').colors
+set2_colors = matplotlib.colormaps.get_cmap('Set2').colors
 tab10_colors = matplotlib.colormaps.get_cmap('tab10').colors
 tab20_colors = matplotlib.colormaps.get_cmap('tab20').colors
-
+paired_colors = matplotlib.colormaps.get_cmap('Paired').colors
+seaborn_colors = sns.color_palette('deep')
 
 mpl_params = {
     # 字体参数

@@ -67,11 +67,6 @@ def save_h5(file_dir: str, data) -> None:
 
 
 
-
-
-
-
-
 def init_obj_2(module, class_name, *args, **kwargs):
     return getattr(module, class_name)(*args, **kwargs)
 
@@ -147,48 +142,130 @@ def detect_delimiter(csv_file_path):
 
 
 
-class H5BatchWriter:
-    """
-    逐批追加写 HDF5：
-      >>> writer = H5BatchWriter("pred.h5", "pred", dtype=np.float16)
-      >>> writersave(batch_pred)
-      >>> writer.close()              # 用完记得关
-    """
-    def __init__(
-            self, 
-            path, 
-            dset_name='data',
-            dtype=np.float32, # torch.float32
-            compression=None
-        ):
-        self.f           = h5py.File(path, "w")
-        self.dset        = None
-        self.dset_name   = dset_name
-        self.dtype       = dtype
-        self.compression = compression
-        self.offset      = 0          # 写入样本计数
 
-    def save(self, batch_arr):
-        batch_arr = batch_arr.astype(self.dtype, copy=False)
-        bsz       = len(batch_arr)
 
-        # 第一次来时创建数据集（可无限增长）
-        if self.dset is None:
-            full_shape = (None,) + batch_arr.shape[1:]
-            self.dset  = self.f.create_dataset(
-                self.dset_name, shape=(0,) + batch_arr.shape[1:],
-                maxshape=full_shape, chunks=True,
-                compression=self.compression, dtype=self.dtype)
 
-        # 扩容 + 写入
-        new_size = self.offset + bsz
-        self.dset.resize(new_size, axis=0)
-        self.dset[self.offset:new_size] = batch_arr
-        self.offset = new_size
 
-    def flush(self):
-        self.f.flush()
+
+
+class HDF5Writer:
+    def __init__(self, file_path, dataset_name, data_shape, max_samples=None, chunk_size=100, dtype="float32", compression="gzip"):
+        """
+        HDF5 增量写入工具
+        Args:
+            file_path (str): HDF5 文件路径
+            dataset_name (str): 数据集名称
+            data_shape (tuple): 单个样本的形状，例如 (2048, 305)
+            max_samples (int, optional): 最大样本数（None 表示动态增长）
+            chunk_size (int): 每块的 batch 大小
+            dtype (str): 数据类型
+            compression (str): 压缩方式，可为 None/gzip/lzf
+        """
+        self.file = h5py.File(file_path, "a")
+        self.dataset_name = dataset_name
+        self.data_shape = data_shape
+        self.max_samples = max_samples
+        self.chunk_size = chunk_size
+
+        if dataset_name not in self.file:
+            if max_samples is None:
+                dset = self.file.create_dataset(
+                    dataset_name,
+                    shape=(0,) + data_shape,
+                    maxshape=(None,) + data_shape,
+                    dtype=dtype,
+                    chunks=(chunk_size,) + data_shape,
+                    compression=compression
+                )
+            else:
+                dset = self.file.create_dataset(
+                    dataset_name,
+                    shape=(max_samples,) + data_shape,
+                    dtype=dtype,
+                    chunks=(chunk_size,) + data_shape,
+                    compression=compression
+                )
+        else:
+            dset = self.file[dataset_name]
+
+        self.dset = dset
+        self.index = dset.shape[0] if max_samples is None else 0
+
+    def append(self, batch):
+        """追加写入 batch 数据"""
+        batch = np.asarray(batch, dtype=self.dset.dtype)
+        n = batch.shape[0]
+
+        if self.max_samples is None:
+            self.dset.resize(self.index + n, axis=0)
+        elif self.index + n > self.max_samples:
+            raise ValueError("超过最大样本数！")
+
+        self.dset[self.index:self.index+n, ...] = batch
+        self.index += n
+        self.file.flush()
 
     def close(self):
-        self.f.flush()
-        self.f.close()
+        self.file.flush()
+        self.file.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class H5BatchWriter:
+#     """
+#     逐批追加写 HDF5：
+#       >>> writer = H5BatchWriter("pred.h5", "pred", dtype=np.float16)
+#       >>> writersave(batch_pred)
+#       >>> writer.close()              # 用完记得关
+#     """
+#     def __init__(
+#             self, 
+#             path, 
+#             dset_name='data',
+#             dtype=np.float32, # torch.float32
+#             compression=None
+#         ):
+#         self.f           = h5py.File(path, "w")
+#         self.dset        = None
+#         self.dset_name   = dset_name
+#         self.dtype       = dtype
+#         self.compression = compression
+#         self.offset      = 0          # 写入样本计数
+
+#     def save(self, batch_arr):
+#         batch_arr = batch_arr.astype(self.dtype, copy=False)
+#         bsz       = len(batch_arr)
+
+#         # 第一次来时创建数据集（可无限增长）
+#         if self.dset is None:
+#             full_shape = (None,) + batch_arr.shape[1:]
+#             self.dset  = self.f.create_dataset(
+#                 self.dset_name, shape=(0,) + batch_arr.shape[1:],
+#                 maxshape=full_shape, chunks=True,
+#                 compression=self.compression, dtype=self.dtype)
+
+#         # 扩容 + 写入
+#         new_size = self.offset + bsz
+#         self.dset.resize(new_size, axis=0)
+#         self.dset[self.offset:new_size] = batch_arr
+#         self.offset = new_size
+
+#     def flush(self):
+#         self.f.flush()
+
+#     def close(self):
+#         self.f.flush()
+#         self.f.close()

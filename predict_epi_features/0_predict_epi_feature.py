@@ -36,22 +36,24 @@ def get_pred(model, test_data_loader, device='cuda', writer: H5BatchWriter=None,
 
 
 if __name__ == '__main__':
-
     args = argparse.ArgumentParser()
     # args.add_argument('-t', '--task', type=str, default=None)
-    args.add_argument('--data_path', type=str, default=None)
-    args.add_argument('--output_path', type=str, default=None)
+    args.add_argument('-i', '--input_path', type=str, default=None)
+    args.add_argument('-o', '--output_path', type=str, default=None)
     args.add_argument('-m', '--model', type=str, default='Sei')
     args.add_argument('-d', '--device', type=str, default='cuda')
     args = args.parse_args()
 
-    data_path = args.data_path
+    input_path = args.input_path
     output_path = args.output_path
-    if output_path is None:
-        data_filename = os.path.basename(data_path).split('.')[0]
-        output_path = f'predict_epi_features/outputs/{data_filename}_{args.model}_pred.h5'
     model = args.model
     device = args.device
+
+    data_path = input_path
+
+    if output_path is None:
+        filename = os.path.basename(input_path).split('.')[0]
+        output_path = f'predict_epi_features/outputs/{filename}_{model}_pred.h5'
 
     # if task == 'Gosai_MPRA':
     #     data_path = 'data/Gosai_MPRA/Gosai_MPRA_my_processed_data.csv'
@@ -80,8 +82,6 @@ if __name__ == '__main__':
     # else:
     #     raise ValueError(f'task name = {task} not found')
 
-    
-
     output_dir = os.path.dirname(output_path)
     os.makedirs(output_dir, exist_ok=True)
     if os.path.exists(output_path):
@@ -89,7 +89,6 @@ if __name__ == '__main__':
         exit()
     else:
         print(f'predicting {output_path}')
-
 
     set_seed(0)
 
