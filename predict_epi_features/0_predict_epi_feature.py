@@ -12,7 +12,7 @@ from MPRA_predict import models, datasets, metrics, utils
 from MPRA_predict.utils import *
 
 @torch.no_grad()
-def get_pred(model, test_data_loader, device='cuda', writer: H5BatchWriter=None, flush_every=10):
+def get_pred(model, test_data_loader, device='cuda', writer: HDF5Writer=None, flush_every=10):
     model = model.to(device)
     y_pred = []
     model.eval()
@@ -116,10 +116,8 @@ if __name__ == '__main__':
         )
 
         test_data_loader = DataLoader(dataset, batch_size=512, shuffle=False, num_workers=4, pin_memory=True)
-        writer = H5BatchWriter(output_path)
-        pred = get_pred(model, test_data_loader, device, writer, 100)
-
-
+        writer = HDF5Writer(output_path)
+        pred = get_pred(model, test_data_loader, device, writer, 512)
 
 
     elif args.model == 'Enformer':
@@ -139,13 +137,13 @@ if __name__ == '__main__':
             N_fill_value=0.25,
         )
         
-        test_data_loader = DataLoader(dataset, batch_size=1024, shuffle=False, num_workers=8)
-        writer = H5BatchWriter(output_path)
-        pred = get_pred(model, test_data_loader, device, writer)
+        test_data_loader = DataLoader(dataset, batch_size=1024, shuffle=False, num_workers=4, pin_memory=True)
+        writer = HDF5Writer(output_path)
+        pred = get_pred(model, test_data_loader, device, writer, 1024)
 
 
-    elif args.model == 'Borzoi':
-        pass
+    else:
+        raise ValueError(f'model name = {args.model} not found')
     # TO DO
 
 

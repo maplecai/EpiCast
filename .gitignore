@@ -10,6 +10,8 @@
 *.html
 *.pth
 *.pdf
+*.h5
+*.csv
 
 # folder
 .vscode/

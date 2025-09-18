@@ -52,11 +52,11 @@ def save_pickle(file_dir: str, data) -> None:
 def load_h5(file_dir: str):
     with h5py.File(file_dir, 'r') as f:
         keys = list(f.keys())
+        print(f'file {file_dir} has keys: {keys}')
         if len(keys) == 1:
             data = f[keys[0]][:]
         else:
             print('file has more than one key')
-            print(f'keys: {keys}')
             data = f
     return data
 
@@ -142,20 +142,14 @@ def detect_delimiter(csv_file_path):
 
 
 
-
-
-
-
-
-
 class HDF5Writer:
-    def __init__(self, file_path, dataset_name, data_shape, max_samples=None, chunk_size=100, dtype="float32", compression="gzip"):
+    def __init__(self, file_path, dataset_name='data', data_shape=None, max_samples=None, chunk_size=100, dtype="float32", compression="gzip"):
         """
         HDF5 增量写入工具
         Args:
             file_path (str): HDF5 文件路径
             dataset_name (str): 数据集名称
-            data_shape (tuple): 单个样本的形状，例如 (2048, 305)
+            data_shape (tuple): 单个样本的形状，例如 (2048, 305)，可为 None（自动推断）
             max_samples (int, optional): 最大样本数（None 表示动态增长）
             chunk_size (int): 每块的 batch 大小
             dtype (str): 数据类型
@@ -166,35 +160,52 @@ class HDF5Writer:
         self.data_shape = data_shape
         self.max_samples = max_samples
         self.chunk_size = chunk_size
+        self.dtype = dtype
+        self.compression = compression
 
-        if dataset_name not in self.file:
-            if max_samples is None:
-                dset = self.file.create_dataset(
-                    dataset_name,
-                    shape=(0,) + data_shape,
-                    maxshape=(None,) + data_shape,
-                    dtype=dtype,
-                    chunks=(chunk_size,) + data_shape,
-                    compression=compression
-                )
-            else:
-                dset = self.file.create_dataset(
-                    dataset_name,
-                    shape=(max_samples,) + data_shape,
-                    dtype=dtype,
-                    chunks=(chunk_size,) + data_shape,
-                    compression=compression
-                )
+        # 如果已存在，直接复用
+        if dataset_name in self.file:
+            self.dset = self.file[dataset_name]
+            self.index = self.dset.shape[0] if max_samples is None else 0
+        # 如果没有但给了 data_shape，则立即创建
+        elif self.data_shape is not None:
+            self._create_dataset(self.data_shape)
+        # 否则延迟到第一次 append 才建
         else:
-            dset = self.file[dataset_name]
+            self.dset = None
+            self.index = 0
 
+    def _create_dataset(self, data_shape):
+        """内部函数：根据 data_shape 创建 dataset"""
+        self.data_shape = data_shape
+        if self.max_samples is None:
+            dset = self.file.create_dataset(
+                self.dataset_name,
+                shape=(0,) + data_shape,
+                maxshape=(None,) + data_shape,
+                dtype=self.dtype,
+                chunks=(self.chunk_size,) + data_shape,
+                compression=self.compression
+            )
+        else:
+            dset = self.file.create_dataset(
+                self.dataset_name,
+                shape=(self.max_samples,) + data_shape,
+                dtype=self.dtype,
+                chunks=(self.chunk_size,) + data_shape,
+                compression=self.compression
+            )
         self.dset = dset
-        self.index = dset.shape[0] if max_samples is None else 0
+        self.index = 0
 
     def append(self, batch):
         """追加写入 batch 数据"""
-        batch = np.asarray(batch, dtype=self.dset.dtype)
+        batch = np.asarray(batch, dtype=self.dtype)
         n = batch.shape[0]
+
+        # 如果 dataset 还没建，自动推断 shape
+        if self.dset is None:
+            self._create_dataset(batch.shape[1:])
 
         if self.max_samples is None:
             self.dset.resize(self.index + n, axis=0)
@@ -208,15 +219,6 @@ class HDF5Writer:
     def close(self):
         self.file.flush()
         self.file.close()
-
-
-
-
-
-
-
-
-
 
 
 
