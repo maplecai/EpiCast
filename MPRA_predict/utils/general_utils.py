@@ -216,6 +216,13 @@ class HDF5Writer:
         self.index += n
         self.file.flush()
 
+    def __len__(self):
+        return self.index
+    
+
+    def flush(self):
+        self.file.flush()
+
     def close(self):
         self.file.flush()
         self.file.close()

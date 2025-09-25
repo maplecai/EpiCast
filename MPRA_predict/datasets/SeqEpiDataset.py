@@ -2,11 +2,11 @@ from ..utils import *
 from torch.utils.data import Dataset
 
 
-class SeqFeatureMatrixDataset(Dataset):
+class SeqEpiDataset(Dataset):
     def __init__(
         self,
-        data_path=None,
-        data_df=None,
+        seq_file_path=None,
+        epi_file_path=None,
 
         apply_filter=True,
         filter_column=None,
@@ -42,9 +42,9 @@ class SeqFeatureMatrixDataset(Dataset):
     ) -> None:
         
         super().__init__()
-
-        self.data_path = data_path
-        self.data_df = data_df
+        
+        self.seq_file_path = seq_file_path
+        self.epi_file_path = epi_file_path
 
         self.apply_filter = apply_filter
         self.filter_column = filter_column
@@ -75,13 +75,9 @@ class SeqFeatureMatrixDataset(Dataset):
         self.cell_types = cell_types
         self.assays = assays
 
-        # read dataframe
-        if data_path is not None and data_df is None:
-            self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
-        elif data_path is None and data_df is not None:
-            self.df = data_df
-        else:
-            raise ValueError("data_path or data_df must be provided.")
+        self.seq_df = pd.read_csv(seq_file_path, sep=detect_delimiter(seq_file_path))
+        self.epi_df = pd.read_csv(epi_file_path, sep=detect_delimiter(epi_file_path))
+        self.df = pd.concat([self.seq_df, self.epi_df], axis=1)
 
         # filter data by filter_column
         if apply_filter:
@@ -106,23 +102,16 @@ class SeqFeatureMatrixDataset(Dataset):
         self.seqs = None
         self.features = None
         self.labels = None
+
         if seq_column:
-            self.seqs = self.df[seq_column].to_numpy().astype(str)
+            self.seqs = self.df[seq_column].astype(str).to_numpy()
 
-        # if feature_column:
-        #     self.features = self.df[feature_column].to_numpy()
-        #     self.features = torch.tensor(self.features, dtype=torch.float)
+        cols = [f"{cell_type}_{assay}" for cell_type in cell_types for assay in assays]
+        data = self.df[cols].to_numpy().reshape(len(self.df), len(cell_types), len(assays))
+        self.features = torch.from_numpy(data)
 
-        self.features = np.zeros((len(self.df), len(cell_types), len(assays)))
-        for i, cell_type in enumerate(cell_types):
-            for j, assay in enumerate(assays):
-                self.features[:, i, j] = self.df[f'{cell_type}_{assay}'].to_numpy()
-        self.features = torch.tensor(self.features, dtype=torch.float)
-        
         if label_column:
-            self.labels = self.df[label_column].to_numpy()
-            self.labels = torch.tensor(self.labels, dtype=torch.float)
-        ###
+            self.labels = torch.from_numpy(self.df[label_column].to_numpy()).float()
 
 
 
@@ -157,10 +146,4 @@ class SeqFeatureMatrixDataset(Dataset):
 
 
 if __name__ == '__main__':
-    dataset = SeqFeatureMatrixDataset(
-        data_path='/home/hxcai/cell_type_specific_CRE/MPRA_predict/predict_short_sequence_features/data/enformer_sequences_test_100.csv',
-        input_column='seq',
-        crop=True,
-        cropped_length=200,
-        )
-    print(dataset[0]['seq'].shape)
+    pass

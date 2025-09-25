@@ -27,7 +27,7 @@ def get_pred(model, test_data_loader, device='cuda', writer: HDF5Writer=None, fl
         output = model(x)
 
         output = output.detach().cpu().numpy()
-        writer.save(output)
+        writer.append(output)
         if (i+1) % flush_every == 0:
             writer.flush()
     writer.flush()
