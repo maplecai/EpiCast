@@ -49,15 +49,19 @@ def save_pickle(file_dir: str, data) -> None:
         data = pickle.dump(data, f)
     return
 
-def load_h5(file_dir: str):
+def load_h5(file_dir: str, key: str=None):
     with h5py.File(file_dir, 'r') as f:
-        keys = list(f.keys())
-        print(f'file {file_dir} has keys: {keys}')
-        if len(keys) == 1:
-            data = f[keys[0]][:]
+        if key:
+            data = f[key][:]
+        
         else:
-            print('file has more than one key')
-            data = f
+            keys = list(f.keys())
+            print(f'file {file_dir} has keys: {keys}')
+            if len(keys) == 1:
+                data = f[keys[0]][:]
+            else:
+                print('file has more than one key')
+                data = {key: f[key][:] for key in keys}
     return data
 
 def save_h5(file_dir: str, data) -> None:
@@ -143,7 +147,7 @@ def detect_delimiter(csv_file_path):
 
 
 class HDF5Writer:
-    def __init__(self, file_path, dataset_name='data', data_shape=None, max_samples=None, chunk_size=100, dtype="float32", compression="gzip"):
+    def __init__(self, file_path, dataset_name='data', data_shape=None, max_samples=None, chunk_size=1024, dtype="float32", compression="gzip"):
         """
         HDF5 增量写入工具
         Args:
