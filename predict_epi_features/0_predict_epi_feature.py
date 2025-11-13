@@ -53,7 +53,7 @@ if __name__ == '__main__':
 
     if output_path is None:
         filename = os.path.basename(input_path).split('.')[0]
-        output_path = f'predict_epi_features/outputs/{filename}_{model}_pred.h5'
+        output_path = f'outputs/{filename}_{model}_pred.h5'
 
     # if task == 'Gosai_MPRA':
     #     data_path = 'data/Gosai_MPRA/Gosai_MPRA_my_processed_data.csv'
@@ -94,7 +94,7 @@ if __name__ == '__main__':
 
     if args.model == 'Sei':
 
-        model_path = f'data/Sei/resources/sei.pth'
+        model_path = f'../data/Sei/resources/sei.pth'
         model_state_dict = torch.load(model_path)
         model_state_dict = {k.replace('module.model.', ''): v for k, v in model_state_dict.items()}
         model = models.Sei()
@@ -105,9 +105,9 @@ if __name__ == '__main__':
             data_path=data_path,
             seq_column='seq', 
 
-            crop=False,
-            # crop=True,
-            # cropped_length=200,
+            # crop=False,
+            crop=True,
+            cropped_length=200,
 
             padding=True,
             padding_method='N',
@@ -122,8 +122,8 @@ if __name__ == '__main__':
 
     elif args.model == 'Enformer':
 
-        model_path = f'pretrained_models/enformer_weights'
-        model = models.enformer_pytorch.from_pretrained(model_path, target_length=4, use_tf_gamma=False)
+        model_path = f'../pretrained_models/enformer_weights'
+        model = models.enformer_pytorch.from_pretrained(model_path, target_length=2, use_tf_gamma=False)
         model = model.to(device)
 
         dataset = datasets.SeqDataset(
@@ -132,7 +132,7 @@ if __name__ == '__main__':
             crop=False,
             padding=True,
             padding_method='N',
-            padded_length=512,
+            padded_length=256,
             # padded_length=196608,
             N_fill_value=0.25,
         )

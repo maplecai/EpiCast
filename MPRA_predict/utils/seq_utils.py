@@ -43,31 +43,43 @@ def rc_onehots(onehots: np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
     return rc_onehot(onehots)
 
 
-def str2onehot(seq: str, N_fill_value: int = 0.25, dtype=torch.Tensor) -> np.ndarray | torch.Tensor:
-    '''
-    str -> onehot
-    N_fill_value: 碱基N对应的值 0.25(default)
-    '''
-    base2idx = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 4,
-                'a': 0, 'c': 1, 'g': 2, 't': 3, 'n': 4,}
-    seq = np.array(list(seq), dtype='U1')
-    indices = np.array([base2idx[b] for b in seq], dtype=int)
-    onehot = np.zeros((len(seq), 4))
-    # 对N的位置整行赋值N_fill_value
-    N_pos = (indices == 4)
-    onehot[N_pos, :] = N_fill_value
-    # 非N的位置：直接用整型索引赋值为1
-    not_N_pos = ~N_pos
-    onehot[np.arange(len(seq))[not_N_pos], indices[not_N_pos]] = 1
+# def str2onehot(seq: str, N_fill_value: int = 0.25, dtype=torch.Tensor) -> np.ndarray | torch.Tensor:
+#     '''
+#     str -> onehot
+#     N_fill_value: 碱基N对应的值 0.25(default)
+#     '''
+#     base2idx = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 4,
+#                 'a': 0, 'c': 1, 'g': 2, 't': 3, 'n': 4,}
+#     seq = np.array(list(seq), dtype='U1')
+#     indices = np.array([base2idx[b] for b in seq], dtype=int)
+#     onehot = np.zeros((len(seq), 4))
+#     # 对N的位置整行赋值N_fill_value
+#     N_pos = (indices == 4)
+#     onehot[N_pos, :] = N_fill_value
+#     # 非N的位置：直接用整型索引赋值为1
+#     not_N_pos = ~N_pos
+#     onehot[np.arange(len(seq))[not_N_pos], indices[not_N_pos]] = 1
+#     return onehot
+
+
+_LUT = np.full(256, 5, dtype=np.uint8)
+for a,i in zip(b"ACGTNacgtn", [0,1,2,3,4,0,1,2,3,4]):
+    _LUT[a] = i
+
+def str2onehot(seq: str, N_fill_value: int = 0.25) -> np.ndarray:
+    b = np.frombuffer(seq.encode('ascii'), dtype=np.uint8)  # O(1) 视图
+    idx = _LUT[b]                                   # [L]，0..4
+    L = idx.size
+    
+    onehot = np.full((L, 4), 0, dtype=np.float32)  # 先全填 0
+    notN = (idx < 4) # 只对 ACGT 做 one-hot
+    onehot[notN] = np.eye(4, dtype=np.float32)[idx[notN]]
+    isN = (idx == 4) # 对 N 做 N fill
+    onehot[isN] = N_fill_value
     return onehot
 
 
 def strs2onehots(seqs: list[str], N_fill_value: int = 0.25) -> np.ndarray:
-    '''
-    序列s->onehot矩阵s
-    seqs: list of sequences (must be of the same length)
-    N_fill_value: 碱基N对应的值 0.25(default)
-    '''
     return np.array([str2onehot(seq, N_fill_value) for seq in seqs])
 
 
@@ -110,15 +122,16 @@ def random_onehots(length: int, num: int) -> np.ndarray:
 
 
 def crop_seq(seq: str, length: int, crop_position: str = 'center') -> str:
+    if len(seq) < length:
+        print(f"Warning: input seq length = {len(seq)} is shorter than crop length = {length}, return the original seq")
+        return seq
 
-    seq_len = len(seq)
-    assert length <= seq_len, 'crop length must <= sequence length'
     if crop_position == 'center':
-        start = (seq_len - length) // 2
+        start = (len(seq) - length) // 2
     elif crop_position == 'left':
         start = 0
     elif crop_position == 'right':
-        start = seq_len - length
+        start = len(seq) - length
     elif crop_position == 'random':
         start = np.random.randint(0, len(seq) - length)
     elif crop_position.isdigit():
@@ -161,10 +174,12 @@ def random_genome_seq(genome: Fasta, seq_length: int) -> str:
 
 
 def pad_seq(seq: str, padded_length: int, padding_method:str ='N', padding_position: str='both_sides', given_left_seq: str=None, given_right_seq: str=None, genome: Fasta=None) -> str:
-    seq_len = len(seq)
-    if seq_len > padded_length:
-        raise ValueError(f'seq_len={seq_len} > padded_length={padded_length}')
-    padding_len = padded_length - seq_len
+
+    if len(seq) > padded_length:
+        print(f"Warning: input seq length = {len(seq)} is longer than padded length = {padded_length}, return the original seq")
+        return seq
+
+    padding_len = padded_length - len(seq)
 
     if padding_position == 'both_sides':
         left_len = padding_len // 2
@@ -201,13 +216,13 @@ def pad_seq(seq: str, padded_length: int, padding_method:str ='N', padding_posit
         if left_len == 0:
             left_seq = ''
         else:
-            repeats_needed = left_len // seq_len + 1
+            repeats_needed = left_len // len(seq) + 1
             repeated_seq = seq * repeats_needed
             left_seq = repeated_seq[-left_len:]
         if right_len == 0:
             right_seq = ''
         else:
-            repeats_needed = right_len // seq_len + 1
+            repeats_needed = right_len // len(seq) + 1
             repeated_seq = seq * repeats_needed
             right_seq = repeated_seq[:right_len]
 

@@ -65,6 +65,7 @@ class BedDataset(Dataset):
         self.genome_path = genome_path
         self.window_length = window_length
         self.spicify_strand = spicify_strand
+        
         self.random_rc = random_rc
         self.random_rc_prob = random_rc_prob
         self.random_shift = random_shift
