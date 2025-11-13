@@ -74,7 +74,7 @@ class MyResTransformer2(nn.Module):
                 kernel_size=conv_first_kernel_size, 
                 stride=1,
                 padding=conv_padding,
-                layer_order='conv_bn_relu',
+                layer_order='conv_relu_bn',
                 activation=conv_activation,
             )
         )
@@ -175,9 +175,6 @@ class MyResTransformer2(nn.Module):
                 )
             )
         self.sigmoid_layer = nn.Sigmoid()
-
-
-
 
 
 

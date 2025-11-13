@@ -23,6 +23,9 @@ data/
 output/
 outputs/
 figures/
-saved/*
+saved/
 pretrained_models/
-# !*.py
+TFBS_based_models/
+explanations/
+alpha_genome/
+analyze_epi_features/

@@ -108,7 +108,7 @@ class SeqEpiDataset(Dataset):
 
         cols = [f"{cell_type}_{assay}" for cell_type in cell_types for assay in assays]
         data = self.df[cols].to_numpy().reshape(len(self.df), len(cell_types), len(assays))
-        self.features = torch.from_numpy(data)
+        self.features = torch.from_numpy(data).float()
 
         if label_column:
             self.labels = torch.from_numpy(self.df[label_column].to_numpy()).float()

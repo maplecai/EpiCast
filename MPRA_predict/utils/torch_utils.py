@@ -28,16 +28,56 @@ def dist_all_gather(tensor: torch.Tensor) -> torch.Tensor:
     return tensor_list
 
 
-def load_model(model: nn.Module, checkpoint_path: str) -> nn.Module:
-    state_dict = torch.load(checkpoint_path)
-    if 'model_state_dict' in state_dict:
-        model_state_dict = state_dict['model_state_dict']
-    else:
-        model_state_dict = state_dict
-    if 'module' in model_state_dict.keys()[0]:
-        model_state_dict = {k.replace('module.', ''): v for k, v in model_state_dict.items()}
-    model.load_state_dict(model_state_dict)
-    return model
+# def load_model(model: nn.Module, checkpoint_path: str) -> nn.Module:
+#     state_dict = torch.load(checkpoint_path)
+#     if 'model_state_dict' in state_dict:
+#         model_state_dict = state_dict['model_state_dict']
+#     else:
+#         model_state_dict = state_dict
+#     if 'module' in model_state_dict.keys()[0]:
+#         model_state_dict = {k.replace('module.', ''): v for k, v in model_state_dict.items()}
+#     model.load_state_dict(model_state_dict)
+#     return model
+
+
+
+# def load_model(model: nn.Module, state_dict, strict=False) -> nn.Module:
+#     if 'model_state_dict' in state_dict:
+#         model_state_dict = state_dict['model_state_dict']
+#     else:
+#         model_state_dict = state_dict
+
+#     if 'module' in model_state_dict.keys()[0]:
+#         model_state_dict = {k.replace('module.', ''): v for k, v in model_state_dict.items()}
+#     # 去掉多卡训练前缀
+#     first_key = next(iter(model_state_dict))
+#     if first_key.startswith('module.'):
+#         model_state_dict = {k.replace('module.', '', 1): v for k, v in model_state_dict.items()}
+
+#     model_dict = model.state_dict()
+
+#     # 只保留匹配的键
+#     filtered_dict = {k: v for k, v in model_state_dict.items() if k in model_dict and v.size() == model_dict[k].size()}
+
+#     # 打印加载情况（可选）
+#     missing_keys = model_dict.keys() - filtered_dict.keys()
+#     unexpected_keys = model_state_dict.keys() - model_dict.keys()
+#     print(f"Loaded params: {len(filtered_dict)}/{len(model_dict)}")
+#     if missing_keys:
+#         print(f"Missing keys: {list(missing_keys)[:5]} ...")
+#     if unexpected_keys:
+#         print(f"Unexpected keys: {list(unexpected_keys)[:5]} ...")
+
+#     # 加载匹配部分
+#     model_dict.update(filtered_dict)
+#     model.load_state_dict(model_dict, strict=False)
+
+#     return model
+
+
+
+
+
 
 
 def save_model(model: nn.Module, checkpoint_path: str) -> None:
@@ -57,7 +97,7 @@ def save_model(model: nn.Module, checkpoint_path: str) -> None:
     return
 
 
-def get_free_gpu_ids(min_memory_mb=45000):
+def get_free_gpu_ids(min_memory_mb=40000):
     free_list, _ = get_gpu_info_from_nvidia_smi()
     gpu_ids = np.argsort(free_list)[::-1]
 

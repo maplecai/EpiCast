@@ -11,7 +11,6 @@ from .ConvBlock import ConvBlock, ResConvBlock #, LinearBlock
 from .TransformerBlock import TransformerBlock
 
 
-
 class MyResTransformer(nn.Module):
     def __init__(
         self, 
@@ -77,7 +76,7 @@ class MyResTransformer(nn.Module):
                 kernel_size=conv_first_kernel_size, 
                 stride=1,
                 padding=conv_padding,
-                layer_order=conv_layer_order.replace('_add', ''),
+                layer_order='conv_relu_bn',
                 activation=conv_activation,
             )
         )
@@ -92,7 +91,7 @@ class MyResTransformer(nn.Module):
 
         for i in range(len(conv_channels_list)):
             self.conv_layers.add_module(
-                f'res_conv_block_{i}', ResConvBlock( ###### ConvBlock
+                f'res_conv_block_{i}', ResConvBlock(
                     in_channels=conv_first_channels if i == 0 else conv_channels_list[i-1], 
                     out_channels=conv_channels_list[i], 
                     kernel_size=conv_kernel_size_list[i], 
@@ -154,11 +153,9 @@ class MyResTransformer(nn.Module):
             dummy = self.trans_layers(dummy)
             dummy = dummy.mean(1) # (batch_size, hidden_dim)
 
-        self.linear_layers = nn.Sequential(OrderedDict([]))
-
-
-
         current_dim = dummy.shape[1]
+
+        self.linear_layers = nn.Sequential(OrderedDict([]))
         for i in range(len(linear_channels_list)):
             self.linear_layers.add_module(
                 f'linear_{i}', nn.Linear(
@@ -196,7 +193,9 @@ class MyResTransformer(nn.Module):
         else:
             cls_token = torch.zeros((batch_size, 0, hidden_dim), device=device) # 维度是0的假tensor
 
-        if not self.input_epi:
+        if self.input_epi:
+            epi_tokens = epi_tokens
+        else:
             epi_tokens = torch.zeros((batch_size, 0, hidden_dim), device=device) # 维度是0的假tensor
 
         seq_len = seq_tokens.shape[1]
@@ -211,9 +210,9 @@ class MyResTransformer(nn.Module):
 
         if self.trans_token_type_embedding:
             token_type_ids = torch.cat([
-                torch.full((batch_size, cls_len), 2, dtype=torch.long, device=device), # CLS token
-                torch.full((batch_size, seq_len), 0, dtype=torch.long, device=device), # Seq tokens
-                torch.full((batch_size, epi_len), 1, dtype=torch.long, device=device), # Epi tokens
+                torch.full((batch_size, cls_len), 0, dtype=torch.long, device=device), # CLS token
+                torch.full((batch_size, seq_len), 1, dtype=torch.long, device=device), # Seq tokens
+                torch.full((batch_size, epi_len), 2, dtype=torch.long, device=device), # Epi tokens
             ], dim=1)  # shape: [batch_size, cls_len + seq_len + epi_len]
             token_type_embed = self.token_type_embedding_layer(token_type_ids)
             tokens = tokens + token_type_embed
