@@ -8,6 +8,7 @@ class SeqDataset(Dataset):
 
         data_path=None,
         data_df=None,
+        data_list=None,
 
         seq_column=None,
         feature_column=None,
@@ -75,10 +76,13 @@ class SeqDataset(Dataset):
         
 
         # read dataframe
-        if data_path is not None and data_df is None:
+        if data_path is not None:
             self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
-        elif data_path is None and data_df is not None:
+        elif data_df is not None:
             self.df = data_df
+        elif data_list is not None:
+            self.df = pd.DataFrame(data_list)
+            self.df.columns = ['seq']
         else:
             raise ValueError("data_path or data_df must be provided.")
 
