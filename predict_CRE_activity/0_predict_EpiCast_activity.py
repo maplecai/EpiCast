@@ -115,7 +115,8 @@ def main():
     # --------------------
     model = utils.init_obj(models, config['model'])
     saved_model_path = str(Path(saved_dir) / 'checkpoint.pth')
-    state_dict = torch.load(saved_model_path)
+    # state_dict = torch.load(saved_model_path)
+    state_dict = torch.load(saved_model_path, map_location=device)
     model.load_state_dict(state_dict)
     model = model.to(device)
 
