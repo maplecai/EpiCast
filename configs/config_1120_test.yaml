@@ -1,0 +1,132 @@
+distributed: false # 是否使用分布式训练
+gpu_ids: auto # 可用的gpu id
+
+seed: 0 # 随机数种子
+save_dir: saved # 保存的根路径
+num_epochs: 1000 # 最大epoch数
+num_log_steps: 10 # 每多少个step输出log, 0 means no output
+num_valid_epochs: 1 # 每多少个epoch运行valid
+scheduler_interval: step
+batch_size: 4096
+load_saved_model: false
+
+
+saved_dir: ./saved/1120_final/1110_135744/
+
+total_dataset:
+  type: &type SeqEpiDataset
+  args: &args
+    seq_file_path: ./data/Random/random_200bp_seqs.csv
+    epi_file_path: ./predict_CRE_activity/outputs/random_200bp_Sei_VEF.tsv
+    seq_column: seq
+    label_column: null
+    cell_types: ['A549', 'AG04450_Fibroblast_Fetal_Lung', 'Astrocyte_Brain', 'BE2-C', 'BJ_Fibroblast_Foreskin', 'B_Lymphocyte_Blood', 'Brain', 'Caco-2_Epithelium_Colon', 'Embryonic_Stem_Cell_Embryo', 'Endothelial_Cell_Umbilical_Vein', 'Epithelium', 'Epithelium_Lung', 'Epithelium_Mammary_Gland', 'Fibroblast', 'GM06990_B_Lymphocyte_Blood', 'GM12878_B_Lymphocyte_Blood', 'GM12891_Lymphoblastoid_Blood', 'GM12892_Lymphoblastoid_Blood', 'GM18486_Lymphoblastoid_Blood', 'GM18505_Lymphoblastoid_Blood', 'GM19099_Lymphoblastoid_Blood', 'GM19193_Lymphoblastoid_Blood', 'GM19238_Lymphoblastoid_Blood', 'GM19239_Lymphoblastoid_Blood', 'GM19240_Lymphoblastoid_Blood', 'H1-hESC', 'H1_Embryonic_Stem_Cell_Embryo', 'HCT-116_Colorectal_cancer_cell_line', 'HL-60_Leukemia_Cell', 'HMEC_Mammary_Epithelial', 'HSMM_Skeletal_Muscle_Myoblasts', 'HSMMtube_Skeletal_Muscle_Myotubes_Derived_from_HSMM', 'HUVEC_Umbilical_Vein_Endothelial_Cells', 'HeLa-S3_Epithelium_Cervix', 'HeLa_Cervical_Carcinoma', 'HepG2_Hepatocellular_Carcinoma', 'IMR90_Fibroblast_Lung', 'Jurkat_T_Lymphocyte_Blood', 'K562_Leukemia_Cell', 'LNCaP_Epithelium_Prostate', 'LoVo_Colon', 'MCF-10A_Epithelium_Breast', 'MCF-7_Epithelium_Mammary_Gland', 'Macrophage_Blood', 'Monocyte_Blood', 'Myoblast_Muscle', 'NHDF-Ad_Fibroblast_Skin', 'NHEK_Epidermal_Keratinocytes', 'NHLF_Lung_Fibroblasts', 'NH_A_Astrocytes', 'Neuron', 'Osteoblast_Bone', 'PANC-1_Pancreatic_ductal', 'Pancreas', 'PrEC_Epithelium_Prostate', 'Retina', 'Rh4_rhabdomyosarcoma', 'Sigmoid_Colon', 'Stomach', 'T47D', 'T_Lymphocyte_Blood']
+    assays: ['DNase', 'H3K4me3', 'H3K27ac', 'CTCF']
+    apply_filter: False
+
+model:
+  type: MyResTransformer
+  args:
+    input_seq_length:       200
+    input_seq_channels:     4
+    input_epi:              true
+    input_epi_dim:          4
+    output_dim:             1
+    sigmoid:                false
+    squeeze:                true
+
+    conv_first_channels:    256
+    conv_first_kernel_size: 7
+    pool_first_kernel_size: 1
+    conv_layer_order:       conv_relu_bn_add
+    conv_channels_list:     [256,256,256,256,256]
+    conv_kernel_size_list:  [3,3,3,3,3]
+    conv_dropout_rate:      0.2
+    conv_padding:           same
+    conv_activation:        relu
+    pool_kernel_size_list:  [2,2,2,2,2]
+    gap:                    false
+
+    num_trans_blocks:       3
+    trans_d_embed:          256
+    trans_n_heads:          4
+    trans_d_mlp:            1024
+    trans_dropout_rate:     0.1
+
+    trans_add_cls:          true
+    trans_output:           cls
+    trans_token_type_embedding: true
+
+    linear_channels_list:   [1024]
+    linear_dropout_rate:    0.5
+
+
+optimizer:
+  type: AdamW
+  args:
+    lr: 1.0e-3
+    weight_decay: 1.0e-4
+  transformer_args:
+    lr: 3.0e-4
+    weight_decay: 1.0e-4
+
+lr_scheduler:
+  type: WarmupCosineAnnealingWarmRestarts
+  args:
+    warmup_epochs: 10
+    T_0: 10
+    T_mult: 2
+
+loss_func:
+  type: MyMSELoss
+
+metric_funcs:
+- type: MyMSELoss
+- type: Pearson
+- type: Spearman
+
+early_stopper:
+  type: EarlyStopping
+  args:
+    monitor: Pearson
+    patience: 40
+    delta: 0
+    mode: max
+    verbose: true
+
+logger:
+  version: 1
+  disable_existing_loggers: false
+  formatters:
+    simple:
+      format: '%(message)s'
+    complex:
+      format: '%(asctime)s - %(levelname)s - %(message)s'
+  handlers:
+    console_handler:
+      class: logging.StreamHandler
+      level: INFO
+      formatter: complex
+      stream: ext://sys.stdout
+    info_file_handler:
+      class: logging.handlers.RotatingFileHandler
+      level: INFO
+      formatter: complex
+      filename: info.log
+      maxBytes: 10485760
+      backupCount: 10
+      encoding: utf8
+    debug_file_handler:
+      class: logging.handlers.RotatingFileHandler
+      level: DEBUG
+      formatter: complex
+      filename: debug.log
+      maxBytes: 10485760
+      backupCount: 10
+      encoding: utf8
+  root:
+    level: DEBUG
+    handlers:
+    - console_handler
+    - info_file_handler
+    - debug_file_handler
