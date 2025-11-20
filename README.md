@@ -1,13 +1,18 @@
 # EpiCast: leveraging virtual epigenomic features to predict episomal regulatory activity across cell types
 The code for official implementation of "EpiCast: leveraging virtual epigenomic features to predict episomal regulatory activity across cell types".
 
-## Overview
+## Introduction
 
+![Overview](figures/fig1.pdf)
 
 ## Installation
 
+git clone https://github.com/maplecai/MPRA_predict.git
+conda create -n mpra python=3.11
+conda activate mpra
+pip install -r requirements.txt
 
-## Dataset
+## Data preparation
 
 
 ## Predict CRE activity
