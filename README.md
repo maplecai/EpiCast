@@ -3,7 +3,7 @@ The code for official implementation of "EpiCast: leveraging virtual epigenomic 
 
 ## Introduction
 
-![Overview](figures/fig1.pdf)
+![Overview](figures/fig1.png)
 
 ## Installation
 
