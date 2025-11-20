@@ -124,16 +124,12 @@ class Trainer:
 
         if config.get('freeze_parameters', False) == True:
             self.log(f"freeze parameters")
+            freezed_key_words = config.get('freezed_key_words', [])
             for name, param in self.model.named_parameters():
-                if name.startwith('conv'):
-                    param.requires_grad = False
-                elif name.startwith('trans'):
-                    param.requires_grad = True
-                elif name.startwith('linear'):
-                    param.requires_grad = True
-                else:
-                    param.requires_grad = True
-
+                for word in freezed_key_words:
+                    if word in name:
+                        param.requires_grad = False
+                        self.log(f"freeze parameter {name}")
 
 
         self.model = self.model.to(self.device)
