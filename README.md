@@ -12,10 +12,17 @@ Trained on MPRA datasets, EpiCast learns both sequence grammar and cell-type-dep
 
 ## Installation
 
+1. Clone the repository
 ```bash
 git clone https://github.com/maplecai/EpiCast.git
+```
+2. Create a conda environment
+```bash
 conda create -n mpra python=3.10
 conda activate mpra
+```
+3. Install the required packages
+```bash
 pip install -r requirements.txt
 ```
 
@@ -33,21 +40,21 @@ and place them under `./data/Sei/`.
 ## Predict CRE activity
 
 
-Step 1: Predict Sei features
+1. Predict Sei features
 ```bash
 python predict_CRE_activity/0_predict_Sei_feature.py \
     -i ./data/Random/random_200bp_seqs.csv \
     -o ./data/Random/random_200bp_Sei_pred.npy
 ```
 
-Step 2: Convert Sei features into VEFs
+2. Convert Sei features into VEFs
 ```bash
 python predict_CRE_activity/0_predict_Sei_VEF.py \
     -i ./data/Random/random_200bp_Sei_pred.npy \
     -o ./data/Random/random_200bp_Sei_VEF.tsv
 ```
 
-Step 3: Predict CRE activity using EpiCast
+3. Predict CRE activity using EpiCast
 ```bash
 python predict_CRE_activity/0_predict_EpiCast_activity.py \
     --config ./configs/config_1120_test.yaml \
