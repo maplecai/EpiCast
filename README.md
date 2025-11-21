@@ -14,29 +14,41 @@ Trained on MPRA datasets, EpiCast learns both sequence grammar and cell-type-dep
 
 ```bash
 git clone https://github.com/maplecai/EpiCast.git
-conda create -n mpra python=3.11
+conda create -n mpra python=3.10
 conda activate mpra
 pip install -r requirements.txt
 ```
 
 ## Data preparation
 
-TO DO
+Download the MPRA datasets from: 
+https://zenodo.org/records/17669741 
+and place the files under `./data/Gosai_MPRA/`.
+
+Download the Sei model weights from: 
+https://zenodo.org/records/4906997 
+and place them under `./data/Sei/`.
+
 
 ## Predict CRE activity
 
+
+Step 1: Predict Sei features
 ```bash
-# Step 1: Predict Sei features
 python predict_CRE_activity/0_predict_Sei_feature.py \
     -i ./data/Random/random_200bp_seqs.csv \
     -o ./data/Random/random_200bp_Sei_pred.npy
+```
 
-# Step 2: Convert Sei features into virtual epigenomic features (VEF)
+Step 2: Convert Sei features into VEFs
+```bash
 python predict_CRE_activity/0_predict_Sei_VEF.py \
     -i ./data/Random/random_200bp_Sei_pred.npy \
     -o ./data/Random/random_200bp_Sei_VEF.tsv
+```
 
-# Step 3: Predict CRE activity using EpiCast
+Step 3: Predict CRE activity using EpiCast
+```bash
 python predict_CRE_activity/0_predict_EpiCast_activity.py \
     --config ./configs/config_1120_test.yaml \
     --total_dataset.args.seq_file_path ./data/Random/random_200bp_seqs.csv \
@@ -46,7 +58,7 @@ python predict_CRE_activity/0_predict_EpiCast_activity.py \
 
 ## Citation
 
-Under RECOMB 2026 review.
+Under review (RECOMB 2026).
 
 ## License
 
