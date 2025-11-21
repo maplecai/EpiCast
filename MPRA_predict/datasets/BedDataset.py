@@ -158,10 +158,13 @@ class BedDataset(Dataset):
 
 
 
-if __name__ == '__main__':
-    dataset = BedDataset(
-        data_path='/home/hxcai/cell_type_specific_CRE/MPRA_predict/predict_short_sequence_features/data/enformer_sequences_test_100.csv',
-        genome_path='/home/hxcai/genome/hg38.fa',
-        window_length=200,
-        )
-    print(dataset[0]['seq'].shape)
+# if __name__ == '__main__':
+#     from pathlib import Path
+#     BASE_DIR = Path(__file__).resolve().parent
+
+#     dataset = BedDataset(
+#         data_path= BASE_DIR/'../predict_short_sequence_features/data/enformer_sequences_test_100.csv',
+#         genome_path='/home/hxcai/genome/hg38.fa',
+#         window_length=200,
+#         )
+#     print(dataset[0]['seq'].shape)

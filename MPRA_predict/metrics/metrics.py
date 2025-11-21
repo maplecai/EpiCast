@@ -184,47 +184,6 @@ class AUPRC():
 #         return accuracy
 
 
-# class AccuracyScore(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-    
-#     def forward(self, output:torch.Tensor, label:torch.Tensor):
-#         y_true = label
-#         y_pred = (output > 0.5).float()
-#         accuracy = accuracy_score(y_true, y_pred)
-#         return accuracy
-
-# class PrecisionScore(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-    
-#     def forward(self, output:torch.Tensor, label:torch.Tensor):
-#         y_true = label
-#         y_pred = (output > 0.5).float()
-#         precision = precision_score(y_true, y_pred)
-#         return precision
-
-# class RecallScore(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-    
-#     def forward(self, output:torch.Tensor, label:torch.Tensor):
-#         y_true = label
-#         y_pred = (output > 0.5).float()
-#         recall = recall_score(y_true, y_pred)
-#         return recall
-
-# class F1Score(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-        
-#     def forward(self, output:torch.Tensor, label:torch.Tensor):
-#         y_true = label
-#         y_pred = (output > 0.5).float()
-#         f1 = f1_score(y_true, y_pred)
-#         return f1
-
-
 
 if __name__ == '__main__':
     a = torch.tensor([0.6, 0.4, 0.3])

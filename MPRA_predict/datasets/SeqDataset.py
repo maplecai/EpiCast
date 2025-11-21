@@ -160,11 +160,11 @@ class SeqDataset(Dataset):
 
 
 
-if __name__ == '__main__':
-    dataset = SeqDataset(
-        data_path='/home/hxcai/cell_type_specific_CRE/MPRA_predict/predict_short_sequence_features/data/enformer_sequences_test_100.csv',
-        input_column='seq',
-        crop=True,
-        cropped_length=200,
-        )
-    print(dataset[0]['seq'].shape)
+# if __name__ == '__main__':
+#     dataset = SeqDataset(
+#         data_path='../predict_short_sequence_features/data/enformer_sequences_test_100.csv',
+#         input_column='seq',
+#         crop=True,
+#         cropped_length=200,
+#         )
+#     print(dataset[0]['seq'].shape)
