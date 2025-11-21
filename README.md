@@ -39,7 +39,7 @@ and place them under `./data/Sei/`.
 
 ## Predict CRE activity
 
-Below is an example workflow for predicting CRE activity from a random 200-bp sequence.
+Below is an example workflow for predicting CRE activity from random 200-bp sequences.
 
 1. Predict Sei features
 ```bash
