@@ -49,7 +49,7 @@ cd predict_CRE_activity
 1. Predict Sei features
 ```bash
 python 0_predict_Sei_feature.py \
-    -i ../data/Random/random_200bp_seqs.csv \
+    -i ../data/Random/random_200bp_seqs.tsv \
     -o ../data/Random/random_200bp_Sei_pred.npy
 ```
 
@@ -64,7 +64,7 @@ python 0_predict_Sei_VEF.py \
 ```bash
 python 0_predict_EpiCast_activity.py \
     --config ../configs/config_1120_test.yaml \
-    --seq_path ../data/Random/random_200bp_seqs.csv \
+    --seq_path ../data/Random/random_200bp_seqs.tsv \
     --VEF_path ../data/Random/random_200bp_Sei_VEF.tsv \
     --output_name random_200bp_EpiCast_pred.npy
 ```
