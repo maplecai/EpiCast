@@ -72,9 +72,9 @@ python 0_predict_EpiCast_activity.py \
 Predict CRE activity using EpiCast-VEF-only
 ```bash
 python 0_predict_EpiCast_VEF_only_activity.py \
-    --config ./configs/config_1120_test.yaml \
-    --VEF_path ./data/Random/random_200bp_Sei_VEF.tsv \
-    --model_path ./predict_CRE_activity/Gosai_MPRA_Sei_VEF_MLP.joblib \
+    --config ../configs/config_1120_test.yaml \
+    --VEF_path ../data/Random/random_200bp_Sei_VEF.tsv \
+    --model_path ../predict_CRE_activity/Gosai_MPRA_Sei_VEF_MLP.joblib \
     --output_name random_200bp_EpiCast_VEF_only_pred.npy \
 ```
 
