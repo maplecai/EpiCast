@@ -41,27 +41,41 @@ and place them under `./data/Sei/`.
 
 Below is an example workflow for predicting CRE activity from random 200-bp sequences.
 
+0. Go to the right directory
+```bash
+cd predict_CRE_activity
+```
+
 1. Predict Sei features
 ```bash
-python predict_CRE_activity/0_predict_Sei_feature.py \
-    -i ./data/Random/random_200bp_seqs.csv \
-    -o ./data/Random/random_200bp_Sei_pred.npy
+python 0_predict_Sei_feature.py \
+    -i ../data/Random/random_200bp_seqs.csv \
+    -o ../data/Random/random_200bp_Sei_pred.npy
 ```
 
 2. Convert Sei features into VEFs
 ```bash
-python predict_CRE_activity/0_predict_Sei_VEF.py \
-    -i ./data/Random/random_200bp_Sei_pred.npy \
-    -o ./data/Random/random_200bp_Sei_VEF.tsv
+python 0_predict_Sei_VEF.py \
+    -i ../data/Random/random_200bp_Sei_pred.npy \
+    -o ../data/Random/random_200bp_Sei_VEF.tsv
 ```
 
 3. Predict CRE activity using EpiCast
 ```bash
-python predict_CRE_activity/0_predict_EpiCast_activity.py \
-    --config ./configs/config_1120_test.yaml \
-    --total_dataset.args.seq_file_path ./data/Random/random_200bp_seqs.csv \
-    --total_dataset.args.epi_file_path ./data/Random/random_200bp_Sei_VEF.tsv \
+python 0_predict_EpiCast_activity.py \
+    --config ../configs/config_1120_test.yaml \
+    --seq_path ../data/Random/random_200bp_seqs.tsv \
+    --VEF_path ../data/Random/random_200bp_Sei_VEF.tsv \
     --output_name random_200bp_EpiCast_pred.npy
+```
+
+Predict CRE activity using EpiCast-VEF-only
+```bash
+python 0_predict_EpiCast_VEF_only_activity.py \
+    --config ./configs/config_1120_test.yaml \
+    --VEF_path ./data/Random/random_200bp_Sei_VEF.tsv \
+    --model_path ./predict_CRE_activity/Gosai_MPRA_Sei_VEF_MLP.joblib \
+    --output_name random_200bp_EpiCast_VEF_only_pred.npy \
 ```
 
 ## Citation

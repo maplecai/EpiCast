@@ -72,11 +72,7 @@ def save_h5(file_dir: str, data) -> None:
 
 
 
-def init_obj_2(module, class_name, *args, **kwargs):
-    return getattr(module, class_name)(*args, **kwargs)
-
-
-def init_obj(module, obj_dict:dict, *args, **kwargs):
+def init_obj(module, obj_dict: dict, *args, **kwargs):
     """
     Finds a function handle with the name given as 'type' in config, and returns the
     instance initialized with corresponding arguments given.
@@ -85,17 +81,21 @@ def init_obj(module, obj_dict:dict, *args, **kwargs):
     is equivalent to
     `object = module.obj_dict['type'](a, b=1)`
     """
-    if obj_dict is None:
+    if not obj_dict:
         return None
-    assert isinstance(obj_dict, dict), "invalid init object dict"
-    module_name = obj_dict['type']
-    module_args = dict(obj_dict.get('args', {}))
+    if not isinstance(obj_dict, dict):
+        raise TypeError("invalid init object dict")
+
+    name = obj_dict["type"]
+    module_args = {**obj_dict.get("args", {}), **kwargs}
+
+    # log overwritten keys
     for k in kwargs:
-        if k in module_args:
-            logging.debug(f'overwriting kwargs [{k}] in config')
-    # assert all([k not in module_args for k in kwargs]), 'Overwriting kwargs given in config file is not allowed'
-    module_args.update(kwargs)
-    return getattr(module, module_name)(*args, **module_args)
+        if k in obj_dict.get("args", {}):
+            logging.debug(f"overwriting kwargs [{k}] in config")
+
+    return getattr(module, name)(*args, **module_args)
+
 
 
 def load_config(config_path: str) -> dict:
@@ -237,51 +237,41 @@ class HDF5Writer:
 
 
 
+def resolve_paths(cfg, root):
+    """
+    Recursively convert relative paths in cfg to absolute paths.
+    Only keys containing 'path' or 'dir' will be processed.
+    """
+    if isinstance(cfg, dict):
+        out = {}
+        for k, v in cfg.items():
+            # recursion for nested structure
+            if isinstance(v, (dict, list)):
+                out[k] = resolve_paths(v, root)
+                continue
 
+            # None remains None
+            if v is None:
+                out[k] = None
+                continue
 
+            # process only path-like keys
+            key_lower = k.lower()
+            if "path" in key_lower or "dir" in key_lower:
+                if isinstance(v, (str, Path)):
+                    p = Path(v).expanduser()
+                    if not p.is_absolute():
+                        p = (root / p).resolve()
+                    out[k] = str(p)
+                else:
+                    # leave non-string path fields untouched (safe fallback)
+                    out[k] = v
+            else:
+                out[k] = v
+        return out
 
-# class H5BatchWriter:
-#     """
-#     逐批追加写 HDF5：
-#       >>> writer = H5BatchWriter("pred.h5", "pred", dtype=np.float16)
-#       >>> writersave(batch_pred)
-#       >>> writer.close()              # 用完记得关
-#     """
-#     def __init__(
-#             self, 
-#             path, 
-#             dset_name='data',
-#             dtype=np.float32, # torch.float32
-#             compression=None
-#         ):
-#         self.f           = h5py.File(path, "w")
-#         self.dset        = None
-#         self.dset_name   = dset_name
-#         self.dtype       = dtype
-#         self.compression = compression
-#         self.offset      = 0          # 写入样本计数
+    elif isinstance(cfg, list):
+        return [resolve_paths(item, root) for item in cfg]
 
-#     def save(self, batch_arr):
-#         batch_arr = batch_arr.astype(self.dtype, copy=False)
-#         bsz       = len(batch_arr)
-
-#         # 第一次来时创建数据集（可无限增长）
-#         if self.dset is None:
-#             full_shape = (None,) + batch_arr.shape[1:]
-#             self.dset  = self.f.create_dataset(
-#                 self.dset_name, shape=(0,) + batch_arr.shape[1:],
-#                 maxshape=full_shape, chunks=True,
-#                 compression=self.compression, dtype=self.dtype)
-
-#         # 扩容 + 写入
-#         new_size = self.offset + bsz
-#         self.dset.resize(new_size, axis=0)
-#         self.dset[self.offset:new_size] = batch_arr
-#         self.offset = new_size
-
-#     def flush(self):
-#         self.f.flush()
-
-#     def close(self):
-#         self.f.flush()
-#         self.f.close()
+    else:
+        return cfg
