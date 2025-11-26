@@ -64,7 +64,7 @@ python 0_predict_Sei_VEF.py \
 ```bash
 python 0_predict_EpiCast_activity.py \
     --config ../configs/config_1120_test.yaml \
-    --seq_path ../data/Random/random_200bp_seqs.tsv \
+    --seq_path ../data/Random/random_200bp_seqs.csv \
     --VEF_path ../data/Random/random_200bp_Sei_VEF.tsv \
     --output_name random_200bp_EpiCast_pred.npy
 ```
