@@ -18,8 +18,8 @@ git clone https://github.com/maplecai/EpiCast.git
 ```
 2. Create a conda environment
 ```bash
-conda create -n mpra python=3.10
-conda activate mpra
+conda create -n epicast python=3.10
+conda activate epicast
 ```
 3. Install the required packages
 ```bash
