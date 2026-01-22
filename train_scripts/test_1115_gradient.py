@@ -7,7 +7,7 @@ from tqdm import tqdm
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from MPRA_predict import models, datasets, metrics, utils
+from genoml import models, datasets, metrics, utils
 
 
 @torch.no_grad()

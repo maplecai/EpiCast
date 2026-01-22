@@ -4,8 +4,8 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
 sys.path.append(str(ROOT_DIR))
-from MPRA_predict import models, datasets, metrics, utils
-from MPRA_predict.utils import *
+from genoml import models, datasets, metrics, utils
+from genoml.utils import *
 
 
 # file_name = "xxxx.tsv"

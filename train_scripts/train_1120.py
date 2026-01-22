@@ -17,7 +17,7 @@ from io import StringIO
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from MPRA_predict import models, datasets, metrics, utils
+from genoml import models, datasets, metrics, utils
 
 class Trainer:
     def __init__(self, config):
