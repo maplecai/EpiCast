@@ -1,5 +1,7 @@
 import os
 import re
+import sys
+import argparse
 import logging
 import numpy as np
 import pandas as pd
@@ -12,10 +14,11 @@ import torchinfo
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
-from torchmetrics import MetricCollection
-from torchmetrics.regression import MeanSquaredError, R2Score, PearsonCorrCoef
 
-from varlen_genomics import models, datasets, utils, metrics
+from torchmetrics import MetricCollection
+from torchmetrics.regression import MeanSquaredError, R2Score, PearsonCorrCoef, SpearmanCorrCoef
+
+from genoml import models, datasets, utils, metrics, training
 
 
 class Trainer:
@@ -102,14 +105,6 @@ class Trainer:
                 dataset=self.valid_dataset, 
                 sampler=self.valid_sampler,
             )
-            
-        # self.log(f'{len(self.train_dataset) = }')
-        # self.log(f'{len(self.valid_dataset) = }')
-        # self.log(f'{len(self.train_loader) = }')
-        # self.log(f'{len(self.valid_loader) = }')
-        # self.batch_size = config['batch_size']
-        # self.log(f'{self.batch_size = }')
-
 
         # setup model
         self.model = utils.init_obj(models, config['model'])
@@ -153,6 +148,7 @@ class Trainer:
         
         # setup training
         if 'transformer_args' in self.config['optimizer']:
+            # 区分不同层学习率
             transformer_params = []
             other_params = []
             for name, param in self.model.named_parameters():
@@ -191,33 +187,43 @@ class Trainer:
         )
 
         self.lr_scheduler = utils.init_obj(
-            utils, 
+            training, 
             config['lr_scheduler'], 
             self.optimizer
         )
         self.early_stopper = utils.init_obj(
-            utils, 
+            training, 
             config['early_stopper'], 
-            saved_root_dir=os.path.join(config['saved_root_dir']), 
+            saved_dir=os.path.join(config['saved_dir']), 
             trace_func=self.log
         )
         
+        self.cell_types = config['cell_types']
+
         self.metric_df = pd.DataFrame(columns=['mse', 'r2', 'pearson'])
 
         self.metrics = MetricCollection({
-            "mse": MeanSquaredError(num_outputs=5313, sync_on_compute=True),
-            "r2": R2Score(num_outputs=5313, sync_on_compute=True),
-            "pearson": PearsonCorrCoef(num_outputs=5313, sync_on_compute=True),
+            "mse": MeanSquaredError(num_outputs=len(self.cell_types), sync_on_compute=True),
+            "r2": R2Score(num_outputs=len(self.cell_types), multioutput="raw_values", sync_on_compute=True),
+            "pearson": PearsonCorrCoef(num_outputs=len(self.cell_types), sync_on_compute=True),
+            # "spearman": SpearmanCorrCoef(num_outputs=len(self.cell_types), sync_on_compute=True),
         }).to(self.device)
+
 
     def train(self):
         config = self.config
         max_epochs = config['max_epochs']
-        batch_size = config['batch_size']
         epochs_per_valid = config['epochs_per_valid']
+        batch_size = self.train_loader.batch_size
+        
 
-        self.log(f'max_epochs = {max_epochs}, batch_size = {batch_size}, epochs_per_valid = {epochs_per_valid}')
-        self.log(f'start training')
+        self.log(f'cell_types = {self.cell_types}')
+        self.log(f'len(train_dataset) = {len(self.train_dataset)}')
+        self.log(f'len(valid_dataset) = {len(self.valid_dataset)}')
+        self.log(f'len(train_loader) = {len(self.train_loader)}')
+        self.log(f'len(valid_loader) = {len(self.valid_loader)}')
+        self.log(f'max_epochs = {max_epochs}')
+        self.log(f'batch_size = {batch_size}')
 
         if self.local_rank == 0:
             sample = next(iter(self.train_loader))
@@ -230,6 +236,11 @@ class Trainer:
                 col_names=["input_size", "output_size", "num_params"],
                 row_settings=["var_names"],
             ))
+
+        self.log(f'start training ...')
+
+        self.epoch = -1
+        self.valid_epoch()
 
         for epoch in range(max_epochs):
             self.epoch = epoch
@@ -258,7 +269,6 @@ class Trainer:
 
         if self.distributed:
             dist.destroy_process_group()
-
 
 
     def train_epoch(self):
@@ -305,23 +315,29 @@ class Trainer:
             valid_steps += 1
             valid_loss += loss.item()
 
-            B, L, C = pred.shape
-            pred = pred.reshape(B*L, C)
-            target = target.reshape(B*L, C)
+            # B, C = pred.shape
             self.metrics.update(pred, target)
 
         valid_loss = valid_loss / valid_steps
-        # if self.distributed:
-        #     dist.all_reduce(valid_loss, op=dist.ReduceOp.SUM)
-        #     valid_loss = valid_loss / self.config['world_size']
         self.log(f'local_rank = {self.local_rank}, epoch = {self.epoch}, valid_loss = {valid_loss:.6f}')
 
         self.results = self.metrics.compute()
         if self.local_rank == 0:
             for name, val in self.results.items():
-                score = val.mean().cpu().numpy()
-                self.metric_df.loc[self.epoch, name] = score
-                self.log(f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name:9} = {score:.6f}")
+                val = val.detach().cpu()
+                for i, ct in enumerate(self.cell_types):
+                    v_i = val[i].item()
+                    if name == 'pearson':
+                        self.log(f"local_rank={self.local_rank}, epoch={self.epoch:3}, {name}[{i:02d} {ct}] = {v_i:.6f}")
+                    else:
+                        self.logger.debug(f"local_rank={self.local_rank}, epoch={self.epoch:3}, {name} {ct} = {v_i:.6f}")
+
+                mean_score = val.mean().item()
+                self.log(
+                    f"local_rank={self.local_rank}, epoch={self.epoch:3}, {name}_mean = {mean_score:.6f}"
+                )
+                self.metric_df.loc[self.epoch, f"{name}"] = mean_score
+
 
     @torch.no_grad()
     def test(self):

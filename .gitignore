@@ -19,10 +19,13 @@
 __pycache__/
 
 old/
+_*/
+_*
 data/
-output/
 outputs/
+saved/
 figures/
+
 pretrained_models/
 TFBS_based_models/
 explanations/
@@ -30,6 +33,4 @@ alpha_genome/
 analyze_epi_features/
 process_raw_data/
 padding_effect/
-saved/
-!saved/1120_final/1110_135744/checkpoint.pth
 predict_CRE_activity/artifacts/

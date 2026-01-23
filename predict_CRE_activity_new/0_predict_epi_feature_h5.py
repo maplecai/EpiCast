@@ -107,7 +107,7 @@ if __name__ == '__main__':
 
             # crop=False,
             crop=True,
-            cropped_length=200,
+            cropped_len=200,
 
             padding=True,
             padding_method='N',

@@ -1,4 +1,3 @@
-from .res_transformer import ResTransformer
-from .res_transformer_v2 import ResTransformerV2
-from .res_transformer_v2 import ResTransformerV2 as ResTransformer2
-from .enformer_wrapper import EnformerWrapper
+from .conv_transformer import ConvTransformer
+from .conv_transformer_feature import ConvTransformerFeature
+# from .enformer_wrapper import EnformerWrapper

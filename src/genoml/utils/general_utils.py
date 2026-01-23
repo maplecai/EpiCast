@@ -128,9 +128,16 @@ def process_config(cfg: dict) -> dict:
     
     if isinstance(cfg['logger'], OmegaConf):
         logging_cfg = OmegaConf.to_container(cfg['logger'], resolve=True)
-        logging.config.dictConfig(logging_cfg)
     else:
-        logging.config.dictConfig(cfg['logger'])
+        logging_cfg = cfg['logger']
+    
+    for _, handler in logging_cfg['handlers'].items():
+        if 'filename' in handler.keys():
+            handler['filename'] = os.path.join(saved_dir, handler['filename'])
+
+    logging.config.dictConfig(logging_cfg)   
+
+
     # save modified config file
     with open(os.path.join(saved_dir, 'config.yaml'), 'w') as f:
         yaml.dump(cfg, f)
@@ -160,15 +167,14 @@ def process_config_hydra(cfg: DictConfig) -> DictConfig:
 
 
 
-def detect_delimiter(csv_file_path):
-    with open(csv_file_path, 'r') as file:
-        first_line = file.readline()
-        if '\t' in first_line:
-            return '\t'
-        elif ',' in first_line:
-            return ','
-        else:
-            return ','
+def detect_delimiter(file_path):
+    if file_path.endswith('.csv'):
+        sep = ','
+    elif file_path.endswith('.tsv'):
+        sep = '\t'
+    else:
+        raise ValueError(f'{file_path} not endswith .csv or .tsv')
+    return sep
 
 
 class HDF5Writer:

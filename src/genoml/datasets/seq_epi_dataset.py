@@ -2,19 +2,13 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
-from ..utils import detect_delimiter, rc_seq, seq2onehot, crop_seq, pad_seq
+from ..utils import seq2onehot, detect_delimiter, pad_seq, crop_seq
 
-class SeqDataset(Dataset):
+class SeqEpiDataset(Dataset):
     def __init__(
         self,
-
-        data_path=None,
-        data_df=None,
-        data_list=None,
-
-        seq_column=None,
-        feature_column=None,
-        label_column=None,
+        seq_file_path=None,
+        epi_file_path=None,
 
         apply_filter=False,
         filter_column=None,
@@ -37,19 +31,22 @@ class SeqDataset(Dataset):
         pad_right_seq=None,
 
         N_fill_value=0.25,
+        augmentations=[],
 
-        aug_rc=False,
-        aug_rc_prob=0.5,
+        ###
+        seq_column='seq',
+        target_column=None,
+        
+        cell_types=None,
+        assays=None,
+        ###
+
     ) -> None:
         
         super().__init__()
-
-        self.data_path = data_path
-        self.data_df = data_df
-
-        self.seq_column = seq_column
-        self.feature_column = feature_column
-        self.label_column = label_column
+        
+        self.seq_file_path = seq_file_path
+        self.epi_file_path = epi_file_path
 
         self.apply_filter = apply_filter
         self.filter_column = filter_column
@@ -72,21 +69,18 @@ class SeqDataset(Dataset):
         self.pad_right_seq = pad_right_seq
 
         self.N_fill_value = N_fill_value
+        self.augmentations = augmentations
 
-        self.aug_rc = aug_rc
-        self.aug_rc_prob = aug_rc_prob
+        self.seq_column = seq_column
+        self.target_column = target_column
+
+        self.cell_types = cell_types
+        self.assays = assays
         
+        self.seq_df = pd.read_csv(seq_file_path, sep=detect_delimiter(seq_file_path))
+        self.epi_df = pd.read_csv(epi_file_path, sep=detect_delimiter(epi_file_path))
 
-        # read dataframe
-        if data_path is not None:
-            self.df = pd.read_csv(data_path, sep=detect_delimiter(data_path))
-        elif data_df is not None:
-            self.df = data_df
-        elif data_list is not None:
-            self.df = pd.DataFrame(data_list)
-            self.df.columns = ['seq']
-        else:
-            raise ValueError("data_path or data_df must be provided.")
+        self.df = pd.concat([self.seq_df, self.epi_df], axis=1)
 
         # filter data by filter_column
         if apply_filter:
@@ -106,20 +100,18 @@ class SeqDataset(Dataset):
                 end = int(len(self.df) * end)
             self.df = self.df.iloc[start:end].reset_index(drop=True)
 
-        # set seqs, features, labels
-        self.seqs = None
-        self.features = None
-        self.labels = None
+        # set seqs, features, targets
+        
+        self.seqs = self.df[seq_column].to_numpy().astype(str)
 
-        if seq_column:
-            self.seqs = self.df[seq_column].to_numpy().astype(str)
-        if feature_column:
-            self.features = self.df[feature_column].to_numpy()
-            self.features = torch.tensor(self.features, dtype=torch.float)
-        if label_column:
-            self.labels = self.df[label_column].to_numpy()
-            self.labels = torch.tensor(self.labels, dtype=torch.float)
-        ###
+        cols = [f"{cell_type}_{assay}" for cell_type in cell_types for assay in assays]
+        data = self.df[cols].to_numpy().reshape(len(self.df), len(cell_types), len(assays))
+        self.features = torch.from_numpy(data).float()
+
+        if target_column is not None:
+            self.targets = torch.from_numpy(self.df[target_column].to_numpy()).float()
+        else:
+            self.targets = None
 
 
 
@@ -136,14 +128,9 @@ class SeqDataset(Dataset):
             if self.crop:
                 seq = crop_seq(seq, self.cropped_len, self.crop_position)
             if self.pad:
-                seq = pad_seq(seq, self.padded_len, pad_position=self.pad_position, pad_mode=self.pad_mode, 
-                              genome=self.genome, pad_left_seq=self.pad_left_seq, pad_right_seq=self.pad_right_seq)
-
-            # reverse complement augmentation
-            if self.aug_rc:
-                if np.random.rand() < self.aug_rc_prob:
-                    seq = rc_seq(seq)
-
+                seq = pad_seq(
+                    seq, self.padded_len, pad_position=self.pad_position, pad_mode=self.pad_mode, 
+                    genome=self.genome, given_left_seq=self.pad_right_seq, given_right_seq=self.pad_right_seq)
             seq = torch.tensor(seq2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
             sample['seq'] = seq
 
@@ -151,20 +138,24 @@ class SeqDataset(Dataset):
             feature = self.features[index]
             sample['feature'] = feature
 
-        if self.labels is not None:
-            label = self.labels[index]
-            sample['label'] = label
+        if self.targets is not None:
+            target = self.targets[index]
+            sample['target'] = target
 
         return sample
 
 
 
+if __name__ == '__main__':
+    dataset = SeqEpiDataset(
+        seq_file_path = './data/Gosai_MPRA/Gosai_MPRA_760679.tsv', 
+        epi_file_path = './data/Gosai_MPRA/Gosai_MPRA_AG_VEF_scalelog1p.tsv',
+        seq_column = 'seq',
+        target_column = ['K562', 'HepG2'],
+        cell_types = ['K562', 'HepG2'],
+        assays = ['DNase', 'H3K4me3'],
+    )
 
-# if __name__ == '__main__':
-#     dataset = SeqDataset(
-#         data_path='../predict_short_sequence_features/data/enformer_sequences_test_100.csv',
-#         input_column='seq',
-#         crop=True,
-#         cropped_len=200,
-#         )
-#     print(dataset[0]['seq'].shape)
+    print(len(dataset))
+    print(dataset[0])
+    
