@@ -27,7 +27,7 @@ class ConvBlock(nn.Module):
         elif activation == 'gelu':
             self.act = nn.GELU()
         else:
-            raise ValueError(f'Invalid activation:{self.activation}')
+            raise ValueError(f'Inval activation:{self.activation}')
         self.bn = nn.BatchNorm1d(out_channels)
 
     def forward(self, x):
@@ -40,7 +40,7 @@ class ConvBlock(nn.Module):
             out = self.act(out)
             out = self.bn(out)
         else:
-            raise ValueError(f'Invalid layer_order:{self.layer_order}')
+            raise ValueError(f'Inval layer_order:{self.layer_order}')
         return out
 
 
@@ -81,7 +81,7 @@ class ResConvBlock(nn.Module):
             self.act1 = nn.GELU()
             self.act2 = nn.GELU()
         else:
-            raise ValueError(f'Invalid activation:{self.activation}')
+            raise ValueError(f'Inval activation:{self.activation}')
 
         if in_channels != out_channels:
             self.shortcut = nn.Sequential(
@@ -106,5 +106,5 @@ class ResConvBlock(nn.Module):
             z = self.bn2(self.act2(self.conv2(z)))
             out = z + self.shortcut(x)
         else:
-            raise ValueError(f'Invalid layer_order:{self.layer_order}')
+            raise ValueError(f'Inval layer_order:{self.layer_order}')
         return out

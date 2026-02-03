@@ -27,8 +27,8 @@ class SeqEpiDataset(Dataset):
         pad_mode='N',
         padded_len=None,
         genome=None,
-        pad_left_seq=None,
-        pad_right_seq=None,
+        left_pad_seq=None,
+        right_pad_seq=None,
 
         N_fill_value=0.25,
         augmentations=[],
@@ -65,8 +65,8 @@ class SeqEpiDataset(Dataset):
         self.pad_mode = pad_mode
         self.padded_len = padded_len
         self.genome = genome
-        self.pad_left_seq = pad_left_seq
-        self.pad_right_seq = pad_right_seq
+        self.left_pad_seq = left_pad_seq
+        self.right_pad_seq = right_pad_seq
 
         self.N_fill_value = N_fill_value
         self.augmentations = augmentations
@@ -130,7 +130,7 @@ class SeqEpiDataset(Dataset):
             if self.pad:
                 seq = pad_seq(
                     seq, self.padded_len, pad_position=self.pad_position, pad_mode=self.pad_mode, 
-                    genome=self.genome, given_left_seq=self.pad_right_seq, given_right_seq=self.pad_right_seq)
+                    genome=self.genome, given_left_seq=self.right_pad_seq, given_right_seq=self.right_pad_seq)
             seq = torch.tensor(seq2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
             sample['seq'] = seq
 

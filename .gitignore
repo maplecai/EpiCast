@@ -26,10 +26,11 @@ outputs/
 saved/
 figures/
 
+artifacts/
 pretrained_models/
 TFBS_based_models/
 explanations/
-alpha_genome/
+alphagenome/
 analyze_epi_features/
 process_raw_data/
 padding_effect/

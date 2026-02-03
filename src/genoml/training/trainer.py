@@ -59,8 +59,10 @@ class Trainer:
 
         if self.local_rank == 0:
             self.log = self.logger.info
+            self.debug = self.logger.debug
         else:
             self.log = self.logger.debug
+            self.debug = self.logger.debug
         
         yaml = YAML()
         stream = StringIO()
@@ -72,9 +74,9 @@ class Trainer:
             datasets, 
             config['train_dataset'],
         )
-        self.valid_dataset = utils.init_obj(
+        self.val_dataset = utils.init_obj(
             datasets, 
-            config['valid_dataset'],
+            config['val_dataset'],
         )
         
         if not self.distributed:
@@ -84,26 +86,26 @@ class Trainer:
                 dataset=self.train_dataset, 
             )
 
-            self.valid_loader = utils.init_obj(
+            self.val_loader = utils.init_obj(
                 torch.utils.data,
-                config['valid_loader'],
-                dataset=self.valid_dataset, 
+                config['val_loader'],
+                dataset=self.val_dataset, 
             )
             
         else:
             self.train_sampler = DistributedSampler(self.train_dataset, shuffle=True)
-            self.valid_sampler = DistributedSampler(self.valid_dataset, shuffle=False)
+            self.val_sampler = DistributedSampler(self.val_dataset, shuffle=False)
             self.train_loader = utils.init_obj(
                 torch.utils.data,
                 config['train_loader'],
                 dataset=self.train_dataset, 
                 sampler=self.train_sampler,
             )
-            self.valid_loader = utils.init_obj(
+            self.val_loader = utils.init_obj(
                 torch.utils.data,
-                config['valid_loader'],
-                dataset=self.valid_dataset, 
-                sampler=self.valid_sampler,
+                config['val_loader'],
+                dataset=self.val_dataset, 
+                sampler=self.val_sampler,
             )
 
         # setup model
@@ -213,15 +215,15 @@ class Trainer:
     def train(self):
         config = self.config
         max_epochs = config['max_epochs']
-        epochs_per_valid = config['epochs_per_valid']
+        epochs_per_val = config['epochs_per_val']
         batch_size = self.train_loader.batch_size
         
 
         self.log(f'cell_types = {self.cell_types}')
         self.log(f'len(train_dataset) = {len(self.train_dataset)}')
-        self.log(f'len(valid_dataset) = {len(self.valid_dataset)}')
+        self.log(f'len(val_dataset) = {len(self.val_dataset)}')
         self.log(f'len(train_loader) = {len(self.train_loader)}')
-        self.log(f'len(valid_loader) = {len(self.valid_loader)}')
+        self.log(f'len(val_loader) = {len(self.val_loader)}')
         self.log(f'max_epochs = {max_epochs}')
         self.log(f'batch_size = {batch_size}')
 
@@ -240,23 +242,23 @@ class Trainer:
         self.log(f'start training ...')
 
         self.epoch = -1
-        self.valid_epoch()
+        self.val_epoch()
 
         for epoch in range(max_epochs):
             self.epoch = epoch
             if self.distributed:
                 self.train_sampler.set_epoch(epoch)
 
-            # # valid one epoch before training
+            # # val one epoch before training
             # if (epoch == 0):
-            #     self.valid_epoch()
+            #     self.val_epoch()
 
             self.log(f'train on epoch {epoch}')
             self.train_epoch()
             
-            if ((epoch+1) % epochs_per_valid == 0):
-                self.log(f'valid on epoch {epoch}')
-                self.valid_epoch()
+            if ((epoch+1) % epochs_per_val == 0):
+                self.log(f'val on epoch {epoch}')
+                self.val_epoch()
 
                 if (self.local_rank == 0) and (self.early_stopper is not None):
                     self.early_stopper.check(self.metric_df.loc[self.epoch, 'pearson'])
@@ -301,43 +303,43 @@ class Trainer:
 
 
     @torch.no_grad()
-    def valid_epoch(self):
-        valid_steps = 0
-        valid_loss = 0
+    def val_epoch(self):
+        val_steps = 0
+        val_loss = 0
 
         self.model.eval()
         self.metrics.reset()
-        for batch_idx, sample in enumerate(tqdm(self.valid_loader, disable=(self.local_rank != 0))):
+        for batch_idx, sample in enumerate(tqdm(self.val_loader, disable=(self.local_rank != 0))):
             sample = utils.to_device(sample, self.device)
             pred = self.model(sample)
             target = sample['target']
             loss = self.loss_func(pred, target)
-            valid_steps += 1
-            valid_loss += loss.item()
+            val_steps += 1
+            val_loss += loss.item()
 
             # B, C = pred.shape
             self.metrics.update(pred, target)
 
-        valid_loss = valid_loss / valid_steps
-        self.log(f'local_rank = {self.local_rank}, epoch = {self.epoch}, valid_loss = {valid_loss:.6f}')
+        val_loss = val_loss / val_steps
+        self.log(f'local_rank = {self.local_rank}, epoch = {self.epoch}, val_loss = {val_loss:.6f}')
 
         self.results = self.metrics.compute()
         if self.local_rank == 0:
             for name, val in self.results.items():
+                val_mean = val.mean().item()
+                self.log(
+                    f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} mean = {val_mean:.6f}"
+                )
+                self.metric_df.loc[self.epoch, f"{name}"] = val_mean
+
+            for name, val in self.results.items():
                 val = val.detach().cpu()
                 for i, ct in enumerate(self.cell_types):
-                    v_i = val[i].item()
+                    value_i = val[i].item()
                     if name == 'pearson':
-                        self.log(f"local_rank={self.local_rank}, epoch={self.epoch:3}, {name}[{i:02d} {ct}] = {v_i:.6f}")
+                        self.log(f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} {ct} = {value_i:.6f}")
                     else:
-                        self.logger.debug(f"local_rank={self.local_rank}, epoch={self.epoch:3}, {name} {ct} = {v_i:.6f}")
-
-                mean_score = val.mean().item()
-                self.log(
-                    f"local_rank={self.local_rank}, epoch={self.epoch:3}, {name}_mean = {mean_score:.6f}"
-                )
-                self.metric_df.loc[self.epoch, f"{name}"] = mean_score
-
+                        self.debug(f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} {ct} = {value_i:.6f}")
 
     @torch.no_grad()
     def test(self):
@@ -360,7 +362,7 @@ class Trainer:
         return
 
 
-    def save_checkpoint(self, epoch, step, filename="checkpoint.pt"):
+    def save_checkpoint(self, epoch, step, filename="checkpoint.pth"):
         """Save model/optimizer/lr_scheduler states.
 
         Args:
@@ -373,7 +375,7 @@ class Trainer:
         if self.distributed and self.local_rank != 0:
             return
 
-        save_path = os.path.join(self.config['saved_root_dir'], filename)
+        save_path = os.path.join(self.config['saved_dir'], filename)
 
         # If using DDP, model is wrapped in model.module
         model_to_save = self.model.module if hasattr(self.model, "module") else self.model
@@ -393,7 +395,7 @@ class Trainer:
 
 
 
-    def load_checkpoint(self, filename="checkpoint.pt", load_optimizer=True, load_lr_scheduler=True):
+    def load_checkpoint(self, filename="checkpoint.pth", load_optimizer=True, load_lr_scheduler=True):
         """
         Load model/optimizer/lr_scheduler states.
 

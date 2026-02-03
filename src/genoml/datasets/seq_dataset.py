@@ -14,7 +14,7 @@ class SeqDataset(Dataset):
 
         seq_column=None,
         feature_column=None,
-        label_column=None,
+        target_column=None,
 
         apply_filter=False,
         filter_column=None,
@@ -33,8 +33,8 @@ class SeqDataset(Dataset):
         pad_mode='N',
         padded_len=None,
         genome=None,
-        pad_left_seq=None,
-        pad_right_seq=None,
+        left_pad_seq=None,
+        right_pad_seq=None,
 
         N_fill_value=0.25,
 
@@ -49,7 +49,7 @@ class SeqDataset(Dataset):
 
         self.seq_column = seq_column
         self.feature_column = feature_column
-        self.label_column = label_column
+        self.target_column = target_column
 
         self.apply_filter = apply_filter
         self.filter_column = filter_column
@@ -68,8 +68,8 @@ class SeqDataset(Dataset):
         self.pad_mode = pad_mode
         self.padded_len = padded_len
         self.genome = genome
-        self.pad_left_seq = pad_left_seq
-        self.pad_right_seq = pad_right_seq
+        self.left_pad_seq = left_pad_seq
+        self.right_pad_seq = right_pad_seq
 
         self.N_fill_value = N_fill_value
 
@@ -106,19 +106,19 @@ class SeqDataset(Dataset):
                 end = int(len(self.df) * end)
             self.df = self.df.iloc[start:end].reset_index(drop=True)
 
-        # set seqs, features, labels
+        # set seqs, features, targets
         self.seqs = None
         self.features = None
-        self.labels = None
+        self.targets = None
 
         if seq_column:
             self.seqs = self.df[seq_column].to_numpy().astype(str)
         if feature_column:
             self.features = self.df[feature_column].to_numpy()
             self.features = torch.tensor(self.features, dtype=torch.float)
-        if label_column:
-            self.labels = self.df[label_column].to_numpy()
-            self.labels = torch.tensor(self.labels, dtype=torch.float)
+        if target_column:
+            self.targets = self.df[target_column].to_numpy()
+            self.targets = torch.tensor(self.targets, dtype=torch.float)
         ###
 
 
@@ -137,7 +137,7 @@ class SeqDataset(Dataset):
                 seq = crop_seq(seq, self.cropped_len, self.crop_position)
             if self.pad:
                 seq = pad_seq(seq, self.padded_len, pad_position=self.pad_position, pad_mode=self.pad_mode, 
-                              genome=self.genome, pad_left_seq=self.pad_left_seq, pad_right_seq=self.pad_right_seq)
+                              genome=self.genome, left_pad_seq=self.left_pad_seq, right_pad_seq=self.right_pad_seq)
 
             # reverse complement augmentation
             if self.aug_rc:
@@ -151,9 +151,9 @@ class SeqDataset(Dataset):
             feature = self.features[index]
             sample['feature'] = feature
 
-        if self.labels is not None:
-            label = self.labels[index]
-            sample['label'] = label
+        if self.targets is not None:
+            target = self.targets[index]
+            sample['target'] = target
 
         return sample
 

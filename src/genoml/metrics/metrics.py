@@ -67,7 +67,7 @@ def pearson(x: np.ndarray, y: np.ndarray) -> float:
     else:
         print('after remove nan, len(x) < 2, pearson = nan')
         r, p = np.nan, np.nan
-    return r
+    return r, p
 
 
 def spearman(x: np.ndarray, y: np.ndarray) -> float:

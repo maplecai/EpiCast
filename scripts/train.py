@@ -12,7 +12,7 @@ if __name__ == '__main__':
     config_path = args.config_path
 
     config = utils.load_config(config_path)
-    config = utils.resolve_config_paths(config, ROOT_DIR)
+    # config = utils.resolve_config_paths(config, ROOT_DIR)
     config = utils.process_config(config)
 
     trainer = utils.init_obj(

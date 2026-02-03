@@ -19,7 +19,7 @@ class FiLM(nn.Module):
     def __init__(
         self,
         num_features: int,     # C
-        cond_dim: int,         # condition 的维度
+        cond_dim: int,         # mask 的维度
         hidden_dim: int = 128, # MLP 中间层（可改小/改大/设为 0 表示线性）
         channel_dim: int = 1,  # x 的通道维度位置，默认 [B, C, ...] => 1
         affine: bool = True,   # 是否乘 gamma；若 False 则只加 beta
@@ -53,7 +53,7 @@ class FiLM(nn.Module):
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
         """
         x: 输入特征
-        c: condition 向量 [B, cond_dim]
+        c: mask 向量 [B, cond_dim]
         """
         B = x.shape[0]
         params = self.net(c)  # [B, out_dim]

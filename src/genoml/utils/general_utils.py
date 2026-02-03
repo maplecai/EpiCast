@@ -91,7 +91,7 @@ def init_obj(module, obj_dict: dict, *args, **kwargs):
     if not obj_dict:
         return None
     if not isinstance(obj_dict, dict):
-        raise TypeError("invalid init object dict")
+        raise TypeError("inval init object dict")
 
     name = obj_dict["type"]
     module_args = {**obj_dict.get("args", {}), **kwargs}
@@ -113,18 +113,18 @@ def init_obj(module, obj_dict: dict, *args, **kwargs):
 def load_config(config_path: str) -> dict:
     with open(config_path, 'r') as f:
         cfg = yaml.load(f)
-    cfg['config_name'] = os.path.basename(config_path)
+    cfg['config_name'] = Path(config_path).stem
     return cfg
 
 
 def process_config(cfg: dict) -> dict:
     config_name = cfg['config_name']
-    saved_root_dir = cfg['saved_root_dir']
-    run_id = datetime.now().strftime(r'%m%d_%H%M%S')
 
-    saved_dir = os.path.join(saved_root_dir, config_name, run_id)
-    os.makedirs(saved_dir, exist_ok=True)
-    cfg['saved_dir'] = saved_dir
+    saved_root_dir = Path(cfg['saved_root_dir'])
+    run_id = datetime.now().strftime(r'%m%d_%H%M%S')
+    saved_dir = (saved_root_dir / config_name / run_id)
+    saved_dir.mkdir(parents=True, exist_ok=False)  # 避免同秒覆盖
+    cfg["saved_dir"] = str(saved_dir)
     
     if isinstance(cfg['logger'], OmegaConf):
         logging_cfg = OmegaConf.to_container(cfg['logger'], resolve=True)
@@ -137,9 +137,8 @@ def process_config(cfg: dict) -> dict:
 
     logging.config.dictConfig(logging_cfg)   
 
-
-    # save modified config file
-    with open(os.path.join(saved_dir, 'config.yaml'), 'w') as f:
+    # save modified config
+    with (saved_dir / "config.yaml").open("w", encoding="utf-8") as f:
         yaml.dump(cfg, f)
     
     return cfg

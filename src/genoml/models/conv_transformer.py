@@ -9,7 +9,7 @@ from .film import FiLM
 class ConvTransformer(nn.Module):
     def __init__(
         self, 
-        input_seq_length=196608,
+        input_seq_length=200,
         input_seq_channels=4,
         output_dim=1,
         target_length=None,
@@ -33,22 +33,19 @@ class ConvTransformer(nn.Module):
 
         trans_add_cls=False,
         trans_output_mode='seq_all',
-        
-        fusion_type = 'film',
 
-        num_linear_blocks=0,
+        num_linear_blocks=1,
         linear_channels=1024,
         linear_dropout_rate=0.5,
     ):
         super().__init__()
 
-        self.input_seq_length       = input_seq_length
-        self.input_seq_channels     = input_seq_channels
+        self.input_seq_length   = input_seq_length
+        self.input_seq_channels = input_seq_channels
         self.output_dim         = output_dim
         self.total_token_length = self.input_seq_length // (pool_kernel_size ** num_conv_blocks) # 1536 or 1024
         self.target_length      = target_length # 896
         self.squeeze            = squeeze
-        self.fusion_type        = fusion_type
 
         self.trans_output_mode  = trans_output_mode
         self.trans_add_cls      = trans_add_cls
@@ -128,27 +125,41 @@ class ConvTransformer(nn.Module):
         else:
             raise ValueError(f"Unsupported last_activation mode: {self.last_activation}")
 
-    def forward_trans_layers(self, tokens: torch.Tensor) -> torch.Tensor:
 
-        batch_size, seq_len, hidden_dim = tokens.shape
+    def forward_conv(self, seq: torch.Tensor):
+        seq = seq.permute(0, 2, 1)
+        seq_emb = self.conv_layers(seq)
+        seq_emb = seq_emb.permute(0, 2, 1)
+        return seq_emb
 
+    def forward_trans(self, tokens: torch.Tensor) -> torch.Tensor:
+        B, L, H = tokens.shape
         if self.trans_add_cls:
-            tokens = torch.cat([self.cls_token.expand(batch_size, 1, -1), tokens], 1)
+            tokens = torch.cat([self.cls_token.expand(B, 1, -1), tokens], 1)
         cls_len = int(self.trans_add_cls)
 
         out = self.trans_layers(tokens)
 
         if self.trans_output_mode == 'cls':
-            return out[:, 0]
-        elif self.trans_output_mode == 'seq_mean':
-            return out[:, cls_len:].mean(1)
+            out = out[:, 0]
+        elif self.trans_output_mode == 'seq_avg':
+            out = out[:, cls_len:].mean(1)
         elif self.trans_output_mode == 'seq_all':
-            return out[:, cls_len:]
+            out = out[:, cls_len:]
+        elif self.trans_output_mode == 'seq_flatten':
+            out = out[:, cls_len:].reshape(B, -1)
         elif self.trans_output_mode == 'all':
-            return out
+            out = out
         else:
             raise ValueError(f"Unsupported trans_output_mode mode: {self.trans_output_mode}")
 
+        return out
+
+    def forward_linear(self, emb: torch.Tensor):
+        out = self.linear_layers(emb)
+        if self.squeeze:
+            out = out.squeeze(-1)
+        return out
 
     def forward(self, inputs: torch.Tensor | dict | list) -> torch.Tensor:
         if isinstance(inputs, torch.Tensor):
@@ -164,71 +175,13 @@ class ConvTransformer(nn.Module):
         expected_shape = (batch_size, self.input_seq_length, self.input_seq_channels)
         assert seq.shape == expected_shape, f"{seq.shape = }, {expected_shape = }"
 
-        seq = seq.permute(0, 2, 1)
-        seq_embedding = self.conv_layers(seq)
-        seq_embedding = seq_embedding.permute(0, 2, 1)
-        out = self.forward_trans_layers(seq_embedding)
+        emb = self.forward_conv(seq)
+        emb = self.forward_trans(emb)
+        out = self.forward_linear(emb)
 
         if self.target_length is not None:
             start = (self.total_token_length - self.target_length) // 2
             end = start + self.target_length
             out = out[:, start:end]
-
-        
-        
-
-        out = self.linear_layers(out)
-        if self.squeeze:
-            out = out.squeeze(-1)
         return out
 
-
-
-# if __name__ == '__main__':
-
-#     yaml_str = '''
-#         model:
-#             _target_: varlen_genomics.models.MyResTransformer
-
-#             input_seq_length:       200
-#             input_seq_channels:     4
-#             output_dim:             1
-#             sigmoid:                False
-#             squeeze:                True
-
-#             conv_first_channels:    256
-#             conv_first_kernel_size: 7
-#             conv_layer_order:       conv_bn_add_relu
-#             conv_channels_list:     [256,256,256,256,256,256]
-#             conv_kernel_size_list:  [3,3,3,3,3,3]
-#             pool_kernel_size_list:  [2,2,2,2,2,2]
-#             conv_dropout_rate:      0.2
-
-#             num_trans_blocks: 3
-#             trans_d_embed: 256
-#             trans_n_heads: 4
-#             trans_d_mlp: 256
-#             trans_dropout_rate: 0.2
-#             trans_add_cls: False
-#             trans_output_mode: seq_all
-
-#             linear_channels_list: [1024]
-#             linear_dropout_rate: 0.5
-#         '''
-#     import yaml
-#     import torchinfo
-#     from hydra.utils import instantiate
-
-#     config = yaml.load(yaml_str, Loader=yaml.FullLoader)
-#     model = instantiate(config['model'])
-
-#     seq = torch.zeros(size=(16, 4, 200))
-#     inputs = {'seq': seq}
-
-#     torchinfo.summary(
-#         model, 
-#         input_data=(inputs,), 
-#         depth=6, 
-#         col_names=["input_size", "output_size", "num_params"],
-#         row_settings=["var_names"],
-#     )

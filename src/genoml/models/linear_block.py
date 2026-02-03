@@ -19,7 +19,7 @@ class LinearBlock(nn.Module):
         elif activation == 'gelu':
             self.act = nn.GELU()
         else:
-            raise ValueError(f'Invalid activation:{activation}')
+            raise ValueError(f'Inval activation:{activation}')
 
     def forward(self, x):
         out = self.linear(x)

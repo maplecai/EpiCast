@@ -158,8 +158,6 @@ class ConvTransformerFeature(nn.Module):
             out = out[:, cls_len:].mean(1)
         elif self.trans_output_mode == 'seq_all':
             out = out[:, cls_len:]
-        elif self.trans_output_mode == 'seq_flatten':
-            out = out[:, cls_len:].reshape(B, -1)
         elif self.trans_output_mode == 'all':
             out = out
         else:

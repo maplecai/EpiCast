@@ -102,14 +102,14 @@ def create_length_bucketed_collate_fn(token_size: int = 128, min_batch_size: int
 
         # 选出样本数最多的长度组（由于我们在Dataset层做了同步，这里通常只会有一种长度）
         main_len = max(length_groups, key=lambda k: len(length_groups[k]))
-        valid_samples = length_groups[main_len]
+        val_samples = length_groups[main_len]
 
-        if len(valid_samples) < min_batch_size:
+        if len(val_samples) < min_batch_size:
             return {}
 
         # 常规堆叠
-        seqs = torch.stack([torch.as_tensor(s['seq']) for s in valid_samples])
-        targets = torch.stack([torch.as_tensor(s['target']) for s in valid_samples])
+        seqs = torch.stack([torch.as_tensor(s['seq']) for s in val_samples])
+        targets = torch.stack([torch.as_tensor(s['target']) for s in val_samples])
 
         return {
             'seq': seqs,

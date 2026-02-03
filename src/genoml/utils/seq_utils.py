@@ -113,8 +113,8 @@ def onehot2seq(onehot: np.ndarray | torch.Tensor) -> str:
     L = onehot.shape[0]
     codes = np.full(L, _N_CODE, dtype=np.uint8)
 
-    valid = maxv > 0.5
-    codes[valid] = _BASE_CODES_NP[idx[valid]]
+    val = maxv > 0.5
+    codes[val] = _BASE_CODES_NP[idx[val]]
 
     return codes.tobytes().decode("ascii")
 
@@ -176,8 +176,8 @@ def pad_seq(
         padded_len: int, 
         pad_mode: str = 'N', 
         pad_position: str = 'both_sides', 
-        pad_left_seq: str = None, 
-        pad_right_seq: str = None, 
+        left_pad_seq: str = None, 
+        right_pad_seq: str = None, 
         genome: Fasta=None
     ) -> str:
 
@@ -239,32 +239,32 @@ def pad_seq(
     #     if left_len <= 0:
     #         left_seq = ''
     #     else:
-    #         if left_len <= len(pad_left_seq):
-    #             left_seq = pad_left_seq[-left_len:]
+    #         if left_len <= len(left_pad_seq):
+    #             left_seq = left_pad_seq[-left_len:]
     #         else:
-    #             left_seq = 'N' * (left_len - len(pad_left_seq)) + pad_left_seq
+    #             left_seq = 'N' * (left_len - len(left_pad_seq)) + left_pad_seq
         
     #     if right_len <= 0:
     #         right_seq = ''
     #     else:
-    #         if right_len <= len(pad_right_seq):
-    #             right_seq = pad_right_seq[:right_len]
+    #         if right_len <= len(right_pad_seq):
+    #             right_seq = right_pad_seq[:right_len]
     #         else:
-    #             right_seq = pad_right_seq + 'N' * (right_len - len(pad_right_seq))
+    #             right_seq = right_pad_seq + 'N' * (right_len - len(right_pad_seq))
 
     elif pad_mode == 'given':
         if left_len == 0:
             left_seq = ''
-        elif len(pad_left_seq) < left_len:
-            left_seq = 'N' * (left_len - len(pad_left_seq)) + pad_left_seq
+        elif len(left_pad_seq) < left_len:
+            left_seq = 'N' * (left_len - len(left_pad_seq)) + left_pad_seq
         else:
-            left_seq = pad_left_seq[-left_len:]
+            left_seq = left_pad_seq[-left_len:]
         if right_len == 0:
             right_seq = ''
-        elif len(pad_right_seq) < right_len:
-            right_seq =  pad_right_seq + 'N' * (right_len - len(pad_right_seq))
+        elif len(right_pad_seq) < right_len:
+            right_seq =  right_pad_seq + 'N' * (right_len - len(right_pad_seq))
         else:
-            right_seq = pad_right_seq[:right_len]
+            right_seq = right_pad_seq[:right_len]
         
     else:
         raise ValueError('pad_mode must be "N", "random", or "given"')
