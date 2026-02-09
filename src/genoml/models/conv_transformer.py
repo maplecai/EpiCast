@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import math
 
 from .conv_block import ConvBlock, ResConvBlock
 from .linear_block import LinearBlock, SqueezeLayer
@@ -9,8 +10,8 @@ from .film import FiLM
 class ConvTransformer(nn.Module):
     def __init__(
         self, 
-        input_seq_length=200,
-        input_seq_channels=4,
+        input_len=200,
+        input_channels=4,
         output_dim=1,
         target_length=None,
         last_activation=None,
@@ -40,22 +41,26 @@ class ConvTransformer(nn.Module):
     ):
         super().__init__()
 
-        self.input_seq_length   = input_seq_length
-        self.input_seq_channels = input_seq_channels
+        self.input_len          = input_len
+        self.input_channels     = input_channels
         self.output_dim         = output_dim
-        self.total_token_length = self.input_seq_length // (pool_kernel_size ** num_conv_blocks) # 1536 or 1024
-        self.target_length      = target_length # 896
+
+        self.target_length      = target_length
         self.squeeze            = squeeze
+
+
 
         self.trans_output_mode  = trans_output_mode
         self.trans_add_cls      = trans_add_cls
         self.cls_token = nn.Parameter(torch.zeros(1, 1, trans_d_embed))
 
+        current_shape = (input_channels, input_len)
+
         self.conv_layers = nn.Sequential()
         for i in range(num_conv_blocks):
             self.conv_layers.add_module(
                 f'conv_block_{i}', ResConvBlock(
-                    in_channels=input_seq_channels if i == 0 else conv_channels, 
+                    in_channels=input_channels if i == 0 else conv_channels, 
                     out_channels=conv_channels, 
                     kernel_size=conv_kernel_size, 
                     stride=1, 
@@ -76,6 +81,11 @@ class ConvTransformer(nn.Module):
                 f'conv_dropout_{i}', nn.Dropout(conv_dropout_rate)
             )
 
+        L = input_len
+        for _ in range(num_conv_blocks):
+            if pool_kernel_size != 1:
+                L = math.ceil(L / pool_kernel_size)
+        current_shape = (conv_channels, L)
 
         self.trans_layers = nn.Sequential()
         for i in range(num_trans_blocks):
@@ -87,13 +97,18 @@ class ConvTransformer(nn.Module):
                     dropout_rate=trans_dropout_rate
                 )
             )
-
+        
+        current_shape = (L, trans_d_embed)
+        if trans_output_mode == 'seq_flatten':
+            linear_in_channels = trans_d_embed * L
+        else:
+            linear_in_channels = trans_d_embed
         
         self.linear_layers = nn.Sequential()
         for i in range(num_linear_blocks):
             self.linear_layers.add_module(
                 f'linear_block_{i}', LinearBlock(
-                    in_channels=trans_d_embed, 
+                    in_channels=linear_in_channels if i == 0 else linear_channels, 
                     out_channels=linear_channels,
                     activation='relu',
                 )
@@ -172,7 +187,7 @@ class ConvTransformer(nn.Module):
             raise TypeError(f"Unsupported input type: {type(inputs)}")
         
         batch_size = seq.shape[0]
-        expected_shape = (batch_size, self.input_seq_length, self.input_seq_channels)
+        expected_shape = (batch_size, self.input_len, self.input_channels)
         assert seq.shape == expected_shape, f"{seq.shape = }, {expected_shape = }"
 
         emb = self.forward_conv(seq)

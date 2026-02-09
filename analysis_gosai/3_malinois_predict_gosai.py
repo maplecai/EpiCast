@@ -1,6 +1,10 @@
+import os
+import sys
+import argparse
 import numpy as np
 import pandas as pd
 import torch
+import torch.utils.data
 import torchinfo
 from tqdm import tqdm
 
@@ -9,7 +13,7 @@ from genoml import models, datasets, utils, metrics
 from torch.utils.data import DataLoader
 
 @torch.no_grad()
-def get_preds(model, dataloader, device='cuda'):
+def get_preds(model, dataloader, device='cuda', reverse_comp=False):
     model.eval()
     model = model.to(device)
     preds = []
@@ -17,17 +21,24 @@ def get_preds(model, dataloader, device='cuda'):
         seq = batch['seq']
         seq = seq.to(device)
         seq = seq.permute(0, 2, 1)
-        pred = (model(seq) + model(seq.flip(dims=[1,2]))) / 2
+        if not reverse_comp:
+            pred = model(seq)
+        else:
+            pred1 = model(seq)
+            pred2 = model(seq.flip(dims=[1,2]))
+            pred = (pred1 + pred2) / 2
         preds.append(pred.detach())
     preds = torch.cat(preds, dim=0).cpu().numpy()
+    torch.cuda.empty_cache()
     return preds
 
 
-def main():
+def main(args):
+    model_path = args.model_path
+    data_path = args.data_path
     device = utils.get_free_gpus()[0]
-
-    model_dir = 'pretrained_models/malinois/original/artifacts'
-    model = boda.common.utils.model_fn(model_dir)
+    
+    model = boda.common.utils.model_fn(model_path)
     torchinfo.summary(model, (1, 4, 600))
     
     # # Malinois original dataset process, same results with malinois official tutorial
@@ -44,7 +55,7 @@ def main():
     
 
     # our processed dataset
-    mpra_df = pd.read_csv('data/Gosai_MPRA/Gosai_MPRA_760679.tsv', sep='\t')
+    mpra_df = pd.read_csv(data_path, sep='\t')
     print(mpra_df.shape)
     print(mpra_df.columns)
 
@@ -68,44 +79,38 @@ def main():
     )
     dataloader = DataLoader(dataset, batch_size=64, shuffle=False)
 
-    preds = get_preds(model, dataloader, device)
-    preds_df  = pd.DataFrame(preds, columns=['K562_pred', 'HepG2_pred', 'SK-N-SH_pred'] )
+    preds = get_preds(model, dataloader, device, reverse_comp=True)
+    np.save('outputs/predictions/malinois_original_pred.npy', preds)
+    # preds_df  = pd.DataFrame(preds, columns=['K562_pred', 'HepG2_pred', 'SK-N-SH_pred'] )
 
-    for split in ['train', 'val', 'test']:
-        print(split)
-        for cell in ['K562', 'HepG2', 'SK-N-SH']:
-            mask= splits[split]
-            pred = preds_df.loc[mask, f'{cell}_pred']
-            true = mpra_df.loc[mask, f'{cell}']
-            r, p = metrics.pearson(pred, true)
-            print(f'{cell}, pearsonr: {r:.4f}')
-            # r, p = metrics.spearman(pred, true)
-            # print(f'{cell}, spearmanr: {r:.4f}')
-
-
-
-    # model_dir = 'pretrained_models/malinois/original/artifacts'
-    # model = boda.common.utils.model_fn(model_dir)
-    # preds = get_preds(model, dataloader, device)
-    # np.save('outputs/predictions/malinois_original_pred.npy', preds)
+    # for split in ['train', 'val', 'test']:
+    #     print(split)
+    #     for cell in ['K562', 'HepG2', 'SK-N-SH']:
+    #         mask= splits[split]
+    #         pred = preds_df.loc[mask, f'{cell}_pred']
+    #         true = mpra_df.loc[mask, f'{cell}']
+    #         r, p = metrics.pearson(pred, true)
+    #         print(f'{cell}, pearsonr: {r:.4f}')
+    #         # r, p = metrics.spearman(pred, true)
+    #         # print(f'{cell}, spearmanr: {r:.4f}')
 
 
-    # model_dir = 'pretrained_models/malinois/HCT116/artifacts'
-    # model = boda.common.utils.model_fn(model_dir)
+
+    # model_path = 'pretrained_models/malinois/HCT116/artifacts'
+    # model = boda.common.utils.model_fn(model_path)
     # preds = get_preds(model, dataloader, device)
     # np.save('outputs/predictions/malinois_hct116_pred.npy', preds)
-    # # preds_df  = pd.DataFrame(preds, columns=['K562_pred', 'HepG2_pred', 'SK-N-SH_pred', 'HCT116_pred'] )
-    # # preds_df.to_csv('outputs/predictions/gosai_malinois_HCT116_pred.tsv', index=False, sep='\t')
 
-
-    # model_dir = 'pretrained_models/malinois/A549/artifacts'
-    # model = boda.common.utils.model_fn(model_dir)
+    # model_path = 'pretrained_models/malinois/A549/artifacts'
+    # model = boda.common.utils.model_fn(model_path)
     # preds = get_preds(model, dataloader, device)
     # np.save('outputs/predictions/malinois_a549_pred.npy', preds)
-    # # preds_df  = pd.DataFrame(preds, columns=['K562_pred', 'HepG2_pred', 'SK-N-SH_pred', 'A549_pred'] )
-    # # preds_df.to_csv('outputs/predictions/gosai_malinois_A549_pred.tsv', index=False, sep='\t')
 
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_path", type=str, default='pretrained_models/malinois/original/artifacts')
+    parser.add_argument("--data_path", type=str, default='data/Gosai_MPRA/Gosai_MPRA_760679.tsv')
+    args = parser.parse_args()
+    main(args)

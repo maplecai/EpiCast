@@ -3,105 +3,125 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import MSELoss, L1Loss, BCEWithLogitsLoss, BCELoss, CrossEntropyLoss, L1Loss, PoissonNLLLoss
-from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, cross_entropy, binary_cross_entropy, l1_loss
+from torch.nn import MSELoss, L1Loss, BCEWithLogitsLoss, BCELoss, CrossEntropyLoss, PoissonNLLLoss, HuberLoss
+from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, cross_entropy, binary_cross_entropy, l1_loss, huber_loss
+from torch import Tensor
 
-class MyMSELoss(nn.Module):
-    def __init__(self, reduction='mean', allow_none=True):
+
+class MaskedMSELoss(nn.Module):
+    def __init__(self, reduction: str = 'mean') -> None:
         super().__init__()
         self.reduction = reduction
-        self.allow_none = allow_none
 
-    def forward(self, input, target, reduction=None):
-        if reduction is None:
-            reduction = self.reduction
-        
-        if self.allow_none:
-            self.mask = ~torch.isnan(target) & ~torch.isnan(input)
-            input = input[self.mask]
-            target = target[self.mask]
-        
-        loss = F.mse_loss(input, target, reduction=reduction)
-        return loss
+    def forward(self, input: Tensor, target: Tensor) -> Tensor:
+        mask = torch.isfinite(input) & torch.isfinite(target)
+        loss = F.mse_loss(input, target, reduction='none')
+        loss = torch.where(mask, loss, torch.zeros_like(loss))
+
+        if self.reduction == "none":
+            return loss
+        if self.reduction == "sum":
+            return loss.sum()
+
+        denom = mask.sum().to(loss.dtype).clamp_min(1.0)
+        return loss.sum() / denom
 
 
 
-class MyBCELoss(nn.Module):
-    def __init__(self, reduction='mean', allow_none=True):
+
+
+class MaskedHuberLoss(nn.Module):
+    def __init__(self, reduction: str = 'mean', delta: float = 1.0) -> None:
         super().__init__()
         self.reduction = reduction
-        self.allow_none = allow_none
-
-    def forward(self, input, target, reduction=None):
-        if reduction is None:
-            reduction = self.reduction
-        
-        if self.allow_none:
-            # print(target.shape, input.shape)
-            self.mask = ~torch.isnan(target) & ~torch.isnan(input)
-            input = input[self.mask]
-            target = target[self.mask]
-        
-        loss = F.binary_cross_entropy(input, target, reduction=reduction)
-        return loss
+        self.delta = delta
 
 
+    def forward(self, input: Tensor, target: Tensor) -> Tensor:
+        mask = torch.isfinite(input) & torch.isfinite(target)
+        loss = F.huber_loss(input, target, reduction="none", delta=self.delta)  # elementwise
+        loss = torch.where(mask, loss, torch.zeros_like(loss))
 
+        if self.reduction == "none":
+            return loss
+        if self.reduction == "sum":
+            return loss.sum()
+
+        denom = mask.sum().to(loss.dtype).clamp_min(1.0)
+        return loss.sum() / denom
 
 
 
-# class PearsonCorr(nn.Module):
-#     def __init__(self, dim: int = -1, eps: float = 1e-8):
-#         super().__init__()
-#         self.dim = dim
-#         self.eps = eps
-
-#     def forward(self, x: torch.Tensor, y: torch.Tensor):
-#         x_mean = x.mean(dim=self.dim, keepdim=True)
-#         y_mean = y.mean(dim=self.dim, keepdim=True)
-
-#         xm = x - x_mean
-#         ym = y - y_mean
-
-#         cov = (xm * ym).sum(dim=self.dim)
-#         x_var = (xm ** 2).sum(dim=self.dim)
-#         y_var = (ym ** 2).sum(dim=self.dim)
-
-#         return cov / (torch.sqrt(x_var) * torch.sqrt(y_var) + self.eps)
 
 
-# class SpearmanCorr(nn.Module):
-#     def __init__(self, dim: int = -1, eps: float = 1e-8):
-#         super().__init__()
-#         self.dim = dim
-#         self.eps = eps
-#         self.pearson = PearsonCorr(dim=self.dim, eps=self.eps)
+# adapted from boda2 repository
+class L1KLmixed(nn.Module):
+    """
+    A custom loss module that combines L1 loss with Kullback-Leibler (KL) divergence loss.
 
-#     def rankdata(self, x: torch.Tensor):
-#         # ordinal rank differ from scipy
-#         tmp = x.argsort(dim=self.dim)
-#         ranks = torch.zeros_like(tmp, dtype=torch.float)
-#         idx = torch.arange(x.size(self.dim), device=x.device, dtype=torch.float)
-#         ranks.scatter_(self.dim, tmp, idx)
-#         return ranks
+    Args:
+        reduction (str, optional): Specifies the reduction to apply to the losses. Default is 'mean'.
+        alpha (float, optional): Scaling factor for the L1 loss term. Default is 1.0.
+        beta (float, optional): Scaling factor for the KL divergence loss term. Default is 1.0.
 
-#     def forward(self, x: torch.Tensor, y: torch.Tensor):
-#         rx = self.rankdata(x)
-#         ry = self.rankdata(y)
-#         return self.pearson(rx, ry)
+    Attributes:
+        reduction (str): The reduction method applied to the losses.
+        alpha (float): Scaling factor for the L1 loss term.
+        beta (float): Scaling factor for the KL divergence loss term.
+        MSE (nn.L1Loss): The L1 loss function.
+        KL (nn.KLDivLoss): The Kullback-Leibler divergence loss function.
 
+    Methods:
+        forward(preds, targets):
+            Calculate the combined loss by combining L1 and KL divergence losses.
 
-
-# class WeightedBCELoss(nn.Module):
-#     def __init__(self, class_weights=None, reduction='mean'):
-#         super().__init__()
-#         self.class_weights = class_weights
-#         self.reduction = reduction
+    Example:
+        loss_fn = L1KLmixed()
+        loss = loss_fn(predictions, targets)
+    """
     
-#     def forward(self, input, target):
-#         weight = (target == 1) * self.class_weights[1] + (target == 0) * self.class_weights[0]
-#         loss = F.binary_cross_entropy(input, target, weight=weight, reduction=self.reduction)
-#         return loss
+    def __init__(self, reduction='mean', alpha=1.0, beta=1.0):
+        """
+        Initialize the L1KLmixed loss module.
+
+        Args:
+            reduction (str, optional): Specifies the reduction to apply to the losses. Default is 'mean'.
+            alpha (float, optional): Scaling factor for the L1 loss term. Default is 1.0.
+            beta (float, optional): Scaling factor for the KL divergence loss term. Default is 1.0.
+
+        Returns:
+            None
+        """
+        super().__init__()
+        
+        self.reduction = reduction
+        self.alpha = alpha
+        self.beta  = beta
+        
+        self.MSE = nn.L1Loss(reduction=reduction.replace('batch',''))
+        self.KL  = nn.KLDivLoss(reduction=reduction, log_target=True)
+        
+    def forward(self, preds, targets):
+        """
+        Calculate the combined loss by combining L1 and KL divergence losses.
+
+        Args:
+            preds (Tensor): The predicted tensor.
+            targets (Tensor): The target tensor.
+
+        Returns:
+            Tensor: The combined loss tensor.
+        """
+        preds_log_prob  = preds   - torch.logsumexp(preds, dim=-1, keepdim=True)
+        target_log_prob = targets - torch.logsumexp(targets, dim=-1, keepdim=True)
+        
+        MSE_loss = self.MSE(preds, targets)
+        KL_loss  = self.KL(preds_log_prob, target_log_prob)
+        
+        combined_loss = MSE_loss.mul(self.alpha) + \
+                        KL_loss.mul(self.beta)
+        
+        return combined_loss.div(self.alpha+self.beta)
 
 
 if __name__ == '__main__':

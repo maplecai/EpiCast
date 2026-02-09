@@ -37,8 +37,6 @@ class EarlyStopping:
         if self.monitor is not None and type(score) == dict:
             score = score[self.monitor]
 
-
-        print(score)
         if self.mode == 'min':
             self.update_flag = bool(score < self.best_score - self.delta)
         elif self.mode == 'max':
@@ -47,11 +45,11 @@ class EarlyStopping:
         if self.update_flag is False:
             self.counter += 1
             if self.verbose:
-                self.trace_func(f'best score = {self.best_score:.6f}, round {self.counter} out of {self.patience}')
+                self.trace_func(f'current score = {score:.6f}, best score = {self.best_score:.6f}, keep best score, round {self.counter} out of {self.patience}')
             if self.counter >= self.patience:
                 self.stop_flag = True
         else:
             if self.verbose:
-                self.trace_func(f'best score changed ({self.best_score:.6f} --> {score:.6f}).')
+                self.trace_func(f'current score = {score:.6f}, best score = {self.best_score:.6f}, update best score')
             self.best_score = score
             self.counter = 0

@@ -45,6 +45,7 @@ __all__ = [
     "get_free_gpus",
     "get_gpu_info_from_nvidia_smi",
     "get_nums_trainable_params",
+    "load_model",
     
     # math_utils
     "sigmoid",

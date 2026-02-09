@@ -28,51 +28,50 @@ def dist_all_gather(tensor: torch.Tensor) -> torch.Tensor:
     return tensor_list
 
 
-# def load_model(model: nn.Module, state_dict, strict=False) -> nn.Module:
-#     if 'model_state_dict' in state_dict:
-#         model_state_dict = state_dict['model_state_dict']
-#     else:
-#         model_state_dict = state_dict
 
-#     if 'module' in model_state_dict.keys()[0]:
-#         model_state_dict = {k.replace('module.', ''): v for k, v in model_state_dict.items()}
-#     # 去掉多卡训练前缀
-#     first_key = next(iter(model_state_dict))
-#     if first_key.startswith('module.'):
-#         model_state_dict = {k.replace('module.', '', 1): v for k, v in model_state_dict.items()}
+def load_model(model: nn.Module, ckpt: dict) -> nn.Module:
+    if 'model_state_dict' in ckpt:
+        ckpt_dict = ckpt['model_state_dict']
+    elif 'model' in ckpt:
+        ckpt_dict = ckpt['model']
+    else:
+        ckpt_dict = ckpt
 
-#     model_dict = model.state_dict()
+    # 去掉多卡训练前缀 module
+    ckpt_dict = {(k.replace('module.', '') if k.startswith("module.") else k): v for k, v in ckpt_dict.items()}
+    
+    model_dict = model.state_dict()
 
-#     # 只保留匹配的键
-#     filtered_dict = {k: v for k, v in model_state_dict.items() if k in model_dict and v.size() == model_dict[k].size()}
+    # 只保留匹配的键和形状
+    matched_dict = {k: v for k, v in ckpt_dict.items() 
+        if k in model_dict and v.size() == model_dict[k].size()}
+    
+    missing_keys = model_dict.keys() - matched_dict.keys()
+    extra_keys = ckpt_dict.keys() - model_dict.keys()
 
-#     # 打印加载情况（可选）
-#     missing_keys = model_dict.keys() - filtered_dict.keys()
-#     unexpected_keys = model_state_dict.keys() - model_dict.keys()
-#     print(f"Loaded params: {len(filtered_dict)}/{len(model_dict)}")
-#     if missing_keys:
-#         print(f"Missing keys: {list(missing_keys)[:5]} ...")
-#     if unexpected_keys:
-#         print(f"Unexpected keys: {list(unexpected_keys)[:5]} ...")
+    print(f"number of matched keys: {len(matched_dict)}")
+    if missing_keys:
+        print(f"number of missing keys: {len(missing_keys)}, {list(missing_keys)} ...")
+    if extra_keys:
+        print(f"number of extra keys: {len(extra_keys)}, {list(extra_keys)} ...")
 
-#     # 加载匹配部分
-#     model_dict.update(filtered_dict)
-#     model.load_state_dict(model_dict, strict=False)
+    model_dict.update(matched_dict)
+    model.load_state_dict(model_dict)
 
-#     return model
-
-# def save_model(model: nn.Module, checkpoint_path: str) -> None:
-#     model_state_dict = model.state_dict().copy()
-#     model_state_dict = {
-#         (k.replace('module.', '') if k.startswith('module.') else k): v
-#         for k, v in model_state_dict.items()
-#     }
-#     torch.save(model_state_dict, checkpoint_path)
-#     return
+    return model
 
 
-import subprocess
-import numpy as np
+def save_model(model: nn.Module, ckpt_path: str) -> None:
+    model_dict = model.state_dict().copy()
+    model_dict = {
+        (k.replace('module.', '') if k.startswith('module.') else k): v
+        for k, v in model_dict.items()
+    }
+    torch.save(model_dict, ckpt_path)
+    return
+
+
+
 
 
 def get_gpu_info_from_nvidia_smi():
@@ -92,18 +91,19 @@ def get_gpu_info_from_nvidia_smi():
     return gpu_info
 
 
-def get_free_gpus(min_memory_mb=40000):
+def get_free_gpus(min_memory_mb=20480):
     """Return GPU ids with free memory above the threshold, sorted by free memory descending."""
     gpu_info = get_gpu_info_from_nvidia_smi()
 
     # list of (gpu_id, free_mem)
-    gpu_free = [(idx, info[0]) for idx, info in enumerate(gpu_info)]
+    gpus = [(idx, info[0]) for idx, info in enumerate(gpu_info)]
+
+    free_gpus = [gpu for gpu in gpus if gpu[1] > min_memory_mb]
 
     # sort by free memory desc
-    gpu_free_sorted = sorted(gpu_free, key=lambda x: x[1], reverse=True)
+    free_gpus_sorted = sorted(free_gpus, key=lambda x: x[1], reverse=True)
 
-    # filter and format
-    return [f"cuda:{idx}" for idx, free_mem in gpu_free_sorted if free_mem > min_memory_mb]
+    return [f"cuda:{gpu[0]}" for gpu in free_gpus_sorted]
 
 
 

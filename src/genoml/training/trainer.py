@@ -8,6 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 from ruamel.yaml import YAML
 from io import StringIO
+from typing import Any, Dict, Iterable, List, Tuple
 
 import torch
 import torchinfo
@@ -41,7 +42,7 @@ class Trainer:
             else:
                 self.device = config['device']
             torch.cuda.set_device(self.device)
-            self.logger.info(f"Start non DDP training on rank {self.local_rank}, {self.device}.")
+            self.logger.info(f"Start training (non DDP) on rank {self.local_rank}, {self.device}.")
         else:
             dist.init_process_group(backend='nccl', init_method='env://')
             self.local_rank = int(os.environ["LOCAL_RANK"])
@@ -55,7 +56,7 @@ class Trainer:
             else:
                 raise ValueError('DDP device should be a list or "auto"')
             torch.cuda.set_device(self.device)
-            self.logger.info(f"Start DDP training on rank {self.local_rank}, {self.device}.")
+            self.logger.info(f"Start training (DDP) on rank {self.local_rank}, {self.device}.")
 
         if self.local_rank == 0:
             self.log = self.logger.info
@@ -64,12 +65,68 @@ class Trainer:
             self.log = self.logger.debug
             self.debug = self.logger.debug
         
-        yaml = YAML()
-        stream = StringIO()
-        yaml.dump(self.config, stream)
-        self.log(stream.getvalue())
+        # yaml = YAML()
+        # stream = StringIO()
+        # yaml.dump(self.config, stream)
+        # self.log(stream.getvalue())
 
         # setup dataloader
+        self.build_dataloader()
+
+        # setup model
+        self.build_model()
+
+        # freeze parameters
+        if config.get("freeze_parameters", False):
+            self.log("freeze parameters")
+            patterns = config.get("freeze_patterns", [])  # 改名更明确
+            regex_list = [re.compile(p) for p in patterns]
+
+            for name, param in self.model.named_parameters():
+                for regex in regex_list:
+                    if regex.search(name):   # 正则匹配
+                        param.requires_grad = False
+                        self.log(f"freeze parameter {name} (matched by {regex.pattern})")
+                        break
+
+
+        # setup training
+        self.build_optimizer()
+
+        self.loss_func = utils.init_obj(
+            metrics, 
+            config['loss_func']
+        )
+
+        self.lr_scheduler = utils.init_obj(
+            training, 
+            config['lr_scheduler'], 
+            self.optimizer
+        )
+        self.early_stopper = utils.init_obj(
+            training, 
+            config['early_stopper'], 
+            saved_dir=os.path.join(config['saved_dir']), 
+            trace_func=self.log
+        )
+        
+        self.cell_types = config['cell_types']
+
+        self.metric_df = pd.DataFrame(columns=['mse', 'r2', 'pearson'])
+
+        self.metrics = MetricCollection({
+            "mse": MeanSquaredError(num_outputs=len(self.cell_types), sync_on_compute=True),
+            "r2": R2Score(num_outputs=len(self.cell_types), multioutput="raw_values", sync_on_compute=True),
+            "pearson": PearsonCorrCoef(num_outputs=len(self.cell_types), sync_on_compute=True),
+            # "spearman": SpearmanCorrCoef(num_outputs=len(self.cell_types), sync_on_compute=True),
+        }).to(self.device)
+
+
+
+
+    def build_dataloader(self):
+        config = self.config
+
         self.train_dataset = utils.init_obj(
             datasets, 
             config['train_dataset'],
@@ -108,36 +165,15 @@ class Trainer:
                 sampler=self.val_sampler,
             )
 
-        # setup model
+
+
+    def build_model(self):
+        config = self.config
         self.model = utils.init_obj(models, config['model'])
 
         if config.get('load_saved_model', False) == True:
-            checkpoint_path = config['saved_model_path']
-            self.load_checkpoint(checkpoint_path)
-
-            # pretrained_dict = torch.load(saved_model_path)
-            # # missing_keys, unexpected_keys = self.model.load_state_dict(state_dict, strict=False)
-            # # print("Missing keys:", missing_keys)
-            # # print("Unexpected keys:", unexpected_keys)
-            # # self.log(f"load saved model from {saved_model_path}")
-
-            # model_dict = self.model.state_dict()
-            # pretrained_dict = {k: v for k, v in pretrained_dict.items()
-            #                 if k in model_dict and v.shape == model_dict[k].shape}
-            # model_dict.update(pretrained_dict)
-            # self.model.load_state_dict(model_dict)
-
-        if config.get("freeze_parameters", False):
-            self.log("freeze parameters")
-            patterns = config.get("freeze_patterns", [])  # 改名更明确
-            regex_list = [re.compile(p) for p in patterns]
-
-            for name, param in self.model.named_parameters():
-                for regex in regex_list:
-                    if regex.search(name):   # 正则匹配
-                        param.requires_grad = False
-                        self.log(f"freeze parameter {name} (matched by {regex.pattern})")
-                        break
+            ckpt = torch.load(config['saved_model_path'])
+            utils.load_model(self.model, ckpt)
 
 
         self.model = self.model.to(self.device)
@@ -147,69 +183,91 @@ class Trainer:
                 device_ids=[int(self.device.split(':')[-1])],
                 find_unused_parameters=False,
             )
-        
-        # setup training
-        if 'transformer_args' in self.config['optimizer']:
-            # 区分不同层学习率
-            transformer_params = []
-            other_params = []
-            for name, param in self.model.named_parameters():
-                if param.requires_grad:
-                    if 'transformer' in name:
-                        transformer_params.append(param)
-                    else:
-                        other_params.append(param)
-            param_groups = [
-                {
-                    'params': transformer_params,
-                    **config['optimizer']['transformer_args'],
-                },
-                {
-                    'params': other_params,
-                    **config['optimizer']['args'],
-                },
-            ]
-            self.optimizer = utils.init_obj(
-                torch.optim,
-                config['optimizer'],
-                param_groups
-            )
 
-        else:
-            trainable_params = [param for param in self.model.parameters() if param.requires_grad]
-            self.optimizer = utils.init_obj(
-                torch.optim, 
-                config['optimizer'], 
-                trainable_params
-            )
 
-        self.loss_func = utils.init_obj(
-            metrics, 
-            config['loss_func']
-        )
 
-        self.lr_scheduler = utils.init_obj(
-            training, 
-            config['lr_scheduler'], 
-            self.optimizer
-        )
-        self.early_stopper = utils.init_obj(
-            training, 
-            config['early_stopper'], 
-            saved_dir=os.path.join(config['saved_dir']), 
-            trace_func=self.log
-        )
-        
-        self.cell_types = config['cell_types']
+    # def load_checkpoint(self, chechpoint_path="checkpoint.pth", load_optimizer=True, load_lr_scheduler=True):
+    #     """
+    #     Load model/optimizer/lr_scheduler states.
 
-        self.metric_df = pd.DataFrame(columns=['mse', 'r2', 'pearson'])
+    #     Args:
+    #         chechpoint_path (str): checkpoint file name.
+    #         load_optimizer (bool): whether to load optimizer state.
+    #         load_lr_scheduler (bool): whether to load lr scheduler state.
 
-        self.metrics = MetricCollection({
-            "mse": MeanSquaredError(num_outputs=len(self.cell_types), sync_on_compute=True),
-            "r2": R2Score(num_outputs=len(self.cell_types), multioutput="raw_values", sync_on_compute=True),
-            "pearson": PearsonCorrCoef(num_outputs=len(self.cell_types), sync_on_compute=True),
-            # "spearman": SpearmanCorrCoef(num_outputs=len(self.cell_types), sync_on_compute=True),
-        }).to(self.device)
+    #     Returns:
+    #         epoch (int), step (int)
+    #     """
+
+    #     # load_path = os.path.join(self.config['saved_root_dir'], filename)
+    #     if not os.path.exists(chechpoint_path):
+    #         raise FileNotFoundError(f"Checkpoint not found: {chechpoint_path}")
+
+    #     checkpoint = torch.load(chechpoint_path)
+    #     if "model" in checkpoint:
+    #         model_state_dict = checkpoint["model"]
+    #     elif "model_state_dict" in checkpoint:
+    #         model_state_dict = checkpoint["model_state_dict"]
+    #     else:
+    #         model_state_dict = checkpoint
+            
+    #     # 如果是 DDP，则参数实际在 model.module 中
+    #     model_to_load = self.model.module if hasattr(self.model, "module") else self.model
+    #     model_to_load.load_state_dict(model_state_dict)
+
+    #     if load_optimizer and "optimizer" in checkpoint and checkpoint["optimizer"] is not None:
+    #         self.optimizer.load_state_dict(checkpoint["optimizer"])
+
+    #     if load_lr_scheduler and "lr_scheduler" in checkpoint and checkpoint["lr_scheduler"] is not None:
+    #         if hasattr(self, "lr_scheduler") and self.lr_scheduler is not None:
+    #             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+
+    #     epoch = checkpoint.get("epoch", 0)
+    #     step = checkpoint.get("step", 0)
+
+    #     self.log(f"Checkpoint loaded from {chechpoint_path} (epoch={epoch}, step={step})")
+
+    #     return epoch, step
+
+
+
+    def build_optimizer(self):
+        opt_cfg = self.config["optimizer"]
+        groups_cfg = opt_cfg.get("param_groups", []) or []
+
+        named_params = [(n, p) for n, p in self.model.named_parameters() if p.requires_grad]
+
+        # no grouping
+        if not groups_cfg:
+            self.optimizer = utils.init_obj(torch.optim, opt_cfg, [p for _, p in named_params])
+            return
+
+        # compile regex for each group
+        compiled = []
+        for g in groups_cfg:
+            pats = g.get("contains")
+            if not pats:
+                continue
+            rx = re.compile("|".join(map(re.escape, pats)))
+            compiled.append((rx, g.get("args", {}) or {}))
+
+        assigned = set()
+        param_groups = []
+
+        # build explicit groups in order (first match wins)
+        for rx, g_args in compiled:
+            ps = [p for n, p in named_params if id(p) not in assigned and rx.search(n)]
+            if ps:
+                assigned.update(map(id, ps))
+                param_groups.append({"params": ps, **g_args})
+
+        # remaining -> optimizer global defaults (opt_cfg["args"])
+        rest = [p for _, p in named_params if id(p) not in assigned]
+        if rest:
+            param_groups.append({"params": rest})
+
+        self.optimizer = utils.init_obj(torch.optim, opt_cfg, param_groups)
+
 
 
     def train(self):
@@ -261,9 +319,10 @@ class Trainer:
                 self.val_epoch()
 
                 if (self.local_rank == 0) and (self.early_stopper is not None):
-                    self.early_stopper.check(self.metric_df.loc[self.epoch, 'pearson'])
+                    score = self.metric_df.loc[self.epoch, 'pearson']
+                    self.early_stopper.check(score)
                     if self.early_stopper.update_flag is True:
-                        self.save_checkpoint(self.epoch, 0)
+                        self.save_checkpoint(self.epoch, 0, f'checkpoint_epoch={epoch}_pearson={self.early_stopper.best_score:.6f}.pth')
                     if self.early_stopper.stop_flag == True:
                         break
 
@@ -341,25 +400,25 @@ class Trainer:
                     else:
                         self.debug(f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} {ct} = {value_i:.6f}")
 
-    @torch.no_grad()
-    def test(self):
-        self.model.eval()
-        pred_list = []
-        target_list = []
-        for batch_idx, sample in enumerate(tqdm(self.test_loader, disable=(self.local_rank != 0))):
-            sample = utils.to_device(sample, self.device)
-            pred = self.model(sample)
-            target = sample['target']
-            pred_list.append(pred.detach())
-            target_list.append(target.detach())
+    # @torch.no_grad()
+    # def test(self):
+    #     self.model.eval()
+    #     pred_list = []
+    #     target_list = []
+    #     for batch_idx, sample in enumerate(tqdm(self.test_loader, disable=(self.local_rank != 0))):
+    #         sample = utils.to_device(sample, self.device)
+    #         pred = self.model(sample)
+    #         target = sample['target']
+    #         pred_list.append(pred.detach())
+    #         target_list.append(target.detach())
 
-        pred_list = torch.cat(pred_list).cpu().numpy()
-        target_list = torch.cat(target_list).cpu().numpy()
+    #     pred_list = torch.cat(pred_list).cpu().numpy()
+    #     target_list = torch.cat(target_list).cpu().numpy()
 
-        save_file_path = os.path.join(self.config['saved_root_dir'], f'test_pred.npy')
-        np.save(save_file_path, pred_list)
-        torch.cuda.empty_cache()
-        return
+    #     save_file_path = os.path.join(self.config['saved_root_dir'], f'test_pred.npy')
+    #     np.save(save_file_path, pred_list)
+    #     torch.cuda.empty_cache()
+    #     return
 
 
     def save_checkpoint(self, epoch, step, filename="checkpoint.pth"):
@@ -388,46 +447,5 @@ class Trainer:
             "lr_scheduler": self.lr_scheduler.state_dict() if hasattr(self, "lr_scheduler") else None,
             "config": self.config,
         }
-
-        torch.save(state, save_path)
-
         self.log(f"Checkpoint saved to {save_path}")
-
-
-
-    def load_checkpoint(self, filename="checkpoint.pth", load_optimizer=True, load_lr_scheduler=True):
-        """
-        Load model/optimizer/lr_scheduler states.
-
-        Args:
-            filename (str): checkpoint file name.
-            load_optimizer (bool): whether to load optimizer state.
-            load_lr_scheduler (bool): whether to load lr scheduler state.
-
-        Returns:
-            epoch (int), step (int)
-        """
-
-        load_path = os.path.join(self.config['saved_root_dir'], filename)
-        if not os.path.exists(load_path):
-            raise FileNotFoundError(f"Checkpoint not found: {load_path}")
-
-        checkpoint = torch.load(load_path, map_location="cpu")
-
-        # 如果是 DDP，则参数实际在 model.module 中
-        model_to_load = self.model.module if hasattr(self.model, "module") else self.model
-        model_to_load.load_state_dict(checkpoint["model"])
-
-        if load_optimizer and "optimizer" in checkpoint and checkpoint["optimizer"] is not None:
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
-
-        if load_lr_scheduler and "lr_scheduler" in checkpoint and checkpoint["lr_scheduler"] is not None:
-            if hasattr(self, "lr_scheduler") and self.lr_scheduler is not None:
-                self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-
-        epoch = checkpoint.get("epoch", 0)
-        step = checkpoint.get("step", 0)
-
-        self.log(f"Checkpoint loaded from {load_path} (epoch={epoch}, step={step})")
-
-        return epoch, step
+        torch.save(state, save_path)

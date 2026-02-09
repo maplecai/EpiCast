@@ -39,7 +39,6 @@ class SeqDataset(Dataset):
         N_fill_value=0.25,
 
         aug_rc=False,
-        aug_rc_prob=0.5,
     ) -> None:
         
         super().__init__()
@@ -74,7 +73,6 @@ class SeqDataset(Dataset):
         self.N_fill_value = N_fill_value
 
         self.aug_rc = aug_rc
-        self.aug_rc_prob = aug_rc_prob
         
 
         # read dataframe
@@ -141,7 +139,7 @@ class SeqDataset(Dataset):
 
             # reverse complement augmentation
             if self.aug_rc:
-                if np.random.rand() < self.aug_rc_prob:
+                if np.random.rand() < 0.5:
                     seq = rc_seq(seq)
 
             seq = torch.tensor(seq2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)

@@ -3,9 +3,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import mean_squared_error, r2_score, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score
-from scipy import stats
+# from scipy.stats import pearsonr, spearmanr
+import sklearn.metrics
+import scipy.stats
 from ..utils import *
 
 import numpy as np
@@ -63,21 +63,31 @@ def metrics_each_channel(
 def pearson(x: np.ndarray, y: np.ndarray) -> float:
     x, y = remove_nan(x, y)
     if len(x) >= 2:
-        r, p = pearsonr(x, y)
+        r, p = scipy.stats.pearsonr(x, y)
     else:
         print('after remove nan, len(x) < 2, pearson = nan')
         r, p = np.nan, np.nan
-    return r, p
+    return r
 
 
 def spearman(x: np.ndarray, y: np.ndarray) -> float:
     x, y = remove_nan(x, y)
     if len(x) >= 2:
-        r, p = spearmanr(x, y)
+        r, p = scipy.stats.spearmanr(x, y)
     else:
         print('after remove nan, len(x) < 2, spearman = nan')
         r, p = np.nan, np.nan
-    return r, p
+    return r
+
+
+def r2_score(x: np.ndarray, y: np.ndarray) -> float:
+
+    x, y = remove_nan(x, y)
+    if len(x) >= 2:
+        r2 = sklearn.metrics.r2_score(x, y)
+    else:
+        print('after remove nan, len(x) < 2, r^2 = nan')
+    return r2
 
 
 # def mse(x: np.ndarray, y: np.ndarray) -> float:

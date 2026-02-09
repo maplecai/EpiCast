@@ -34,7 +34,7 @@ class ConvTransformerFeature(nn.Module):
 
         trans_add_cls=False,
         trans_output_mode='seq_all',
-        
+
         fusion_type = 'film',
 
         num_linear_blocks=1,
@@ -49,10 +49,12 @@ class ConvTransformerFeature(nn.Module):
         self.output_dim         = output_dim
         self.last_activation    = last_activation
         self.squeeze            = squeeze
+        self.fusion_type        = fusion_type
 
         self.trans_output_mode  = trans_output_mode
         self.trans_add_cls      = trans_add_cls
         self.cls_token = nn.Parameter(torch.zeros(1, 1, trans_d_embed))
+        self.cls_token_len = int(self.trans_add_cls)
 
         self.conv_layers = nn.Sequential()
         for i in range(num_conv_blocks):
@@ -79,14 +81,19 @@ class ConvTransformerFeature(nn.Module):
                 f'conv_dropout_{i}', nn.Dropout(conv_dropout_rate)
             )
         
-        self.fusion_layer = FiLM(
-            num_features=trans_d_embed,
-            cond_dim=input_feature_dim,
-            hidden_dim=0,
-            channel_dim=2,
-            affine=True,
-            init_identity=True,
-        )
+        if self.fusion_type == 'film':
+            self.fusion_layer = FiLM(
+                num_features=trans_d_embed,
+                cond_dim=input_feature_dim,
+                hidden_dim=0,
+                channel_dim=2,
+                affine=True,
+                init_identity=True,
+            )
+        elif self.fusion_type == 'concat':
+            self.feature_embedding_layer = nn.Linear(input_feature_dim, trans_d_embed)
+            self.token_type_embedding_layer = nn.Embedding(3, trans_d_embed)
+
 
 
         self.trans_layers = nn.Sequential()
@@ -148,24 +155,54 @@ class ConvTransformerFeature(nn.Module):
         B, L, H = tokens.shape
         if self.trans_add_cls:
             tokens = torch.cat([self.cls_token.expand(B, 1, -1), tokens], 1)
-        cls_len = int(self.trans_add_cls)
 
         out = self.trans_layers(tokens)
 
         if self.trans_output_mode == 'cls':
             out = out[:, 0]
         elif self.trans_output_mode == 'seq_avg':
-            out = out[:, cls_len:].mean(1)
+            start = self.cls_token_len
+            end = out.shape[1] - self.epi_token_len
+            out = out[:, start:end].mean(1)
         elif self.trans_output_mode == 'seq_all':
-            out = out[:, cls_len:]
+            start = self.cls_token_len
+            end = out.shape[1] - self.epi_token_len
+            out = out[:, start:end]
         elif self.trans_output_mode == 'seq_flatten':
-            out = out[:, cls_len:].reshape(B, -1)
+            start = self.cls_token_len
+            end = out.shape[1] - self.epi_token_len
+            out = out[:, start:end].reshape(B, -1)
         elif self.trans_output_mode == 'all':
             out = out
         else:
             raise ValueError(f"Unsupported trans_output_mode mode: {self.trans_output_mode}")
 
         return out
+
+    def forward_fusion(self, seq_emb: torch.Tensor, feature: torch.Tensor) -> torch.Tensor:
+        if self.fusion_type == 'film':
+            emb = self.fusion_layer(seq_emb, feature)
+            return emb
+        
+        elif self.fusion_type == 'concat':
+            batch_size = seq_emb.shape[0]
+            device = seq_emb.device
+            feature_emb = self.feature_embedding_layer(feature).unsqueeze(1)
+            # print(seq_emb.shape, feature_emb.shape)
+            tokens = torch.cat([seq_emb, feature_emb], dim=1)
+
+            self.seq_token_len = seq_emb.shape[1]
+            self.epi_token_len = feature_emb.shape[1]
+
+            token_type_ids = torch.cat([
+                torch.full((batch_size, self.cls_token_len), 0, dtype=torch.long, device=device), # CLS token
+                torch.full((batch_size, self.seq_token_len), 1, dtype=torch.long, device=device), # Seq tokens
+                torch.full((batch_size, self.epi_token_len), 2, dtype=torch.long, device=device), # Epi tokens
+            ], dim=1)
+            token_type_embed = self.token_type_embedding_layer(token_type_ids)
+            tokens = tokens + token_type_embed
+            return tokens
+
 
     def forward_linear(self, emb: torch.Tensor):
         out = self.linear_layers(emb)
@@ -190,7 +227,7 @@ class ConvTransformerFeature(nn.Module):
         seq_emb = self.forward_conv(seq)
 
         if len(feature.shape) == 2:
-            emb = self.fusion_layer(seq_emb, feature)
+            emb = self.forward_fusion(seq_emb, feature)
             emb = self.forward_trans(emb)
             out = self.forward_linear(emb)
         
@@ -199,7 +236,7 @@ class ConvTransformerFeature(nn.Module):
             B, C, D = features.shape
             outs = []
             for i in range(C):  # per cell type
-                emb = self.fusion_layer(seq_emb, features[:, i, :])
+                emb = self.forward_fusion(seq_emb, features[:, i, :])
                 emb = self.forward_trans(emb)
                 out = self.forward_linear(emb)
                 outs.append(out)
