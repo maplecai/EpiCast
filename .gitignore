@@ -1,5 +1,9 @@
 # file
-# *.yaml
+*.csv
+*.tsv
+*.fa
+*.txt
+*.yaml
 *.json
 *.pyc
 *.out
@@ -11,7 +15,6 @@
 *.pth
 *.pdf
 *.h5
-*.csv
 
 # folder
 .vscode/
@@ -30,8 +33,9 @@ artifacts/
 pretrained_models/
 TFBS_based_models/
 explanations/
-alphagenome/
 analyze_epi_features/
 process_raw_data/
 padding_effect/
 predict_CRE_activity/artifacts/
+alphagenome_research/
+alphagenome-pytorch/

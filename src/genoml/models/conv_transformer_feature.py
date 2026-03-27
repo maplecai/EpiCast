@@ -182,6 +182,8 @@ class ConvTransformerFeature(nn.Module):
     def forward_fusion(self, seq_emb: torch.Tensor, feature: torch.Tensor) -> torch.Tensor:
         if self.fusion_type == 'film':
             emb = self.fusion_layer(seq_emb, feature)
+            self.seq_token_len = seq_emb.shape[1]
+            self.epi_token_len = 0
             return emb
         
         elif self.fusion_type == 'concat':

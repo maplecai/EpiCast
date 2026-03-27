@@ -92,7 +92,6 @@ for cell_type in cell_types:
     for i, row in metadata_df.iterrows():
         if row['cell_type'] == cell_type:
             ref_accession = row['ref_accession']
-
             if ref_accession == 'ENCFF443RYE;ENCFF728XQT':
                 dict1 = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/ENCFF443RYE.fasta.gz")
                 dict2 = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/ENCFF728XQT.fasta.gz")
@@ -219,7 +218,7 @@ merged_df = pd.concat([meta] + list(prepared.values()), axis=1, join='outer')
 merged_df = merged_df.reset_index()
 print(merged_df.columns)
 
-# lfcSE
+
 
 
 merged_df = merged_df.rename(columns={
@@ -241,10 +240,12 @@ merged_df.to_csv('data/Gosai_MPRA/Gosai_MPRA_reprocessed_0203.tsv', sep='\t', in
 merged_df = merged_df[merged_df['seq'].str.len() == 200].reset_index(drop=True)
 print(f'after filter len == 200, merged_df.shape = {merged_df.shape}')
 
-
-merged_df = merged_df[(merged_df[['K562', 'HepG2', 'SK-N-SH']].notna().all(axis=1))].reset_index(drop=True)
-print(f'after filter K562, HepG2, SK-N-SH not nan, merged_df.shape = {merged_df.shape}')
+# merged_df = merged_df[(merged_df[['K562', 'HepG2', 'SK-N-SH']].notna().all(axis=1))].reset_index(drop=True)
+# print(f'after filter K562, HepG2, SK-N-SH not nan, merged_df.shape = {merged_df.shape}')
 
 merged_df = merged_df.sort_values(by=['chr', 'pos']).reset_index(drop=True)
 
-merged_df.to_csv('data/Gosai_MPRA/Gosai_MPRA_reprocessed_0203_filter.tsv', sep='\t', index=False)
+merged_df.to_csv('data/Gosai_MPRA/Gosai_MPRA_reprocessed_0305_len200.tsv', sep='\t', index=False)
+# 如果合并dict且不考虑重复，760679
+# 如果合并dict 756354
+# 如果分开dict 756344

@@ -16,13 +16,14 @@ import torchinfo
 from torch import distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
+import torchmetrics
 from torchmetrics import MetricCollection
-from torchmetrics.regression import MeanSquaredError, R2Score, PearsonCorrCoef
+from torchmetrics import MeanSquaredError, R2Score, PearsonCorrCoef, Accuracy, F1Score, AUROC, AveragePrecision
 
 from genoml import models, datasets, metrics, training, utils
 
 
-class Trainer:
+class cCRETrainer:
     def __init__(self, config):
         self.config = config
         utils.set_seed(config['seed'])
@@ -72,13 +73,14 @@ class Trainer:
         self.loss_func = utils.init_obj(
             metrics, 
             config['loss_func']
-        )
+        ).to(self.device)
 
         self.lr_scheduler = utils.init_obj(
             training, 
             config['lr_scheduler'], 
             self.optimizer
         )
+
         self.early_stopper = utils.init_obj(
             training, 
             config['early_stopper'], 
@@ -86,13 +88,19 @@ class Trainer:
             trace_func=self.log
         )
         
-        self.cell_types = config['cell_types']
-        self.metric_df = pd.DataFrame(columns=['mse', 'r2', 'pearson'])
-        self.metrics = MetricCollection({
-            "mse": MeanSquaredError(num_outputs=len(self.cell_types), sync_on_compute=True),
-            "r2": R2Score(num_outputs=len(self.cell_types), multioutput="raw_values", sync_on_compute=True),
-            "pearson": PearsonCorrCoef(num_outputs=len(self.cell_types), sync_on_compute=True),
-        }).to(self.device)
+        num_outputs = config['model']['args']['output_dim']
+
+        if config.get('metrics', None) is None:
+            self.metrics = MetricCollection({
+                "mse": MeanSquaredError(num_outputs=num_outputs, sync_on_compute=True),
+                "r2": R2Score(num_outputs=num_outputs, multioutput="raw_values", sync_on_compute=True),
+                "pearson": PearsonCorrCoef(num_outputs=num_outputs, sync_on_compute=True),
+            }).to(self.device)
+        else:
+            self.metrics = MetricCollection({
+                name: utils.init_obj(torchmetrics, item) for name, item in config['metrics'].items()
+            }).to(self.device)
+
 
 
     def setup_distributed(self):
@@ -187,10 +195,6 @@ class Trainer:
             )
 
 
-
-
-
-
     def build_optimizer(self):
         opt_cfg = self.config["optimizer"]
         groups_cfg = opt_cfg.get("param_groups", []) or []
@@ -229,15 +233,12 @@ class Trainer:
         self.optimizer = utils.init_obj(torch.optim, opt_cfg, param_groups)
 
 
-
     def train(self):
         config = self.config
         max_epochs = config['max_epochs']
         epochs_per_val = config['epochs_per_val']
         batch_size = self.train_loader.batch_size
         
-
-        self.log(f'cell_types = {self.cell_types}')
         self.log(f'len(train_dataset) = {len(self.train_dataset)}')
         self.log(f'len(val_dataset) = {len(self.val_dataset)}')
         self.log(f'len(train_loader) = {len(self.train_loader)}')
@@ -268,10 +269,6 @@ class Trainer:
             if self.distributed:
                 self.train_sampler.set_epoch(epoch)
 
-            # # val one epoch before training
-            # if (epoch == 0):
-            #     self.val_epoch()
-
             self.log(f'train on epoch {epoch}')
             self.train_epoch()
             
@@ -280,10 +277,9 @@ class Trainer:
                 self.val_epoch()
 
                 if (self.local_rank == 0) and (self.early_stopper is not None):
-                    score = self.metric_df.loc[self.epoch, 'pearson']
-                    self.early_stopper.check(score)
+                    self.early_stopper.check(self.metric_results_mean)
                     if self.early_stopper.update_flag is True:
-                        self.save_checkpoint(self.epoch, 0, f'checkpoint_epoch={epoch}_pearson={self.early_stopper.best_score:.6f}.pth')
+                        self.save_checkpoint(self.epoch, 0, f'checkpoint_epoch={epoch}_{self.early_stopper.monitor}={self.early_stopper.best_score:.6f}.pth')
                     if self.early_stopper.stop_flag == True:
                         break
 
@@ -337,33 +333,23 @@ class Trainer:
             val_steps += 1
             val_loss += loss.item()
 
-            # B, C = pred.shape
-            self.metrics.update(pred, target)
+            if 'auroc' in self.metrics.keys():
+                self.metrics.update(pred, target.long())
+            else:
+                self.metrics.update(pred, target)
 
         val_loss = val_loss / val_steps
         self.log(f'local_rank = {self.local_rank}, epoch = {self.epoch}, val_loss = {val_loss:.6f}')
 
-        self.results = self.metrics.compute()
-        if self.local_rank == 0:
-            for name, val in self.results.items():
-                val_mean = val.mean().item()
-                self.log(
-                    f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} mean = {val_mean:.6f}"
-                )
-                self.metric_df.loc[self.epoch, f"{name}"] = val_mean
+        self.metric_results = self.metrics.compute()
+        self.metric_results_mean = {n: s.mean() for n, s in self.metric_results.items()}
+        for name, val in self.metric_results.items():
+            val_mean = val.mean().item()
+            self.log(
+                f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} mean = {val_mean:.6f}"
+            )
 
-            for name, val in self.results.items():
-                val = val.detach().cpu()
-                for i, ct in enumerate(self.cell_types):
-                    value_i = val[i].item()
-                    if name == 'pearson':
-                        self.log(f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} {ct} = {value_i:.6f}")
-                    else:
-                        self.debug(f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} {ct} = {value_i:.6f}")
-
-
-
-    def save_checkpoint(self, epoch, step, filename="checkpoint.pth"):
+    def save_checkpoint(self, epoch, step, filename="checkpoint.pt"):
         """Save model/optimizer/lr_scheduler states.
 
         Args:

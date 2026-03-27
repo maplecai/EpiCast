@@ -8,6 +8,34 @@ from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, cros
 from torch import Tensor
 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class BCEWithLogitsLossWrapper(nn.Module):
+    def __init__(self, pos_weight=None, reduction='mean'):
+        super().__init__()
+        self.reduction = reduction
+
+        if pos_weight is not None:
+            if isinstance(pos_weight, (int, float)):
+                pos_weight = [pos_weight]
+            pos_weight = torch.tensor(pos_weight, dtype=torch.float32)
+            self.register_buffer("pos_weight", pos_weight)
+        else:
+            self.pos_weight = None
+
+    def forward(self, input, target):
+        loss = F.binary_cross_entropy_with_logits(
+            input,
+            target,
+            pos_weight=self.pos_weight,
+            reduction=self.reduction,
+        )
+        return loss
+
+
+
 class MaskedMSELoss(nn.Module):
     def __init__(self, reduction: str = 'mean') -> None:
         super().__init__()
@@ -124,5 +152,24 @@ class L1KLmixed(nn.Module):
         return combined_loss.div(self.alpha+self.beta)
 
 
-if __name__ == '__main__':
-    pass
+
+class CellTypeSpecificHuberLoss(nn.Module):
+    def __init__(self, input_shape=(170, 4), res_weight=1.0, reduction='mean', delta=1.0):
+        super().__init__()
+        self.input_shape = input_shape
+        self.res_weight = res_weight
+        self.reduction = reduction
+        self.delta = delta
+
+    def forward(self, input, target):
+        # input shape = (n, c, a), target shape = (n, c, a)
+        input = input.view(-1, *self.input_shape)
+        target = target.view(-1, *self.input_shape)
+        input_mean = input.mean(dim=1, keepdim=True)
+        target_mean = target.mean(dim=1, keepdim=True)
+        input_res = input - input_mean
+        target_res = target - target_mean
+        loss_mean = F.huber_loss(input_mean, target_mean, reduction=self.reduction, delta=self.delta)
+        loss_res = F.huber_loss(input_res, target_res, reduction=self.reduction, delta=self.delta)
+        loss = loss_mean + self.res_weight * loss_res
+        return loss

@@ -65,7 +65,6 @@ def pearson(x: np.ndarray, y: np.ndarray) -> float:
     if len(x) >= 2:
         r, p = scipy.stats.pearsonr(x, y)
     else:
-        print('after remove nan, len(x) < 2, pearson = nan')
         r, p = np.nan, np.nan
     return r
 
@@ -75,26 +74,41 @@ def spearman(x: np.ndarray, y: np.ndarray) -> float:
     if len(x) >= 2:
         r, p = scipy.stats.spearmanr(x, y)
     else:
-        print('after remove nan, len(x) < 2, spearman = nan')
         r, p = np.nan, np.nan
     return r
 
 
 def r2_score(x: np.ndarray, y: np.ndarray) -> float:
-
     x, y = remove_nan(x, y)
     if len(x) >= 2:
         r2 = sklearn.metrics.r2_score(x, y)
     else:
-        print('after remove nan, len(x) < 2, r^2 = nan')
+        r2 = np.nan
     return r2
 
 
-# def mse(x: np.ndarray, y: np.ndarray) -> float:
-#     x, y = remove_nan(x, y)
-#     if len(x) >= 2:
-#         mse = mean_squared_error(x, y)
-#     else:
-#         print('after remove nan, len(x) < 2, mse = nan')
-#         mse = np.nan
-#     return mse
+def mse(x: np.ndarray, y: np.ndarray) -> float:
+    x, y = remove_nan(x, y)
+    if len(x) >= 1:
+        mse = sklearn.metrics.mean_squared_error(x, y)
+    else:
+        mse = np.nan
+    return mse
+
+def rmse(x: np.ndarray, y: np.ndarray) -> float:
+    x, y = remove_nan(x, y)
+    if len(x) >= 1:
+        mse = sklearn.metrics.mean_squared_error(x, y)
+        rmse = np.sqrt(mse)
+    else:
+        rmse = np.nan
+    return rmse
+
+
+def mae(x: np.ndarray, y: np.ndarray) -> float:
+    x, y = remove_nan(x, y)
+    if len(x) >= 1:
+        mae = sklearn.metrics.mean_absolute_error(x, y)
+    else:
+        mae = np.nan
+    return mae

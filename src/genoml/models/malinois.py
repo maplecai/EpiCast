@@ -9,11 +9,8 @@ class Malinois(BassetBranched):
     
     def get_flatten_factor(self, input_len):
         hook = input_len
-        # assert hook % 3 == 0
         hook = hook // 3
-        # assert hook % 4 == 0
         hook = hook // 4
-        # assert (hook + 2) % 4 == 0
         return (hook + 2) // 4
     
 

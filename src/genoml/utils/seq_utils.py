@@ -124,6 +124,8 @@ def random_seq(length: int) -> str:
     bases = np.array(['A', 'C', 'G', 'T'])
     return ''.join(bases[np.random.randint(0, 4, length)])
 
+def random_seqs(length: int, n_seqs: int) -> list[str]:
+    return [random_seq(length) for _ in range(n_seqs)]
 
 def random_onehot(length: int) -> np.ndarray:
     return seq2onehot(random_seq(length))
@@ -282,13 +284,17 @@ from torch.utils.data import Dataset
 from pyfaidx import Fasta
 from multiprocessing import Lock
 
+
 class GenomicInterval():
     def __init__(
         self,
         genome_path: str,
+        lock: bool = False,
     ):
-        
-        self.lock = Lock()
+        if lock:
+            self.lock = Lock()
+        else:
+            self.lock = None
         self.genome_path = genome_path
         self._genome = None
 
@@ -309,7 +315,6 @@ class GenomicInterval():
         #     start = mid - self.window_length // 2
         #     end = start + self.window_length
 
-
         # padding N if outside the chromosome
         left_padding = 0
         if start < 0:
@@ -320,8 +325,11 @@ class GenomicInterval():
             right_padding = end - len(chromosome)
             end = len(chromosome)
         
-        with self.lock:
-            seq = chromosome[start:end].seq.upper()
+        if self.lock:
+            with self.lock:
+                seq = chromosome[start:end].seq
+        else:
+            seq = chromosome[start:end].seq
         seq = ('N' * left_padding) + seq + ('N' * right_padding)
 
         return seq

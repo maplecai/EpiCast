@@ -55,9 +55,9 @@ def predict_Sei(seq_df, device='cuda'):
         seq_column='seq',
         crop=False,
         # cropped_len=200,
-        padding=True,
-        padded_length=4096,
-        padding_method='N',
+        pad=True,
+        padded_len=4096,
+        pad_mode='N',
     )
 
     loader = DataLoader(

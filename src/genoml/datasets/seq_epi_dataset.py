@@ -40,6 +40,7 @@ class SeqEpiDataset(Dataset):
         cell_types=None,
         assays=None,
         ###
+        drop_na=False,
 
     ) -> None:
         
@@ -81,6 +82,9 @@ class SeqEpiDataset(Dataset):
         self.epi_df = pd.read_csv(epi_file_path, sep=detect_delimiter(epi_file_path))
 
         self.df = pd.concat([self.seq_df, self.epi_df], axis=1)
+
+        if drop_na:
+            self.df = self.df.dropna(subset=target_column, how='any')
 
         # filter data by filter_column
         if apply_filter:

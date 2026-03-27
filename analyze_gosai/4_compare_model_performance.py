@@ -5,6 +5,8 @@ import pandas as pd
 # from genoml.utils import *
 from genoml import models, datasets, utils, metrics
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
+# from sklearn.metrics import mean_squared_error as mse
+
 
 def define_masks(
         mpra_df: pd.DataFrame,
@@ -17,33 +19,33 @@ def define_masks(
     masks['val'] = mpra_df['chr'].isin(['chr19', 'chr21', 'chrX'])
     masks['test']  = mpra_df['chr'].isin(['chr7', 'chr13'])
 
-    # 和前三种细胞类型差异top1%的序列定义为cell type specific
-    for cell_type in cell_types:
-        ref_mean = mpra_df[cell_types[:3]].mean(axis=1)
-        delta = (mpra_df[cell_type] - ref_mean)
-        delta_abs = delta.abs()
-        thr = np.percentile(delta_abs.dropna(), 99)
-        specific = delta_abs > thr
-        masks[f'{cell_type}_specific'] = specific
-        print(cell_type, (delta[specific] > 0).sum(), (delta[specific] < 0).sum())
-
-    # # 上下各0.5%的序列
+    # # 和前三种细胞类型差异top1%的序列定义为cell type specific
     # for cell_type in cell_types:
     #     ref_mean = mpra_df[cell_types[:3]].mean(axis=1)
-    #     delta = mpra_df[cell_type] - ref_mean
-
-    #     d = delta.dropna()
-    #     q05 = np.percentile(d, 1)
-    #     q95 = np.percentile(d, 99)
-    #     q05 = np.percentile(d, 0.5)
-    #     q95 = np.percentile(d, 99.5)
-
-    #     specific = (delta < q05) | (delta > q95)
+    #     delta = (mpra_df[cell_type] - ref_mean)
+    #     delta_abs = delta.abs()
+    #     thr = np.percentile(delta_abs.dropna(), 99)
+    #     specific = delta_abs > thr
     #     masks[f'{cell_type}_specific'] = specific
+    #     print(cell_type, (delta[specific] > 0).sum(), (delta[specific] < 0).sum())
 
-    #     # ✅ 一行检查：test+ct_specific 的总数，以及 delta 的正/负号（相对 mean 上/下调）
-    #     print(f"{cell_type}_specific n={(specific).sum()}  +={(delta[specific] > 0).sum()} -={(delta[specific] < 0).sum()} {delta.mean()}, {delta.std()}")
-    #     print(f"test+{cell_type}_specific n={(masks['test'] & specific).sum()}  +={(delta[masks['test'] & specific] > 0).sum()}  -={(delta[masks['test'] & specific] < 0).sum()}")
+    # 上下各1%的序列定义为cell type specific
+    for cell_type in cell_types:
+        ref_mean = mpra_df[cell_types[:3]].mean(axis=1)
+        delta = mpra_df[cell_type] - ref_mean
+
+        d = delta.dropna()
+        q05 = np.percentile(d, 1)
+        q95 = np.percentile(d, 99)
+        # q05 = np.percentile(d, 0.5)
+        # q95 = np.percentile(d, 99.5)
+
+        specific = (delta < q05) | (delta > q95)
+        masks[f'{cell_type}_specific'] = specific
+
+        # 一行检查：test+ct_specific 的总数，以及 delta 的正/负号（相对 mean 上/下调）
+        print(f"{cell_type}_specific n={(specific).sum()}  +={(delta[specific] > 0).sum()} -={(delta[specific] < 0).sum()} {delta.mean()}, {delta.std()}")
+        print(f"test+{cell_type}_specific n={(masks['test'] & specific).sum()}  +={(delta[masks['test'] & specific] > 0).sum()}  -={(delta[masks['test'] & specific] < 0).sum()}")
 
 
 
@@ -186,6 +188,26 @@ def main():
     compute_metrics(join_df, cell_types, masks,split='test')
     model_dfs[model_name] = join_df
 
+    model_name = 'EpiCast: 0207_gosai_ag_vef trans=3 huberloss'
+    print(model_name)
+    pred_df = pd.DataFrame(columns=pred_cols, dtype=float)
+    pred = np.load('saved/0207_gosai_ag_vef/0207_043226/preds.npy')
+    pred_df[pred_cols] = pred
+    join_df = pd.concat([mpra_df, pred_df], axis=1)
+    compute_metrics(join_df, cell_types, masks,split='test')
+    model_dfs[model_name] = join_df
+
+
+
+    model_name = 'EpiCast: 0226_gosai_ag_vef trans=3 huberloss'
+    print(model_name)
+    pred_df = pd.DataFrame(columns=pred_cols, dtype=float)
+    pred = np.load('saved/0226_gosai_ag_vef/0226_014611/preds.npy')
+    pred_df[pred_cols] = pred
+    join_df = pd.concat([mpra_df, pred_df], axis=1)
+    compute_metrics(join_df, cell_types, masks,split='test')
+    model_dfs[model_name] = join_df
+
 
     model_name = 'EpiCast: 0206_gosai_sei_vef'
     print(model_name)
@@ -196,15 +218,14 @@ def main():
     compute_metrics(join_df, cell_types, masks,split='test')
     model_dfs[model_name] = join_df
 
-
-    model_name = 'EpiCast: 0209_gosai_sei_vef_old_version'
-    print(model_name)
-    pred_df = pd.DataFrame(columns=pred_cols, dtype=float)
-    pred = np.load('saved/0209_gosai_sei_vef_old_version/0209_065805/preds.npy')
-    pred_df[pred_cols] = pred
-    join_df = pd.concat([mpra_df, pred_df], axis=1)
-    compute_metrics(join_df, cell_types, masks,split='test')
-    model_dfs[model_name] = join_df
+    # model_name = 'EpiCast: 0209_gosai_sei_vef_old_version'
+    # print(model_name)
+    # pred_df = pd.DataFrame(columns=pred_cols, dtype=float)
+    # pred = np.load('saved/0209_gosai_sei_vef_old_version/0209_065805/preds.npy')
+    # pred_df[pred_cols] = pred
+    # join_df = pd.concat([mpra_df, pred_df], axis=1)
+    # compute_metrics(join_df, cell_types, masks,split='test')
+    # model_dfs[model_name] = join_df
 
 
 
@@ -214,9 +235,13 @@ def main():
     print(model_name)
     pred_df = pd.DataFrame(columns=pred_cols, dtype=float)
     pred = np.load('outputs/predictions/malinois_original_pred.npy')
+    pred = pred - pred.mean(axis=0)
     pred_df[pred_cols[:3]] = pred
+
+
     pred_df['HCT116_pred'] = pred.mean(axis=1)
     pred_df['A549_pred'] = pred.mean(axis=1)
+    print(pred_df.describe())
     join_df = pd.concat([mpra_df, pred_df],axis=1)
     compute_metrics(join_df, cell_types, masks,split='test')
     model_dfs[model_name] = join_df
@@ -225,13 +250,29 @@ def main():
     # model_name = 'Seq only: malinois retrain'
     # print(model_name)
     # pred_df = pd.DataFrame(columns=pred_cols, dtype=float)
-    # pred = np.load('saved/0207_gosai_malinois_600/0207_034209/preds.npy')
+    # # pred = np.load('saved/0207_gosai_malinois_600/0207_034209/preds.npy')
+    # pred = np.load('saved/0207_gosai_malinois_600/0209_032051/preds_pos.npy')
     # pred_df[pred_cols[:3]] = pred
     # pred_df['HCT116_pred'] = pred.mean(axis=1)
     # pred_df['A549_pred'] = pred.mean(axis=1)
     # join_df = pd.concat([mpra_df, pred_df],axis=1)
     # compute_metrics(join_df, cell_types, masks,split='test')
     # model_dfs[model_name] = join_df
+
+    model_name = 'Seq only: malinois retrain rc'
+    print(model_name)
+    pred_df = pd.DataFrame(columns=pred_cols, dtype=float)
+    # pred = np.load('saved/0207_gosai_malinois_600/0207_034209/preds.npy')
+    pred = np.load('saved/0207_gosai_malinois_600/0209_032051/preds_rc.npy')
+    pred = pred - pred.mean(axis=0)
+
+    pred_df[pred_cols[:3]] = pred
+    pred_df['HCT116_pred'] = pred.mean(axis=1)
+    pred_df['A549_pred'] = pred.mean(axis=1)
+    join_df = pd.concat([mpra_df, pred_df],axis=1)
+    compute_metrics(join_df, cell_types, masks,split='test')
+    model_dfs[model_name] = join_df
+
 
 
     model_name = 'Seq only: 0206_gosai_conv_200 trans=0'
@@ -267,12 +308,19 @@ def main():
     summary_df = compute_summary_table(model_dfs, cell_types, masks, split='test+specific', metric_fn=metrics.pearson)
     print(summary_df)
 
-    # summary_df = compute_summary_table(model_dfs, cell_types, masks, split='test+high_std', metric_fn=metrics.pearson)
-    # print(summary_df)
-    # summary_df = compute_summary_table(model_dfs, cell_types, masks, split='test+specific', metric_fn=metrics.spearman)
-    # print(summary_df)
 
 
+    # # summary_df = compute_summary_table(model_dfs, cell_types, masks, split='test', metric_fn=metrics.rmse)
+    # # print(summary_df)
+
+    # summary_df = compute_summary_table(model_dfs, cell_types, masks, split='test+specific', metric_fn=metrics.rmse)
+    # print(summary_df)
+
+    # # summary_df = compute_summary_table(model_dfs, cell_types, masks, split='test', metric_fn=metrics.mae)
+    # # print(summary_df)
+
+    # summary_df = compute_summary_table(model_dfs, cell_types, masks, split='test+specific', metric_fn=metrics.mae)
+    # print(summary_df)
 
 
 

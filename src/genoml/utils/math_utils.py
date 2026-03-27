@@ -18,11 +18,11 @@ def logit(x, eps=0):
 
 
 def remove_nan(x, y):
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
     if len(x) != len(y):
         raise ValueError('len(x) must be equal to len(y)')
-    x_mask = ~np.isnan(x)
-    y_mask = ~np.isnan(y)
-    mask = x_mask & y_mask
+    mask = np.isfinite(x) & np.isfinite(y)
     x = x[mask]
     y = y[mask]
     return x, y

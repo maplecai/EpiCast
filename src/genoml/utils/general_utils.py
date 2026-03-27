@@ -1,5 +1,6 @@
 import os
 import h5py
+import pickle
 import logging
 import logging.config
 import numpy as np
@@ -76,7 +77,6 @@ def load_h5(file_dir: str, key: str=None):
             if len(keys) == 1:
                 data = f[keys[0]][:]
             else:
-                print('file has more than one key')
                 data = {key: f[key][:] for key in keys}
     return data
 
@@ -84,6 +84,16 @@ def save_h5(file_dir: str, data) -> None:
     with h5py.File(file_dir, 'w') as f:
         f.create_dataset('data', data=data)
     return
+
+
+def load_pickle(file_dir: str):
+    with open(file_dir, 'rb') as f:
+        data = pickle.load(f)
+    return data
+
+def save_pickle(file_dir: str, data) -> None:
+    with open(file_dir, 'wb') as f:
+        pickle.dump(data, f)
 
 
 
@@ -176,90 +186,195 @@ def detect_delimiter(file_path):
     return sep
 
 
-class HDF5Writer:
-    def __init__(self, file_path, dataset_name='data', data_shape=None, max_samples=None, chunk_size=1024, dtype="float32", compression="gzip"):
+
+
+
+class H5Writer:
+    def __init__(
+        self,
+        path,
+        datasets_shape,
+        total_size,
+        chunk_size=1024,
+        dtype=np.float32,
+        compression="gzip",
+    ):
         """
-        HDF5 增量写入工具
         Args:
-            file_path (str): HDF5 文件路径
-            dataset_name (str): 数据集名称
-            data_shape (tuple): 单个样本的形状，例如 (2048, 305)，可为 None（自动推断）
-            max_samples (int, optional): 最大样本数（None 表示动态增长）
-            chunk_size (int): 每块的 batch 大小
-            dtype (str): 数据类型
-            compression (str): 压缩方式，可为 None/gzip/lzf
+            path: h5 文件路径
+            datasets_shape: dict, 例如 {"DNase": 305, "ATAC": 167, "TF": 1617}
+            total_size: 总样本数 N
+            chunk_size: chunk 的 batch 维
+            dtype: 数据类型
+            compression: 压缩方式
         """
-        self.file = h5py.File(file_path, "a")
-        self.dataset_name = dataset_name
-        self.data_shape = data_shape
-        self.max_samples = max_samples
+        self.path = path
+        self.datasets_shape = datasets_shape
+        self.total_size = total_size
         self.chunk_size = chunk_size
-        self.dtype = dtype
+        self.dtype = np.dtype(dtype)
         self.compression = compression
 
-        # 如果已存在，直接复用
-        if dataset_name in self.file:
-            self.dset = self.file[dataset_name]
-            self.index = self.dset.shape[0] if max_samples is None else 0
-        # 如果没有但给了 data_shape，则立即创建
-        elif self.data_shape is not None:
-            self._create_dataset(self.data_shape)
-        # 否则延迟到第一次 append 才建
-        else:
-            self.dset = None
-            self.index = 0
-
-    def _create_dataset(self, data_shape):
-        """内部函数：根据 data_shape 创建 dataset"""
-        self.data_shape = data_shape
-        if self.max_samples is None:
-            dset = self.file.create_dataset(
-                self.dataset_name,
-                shape=(0,) + data_shape,
-                maxshape=(None,) + data_shape,
-                dtype=self.dtype,
-                chunks=(self.chunk_size,) + data_shape,
-                compression=self.compression
-            )
-        else:
-            dset = self.file.create_dataset(
-                self.dataset_name,
-                shape=(self.max_samples,) + data_shape,
-                dtype=self.dtype,
-                chunks=(self.chunk_size,) + data_shape,
-                compression=self.compression
-            )
-        self.dset = dset
+        self.f = None
+        self.datasets = {}
         self.index = 0
+        self._init_datasets()
 
-    def append(self, batch):
-        """追加写入 batch 数据"""
-        batch = np.asarray(batch, dtype=self.dtype)
-        n = batch.shape[0]
+    def _init_datasets(self):
+        self.f = h5py.File(self.path, "a")
 
-        # 如果 dataset 还没建，自动推断 shape
-        if self.dset is None:
-            self._create_dataset(batch.shape[1:])
+        for name, sample_shape in self.datasets_shape.items():
+            shape = (self.total_size, *sample_shape)
+            chunks = (min(self.chunk_size, self.total_size), *sample_shape)
+            self.datasets[name] = self._get_or_create_ds(name, shape, chunks)
 
-        if self.max_samples is None:
-            self.dset.resize(self.index + n, axis=0)
-        elif self.index + n > self.max_samples:
-            raise ValueError("超过最大样本数！")
+        self.index = int(self.f.attrs.get("num_written", 0))
+        return self
 
-        self.dset[self.index:self.index+n, ...] = batch
-        self.index += n
-        self.file.flush()
+    def _get_or_create_ds(self, name, shape, chunks):
+        if name in self.f:
+            ds = self.f[name]
+            if ds.shape != shape:
+                raise ValueError(f"{name} shape mismatch: {ds.shape} vs {shape}")
+            if ds.dtype != self.dtype:
+                raise ValueError(f"{name} dtype mismatch: {ds.dtype} vs {self.dtype}")
+            return ds
+
+        return self.f.create_dataset(
+            name,
+            shape=shape,
+            dtype=self.dtype,
+            chunks=chunks,
+            compression=self.compression,
+            shuffle=True,
+        )
+
+    def write(self, data_dict, flush=True):
+        """
+        Args:
+            data_dict: dict
+                例如 {
+                    "DNase": np.ndarray(shape=(b, 305)),
+                    "ATAC": np.ndarray(shape=(b, 167)),
+                    "TF": np.ndarray(shape=(b, 1617)),
+                    "Histone": np.ndarray(shape=(b, 1116)),
+                }
+        """
+        b = len(next(iter(data_dict.values())))
+        end = self.index + b
+
+        for name, arr in data_dict.items():
+            self.datasets[name][self.index:end] = arr.astype(self.dtype, copy=False)
+
+        self.index = end
+        self.f.attrs["num_written"] = self.index
+
+        if flush:
+            self.f.flush()
+
+    def flush(self):
+        self.f.flush()
+
+    def close(self):
+        self.f.close()
 
     def __len__(self):
         return self.index
+
+    @property
+    def start(self):
+        return self.index
+
+
+
+
+
+
+
+# class HDF5Writer:
+#     def __init__(self, file_path, dataset_name='data', data_shape=None, max_samples=None, chunk_size=1024, dtype="float32", compression="gzip"):
+#         """
+#         HDF5 增量写入工具
+#         Args:
+#             file_path (str): HDF5 文件路径
+#             dataset_name (str): 数据集名称
+#             data_shape (tuple): 单个样本的形状，例如 (2048, 305)，可为 None（自动推断）
+#             max_samples (int, optional): 最大样本数（None 表示动态增长）
+#             chunk_size (int): 每块的 batch 大小
+#             dtype (str): 数据类型
+#             compression (str): 压缩方式，可为 None/gzip/lzf
+#         """
+#         self.file = h5py.File(file_path, "a")
+#         self.dataset_name = dataset_name
+#         self.data_shape = data_shape
+#         self.max_samples = max_samples
+#         self.chunk_size = chunk_size
+#         self.dtype = dtype
+#         self.compression = compression
+
+#         # 如果已存在，直接复用
+#         if dataset_name in self.file:
+#             self.dset = self.file[dataset_name]
+#             self.index = self.dset.shape[0] if max_samples is None else 0
+#         # 如果没有但给了 data_shape，则立即创建
+#         elif self.data_shape is not None:
+#             self._create_dataset(self.data_shape)
+#         # 否则延迟到第一次 append 才建
+#         else:
+#             self.dset = None
+#             self.index = 0
+
+#     def _create_dataset(self, data_shape):
+#         """内部函数：根据 data_shape 创建 dataset"""
+#         self.data_shape = data_shape
+#         if self.max_samples is None:
+#             dset = self.file.create_dataset(
+#                 self.dataset_name,
+#                 shape=(0,) + data_shape,
+#                 maxshape=(None,) + data_shape,
+#                 dtype=self.dtype,
+#                 chunks=(self.chunk_size,) + data_shape,
+#                 compression=self.compression
+#             )
+#         else:
+#             dset = self.file.create_dataset(
+#                 self.dataset_name,
+#                 shape=(self.max_samples,) + data_shape,
+#                 dtype=self.dtype,
+#                 chunks=(self.chunk_size,) + data_shape,
+#                 compression=self.compression
+#             )
+#         self.dset = dset
+#         self.index = 0
+
+#     def append(self, batch):
+#         """追加写入 batch 数据"""
+#         batch = np.asarray(batch, dtype=self.dtype)
+#         n = batch.shape[0]
+
+#         # 如果 dataset 还没建，自动推断 shape
+#         if self.dset is None:
+#             self._create_dataset(batch.shape[1:])
+
+#         if self.max_samples is None:
+#             self.dset.resize(self.index + n, axis=0)
+#         elif self.index + n > self.max_samples:
+#             raise ValueError("超过最大样本数！")
+
+#         self.dset[self.index:self.index+n, ...] = batch
+#         self.index += n
+#         self.file.flush()
+
+#     def __len__(self):
+#         return self.index
     
 
-    def flush(self):
-        self.file.flush()
+#     def flush(self):
+#         self.file.flush()
 
-    def close(self):
-        self.file.flush()
-        self.file.close()
+#     def close(self):
+#         self.file.flush()
+#         self.file.close()
 
 
 

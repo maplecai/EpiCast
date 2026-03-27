@@ -39,6 +39,8 @@ class SeqDataset(Dataset):
         N_fill_value=0.25,
 
         aug_rc=False,
+        # drop_na=False,
+        return_str=False,
     ) -> None:
         
         super().__init__()
@@ -73,6 +75,7 @@ class SeqDataset(Dataset):
         self.N_fill_value = N_fill_value
 
         self.aug_rc = aug_rc
+        self.return_str = return_str
         
 
         # read dataframe
@@ -142,8 +145,11 @@ class SeqDataset(Dataset):
                 if np.random.rand() < 0.5:
                     seq = rc_seq(seq)
 
-            seq = torch.tensor(seq2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
-            sample['seq'] = seq
+            if self.return_str:
+                sample['seq'] = seq
+            else:
+                seq = torch.tensor(seq2onehot(seq, N_fill_value=self.N_fill_value), dtype=torch.float)
+                sample['seq'] = seq
 
         if self.features is not None:
             feature = self.features[index]

@@ -23,28 +23,6 @@ mpra_df = mpra_df.reset_index(drop=True)
 print(mpra_df.columns)
 print("after filter lfcSE < 1:", mpra_df.shape)
 
-
-# cell_cols = ['K562', 'HepG2', 'SK-N-SH']
-
-# std_multiple_cut = 6.0
-# up_cutoff_move   = 4.0
-
-# means = mpra_df[cell_cols].mean().to_numpy()
-# stds  = mpra_df[cell_cols].std().to_numpy()
-
-# up_cut   = means + stds * std_multiple_cut + up_cutoff_move
-# down_cut = means - stds * std_multiple_cut
-
-# keep_up = (mpra_df[cell_cols] < up_cut).to_numpy().all(axis=1)
-# # n_drop_up = (~keep_up).sum()
-# mpra_df = mpra_df.loc[keep_up].copy()
-
-# keep_down = (mpra_df[cell_cols] > down_cut).to_numpy().all(axis=1)
-# # n_drop_down = (~keep_down).sum()
-# mpra_df = mpra_df.loc[keep_down].copy()
-
-# print("after filter extreme value:", mpra_df.shape)
-
 mpra_df.to_csv('data/Gosai_MPRA/Gosai_MPRA_nature_0206.tsv', sep='\t', index=False)
 
 

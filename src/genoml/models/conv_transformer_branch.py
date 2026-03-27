@@ -7,7 +7,7 @@ from .linear_block import LinearBlock, MLPBlock
 from .trans_block import TransBlock
 from .film import FiLM
 
-class ConvTransformer(nn.Module):
+class ConvTransformerBranch(nn.Module):
     def __init__(
         self, 
         input_len=200,
@@ -26,8 +26,6 @@ class ConvTransformer(nn.Module):
         conv_layer_order='resnet_v2',
         conv_activation='relu',
 
-        global_avg_pooling=False,
-
         num_trans_blocks=3, 
         trans_d_embed=256, 
         trans_n_heads=8, 
@@ -36,6 +34,8 @@ class ConvTransformer(nn.Module):
 
         trans_add_cls=False,
         trans_output_mode='seq_all',
+
+        num_branches=1,
 
         num_linear_blocks=1,
         linear_channels=1024,
@@ -81,11 +81,6 @@ class ConvTransformer(nn.Module):
                 f'conv_dropout_{i}', nn.Dropout(conv_dropout_rate)
             )
 
-        if global_avg_pooling:
-            self.conv_layers.add_module(
-                f'global_avg_pooling_0', nn.AdaptiveAvgPool1d(1)
-            )
-        
         L = input_len
         for _ in range(num_conv_blocks):
             if pool_kernel_size != 1:
@@ -104,15 +99,14 @@ class ConvTransformer(nn.Module):
             )
         
         current_shape = (L, trans_d_embed)
-        if num_trans_blocks == 0:
-            linear_in_channels = conv_channels
-        elif trans_output_mode == 'seq_flatten':
+        if trans_output_mode == 'seq_flatten':
             linear_in_channels = trans_d_embed * L
         else:
             linear_in_channels = trans_d_embed
         
         self.linear_layers = nn.Sequential()
-        for i in range(num_linear_blocks):
+        
+        if num_branches == 1:
             self.linear_layers.add_module(
                 f'mlp_block', 
                 MLPBlock(
@@ -121,6 +115,19 @@ class ConvTransformer(nn.Module):
                     hidden_channels=linear_channels,
                     out_channels=output_dim,
                     dropout_rate=linear_dropout_rate,
+                    num_branches=1,
+                )
+            )
+        else:
+            self.linear_layers.add_module(
+                f'mlp_block', 
+                MLPBlock(
+                    num_linear_blocks=num_linear_blocks,
+                    in_channels=linear_in_channels,
+                    hidden_channels=linear_channels,
+                    out_channels=1,
+                    dropout_rate=linear_dropout_rate,
+                    num_branches=num_branches,
                 )
             )
 

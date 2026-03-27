@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import argparse
 import numpy as np
@@ -7,8 +8,6 @@ import torch
 import torch.utils.data
 from tqdm import tqdm
 from pathlib import Path
-
-# sys.path.append(str(Path(__file__).resolve().parent.parent))
 from genoml import models, datasets, metrics, utils
 
 @torch.no_grad()
@@ -60,7 +59,10 @@ def main(args):
         config['total_dataset']['args']['data_path'] = data_path
 
     model = utils.init_obj(models, config['model'])
-    saved_model_path = saved_dir / 'checkpoint.pth'
+    ckpt_pattern = re.compile(r"checkpoint_epoch=(\d+)_pearson=([0-9.]+)\.pth$")
+    ckpts = [p for p in Path(saved_dir).iterdir() if p.is_file() and ckpt_pattern.fullmatch(p.name)]
+    saved_model_path = max(ckpts, key=lambda p: int(ckpt_pattern.fullmatch(p.name).group(1)))
+    print(f'use saved model: {saved_model_path}')
 
     state_dict = torch.load(str(saved_model_path))
     if 'model' in state_dict:
@@ -76,14 +78,7 @@ def main(args):
         sampler=None,
     )
 
-    output_path = saved_dir / output_name
-
-
     preds = get_preds(model, total_loader, device, reverse_comp)
-
-    # target_name = cell_types + '_pred'
-    # cell_types = config['total_dataset']['args']['cell_types']
-    # target_name = np.array([f"{ct}_pred" for ct in cell_types], dtype=object)
     output_path = saved_dir / output_name
     np.save(output_path, preds)
     print(f"saved: {output_path}")
