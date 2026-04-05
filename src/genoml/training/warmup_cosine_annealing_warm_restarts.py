@@ -3,6 +3,68 @@ import torch
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
+
+
+# class WarmupCosineAnnealing(_LRScheduler):
+#     """
+#     先线性 warmup，再 cosine annealing，不带 restart。
+
+#     注意：
+#     - 按 epoch 调用 scheduler.step()
+#     - last_epoch 从 -1 开始，符合 PyTorch scheduler 习惯
+#     """
+
+#     def __init__(
+#         self,
+#         optimizer: torch.optim.Optimizer,
+#         warmup_epochs: int,
+#         max_epochs: int,
+#         warmup_start_lr: float = 0.0,
+#         eta_min: float = 0.0,
+#         last_epoch: int = -1,
+#     ):
+#         if warmup_epochs < 0:
+#             raise ValueError(f"warmup_epochs must be >= 0, got {warmup_epochs}")
+#         if max_epochs <= 0:
+#             raise ValueError(f"max_epochs must be > 0, got {max_epochs}")
+#         if warmup_epochs >= max_epochs:
+#             raise ValueError(
+#                 f"warmup_epochs must be < max_epochs, got warmup_epochs={warmup_epochs}, max_epochs={max_epochs}"
+#             )
+
+#         self.warmup_epochs = warmup_epochs
+#         self.max_epochs = max_epochs
+#         self.warmup_start_lr = warmup_start_lr
+#         self.eta_min = eta_min
+
+#         super().__init__(optimizer, last_epoch)
+
+#     def get_lr(self):
+#         if self.last_epoch < self.warmup_epochs:
+#             # linear warmup
+#             if self.warmup_epochs == 0:
+#                 return list(self.base_lrs)
+
+#             progress = (self.last_epoch + 1) / self.warmup_epochs
+#             return [
+#                 self.warmup_start_lr + (base_lr - self.warmup_start_lr) * progress
+#                 for base_lr in self.base_lrs
+#             ]
+
+#         # cosine annealing
+#         cosine_epochs = self.max_epochs - self.warmup_epochs
+#         progress = (self.last_epoch - self.warmup_epochs + 1) / cosine_epochs
+#         progress = min(max(progress, 0.0), 1.0)
+
+#         return [
+#             self.eta_min
+#             + (base_lr - self.eta_min) * (1 + math.cos(math.pi * progress)) / 2
+#             for base_lr in self.base_lrs
+#         ]
+
+
+
+
 class WarmupCosineAnnealingWarmRestarts(LRScheduler):
     """
     Warmup + CosineAnnealingWarmRestarts
@@ -20,7 +82,7 @@ class WarmupCosineAnnealingWarmRestarts(LRScheduler):
         optimizer,
         warmup_epochs,
         T_0,
-        eta_min=0.0,
+        eta_min=1.0e-6,
         T_mult=1.0,
         last_epoch=-1,
     ):

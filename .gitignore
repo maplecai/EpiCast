@@ -20,9 +20,9 @@
 .vscode/
 .history/
 __pycache__/
+.cursor/
 
 old/
-_*/
 _*
 data/
 outputs/

@@ -11,7 +11,7 @@ class FiLM(nn.Module):
       - [B, C]
       - [B, C, L]
       - [B, C, H, W]
-      - [B, ..., C] （可选：通过 channel_dim 指定 C 在哪个维度）
+      - [B, ..., C] （可选：通过 modulated_dim 指定 C 在哪个维度）
 
     条件 c 形状：
       - [B, cond_dim]
@@ -21,14 +21,14 @@ class FiLM(nn.Module):
         num_features: int,     # C
         cond_dim: int,         # mask 的维度
         hidden_dim: int = 128, # MLP 中间层（可改小/改大/设为 0 表示线性）
-        channel_dim: int = 1,  # x 的通道维度位置，默认 [B, C, ...] => 1
+        modulated_dim: int = 1,  # x 的通道维度位置，默认 [B, C, ...] => 1
         affine: bool = True,   # 是否乘 gamma；若 False 则只加 beta
         init_identity: bool = True,  # 是否初始化为接近 identity（训练更稳）
     ):
         super().__init__()
         self.num_features = num_features
         self.cond_dim = cond_dim
-        self.channel_dim = channel_dim
+        self.modulated_dim = modulated_dim
         self.affine = affine
 
         out_dim = num_features * (2 if affine else 1)
@@ -67,9 +67,9 @@ class FiLM(nn.Module):
             gamma = None
 
         # 把 [B, C] reshape 成能广播到 x 的形状
-        # 目标：在 channel_dim 位置放 C，其余维度为 1
+        # 目标：在 modulated_dim 位置放 C，其余维度为 1
         shape = [B] + [1] * (x.dim() - 1)
-        shape[self.channel_dim] = self.num_features
+        shape[self.modulated_dim] = self.num_features
 
         beta = beta.view(*shape)
         if gamma is not None:

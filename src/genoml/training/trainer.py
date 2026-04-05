@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import logging
+import logging.config
 import numpy as np
 import pandas as pd
 
@@ -40,12 +41,17 @@ class Trainer:
         else:
             self.log = self.logger.debug
             self.debug = self.logger.debug
-        
+
         # log config
         yaml = YAML()
         stream = StringIO()
         yaml.dump(self.config, stream)
         self.log(stream.getvalue())
+
+        # runtime states
+        self.start_epoch = 0
+        self.epoch = -1
+        self.step = 0
 
         # setup dataloader
         self.build_dataloader()
@@ -56,12 +62,12 @@ class Trainer:
         # freeze parameters
         if config.get("freeze_parameters", False):
             self.log("freeze parameters")
-            patterns = config.get("freeze_patterns", [])  # 改名更明确
+            patterns = config.get("freeze_patterns", [])
             regex_list = [re.compile(p) for p in patterns]
 
             for name, param in self.model.named_parameters():
                 for regex in regex_list:
-                    if regex.search(name):   # 正则匹配
+                    if regex.search(name):
                         param.requires_grad = False
                         self.log(f"freeze parameter {name} (matched by {regex.pattern})")
                         break
@@ -70,22 +76,34 @@ class Trainer:
         self.build_optimizer()
 
         self.loss_func = utils.init_obj(
-            metrics, 
+            metrics,
             config['loss_func']
         )
 
         self.lr_scheduler = utils.init_obj(
-            training, 
-            config['lr_scheduler'], 
+            training,
+            config['lr_scheduler'],
             self.optimizer
         )
         self.early_stopper = utils.init_obj(
-            training, 
-            config['early_stopper'], 
-            saved_dir=os.path.join(config['saved_dir']), 
+            training,
+            config['early_stopper'],
+            saved_dir=os.path.join(config['saved_dir']),
             trace_func=self.log
         )
-        
+
+        # resume training if needed
+        if config.get("resume", False):
+            resume_path = config["resume_path"]
+            last_epoch, last_step = self.load_checkpoint(
+                chechpoint_path=resume_path,
+                load_optimizer=True,
+                load_lr_scheduler=True,
+            )
+            self.start_epoch = last_epoch + 1
+            self.step = last_step
+            self.log(f"Resume training from epoch={self.start_epoch}, step={self.step}")
+
         self.cell_types = config['cell_types']
         self.metric_df = pd.DataFrame(columns=['mse', 'r2', 'pearson'])
         self.metrics = MetricCollection({
@@ -93,7 +111,6 @@ class Trainer:
             "r2": R2Score(num_outputs=len(self.cell_types), multioutput="raw_values", sync_on_compute=True),
             "pearson": PearsonCorrCoef(num_outputs=len(self.cell_types), sync_on_compute=True),
         }).to(self.device)
-
 
     def setup_distributed(self):
         config = self.config
@@ -114,82 +131,76 @@ class Trainer:
             self.local_rank = int(os.environ["LOCAL_RANK"])
 
             if config['device'] == 'auto':
-                # auto 时默认按 local_rank 编号
                 self.device = f"cuda:{self.local_rank}"
             elif isinstance(config['device'], list):
-                # 例如 ["cuda:0", "cuda:1", ...]
                 self.device = config['device'][self.local_rank]
             else:
                 raise ValueError('DDP device should be a list or "auto"')
+
             torch.cuda.set_device(self.device)
             self.logger.info(f"Start training (DDP) on rank {self.local_rank}, {self.device}.")
-
-
 
     def build_dataloader(self):
         config = self.config
 
         self.train_dataset = utils.init_obj(
-            datasets, 
+            datasets,
             config['train_dataset'],
         )
         self.val_dataset = utils.init_obj(
-            datasets, 
+            datasets,
             config['val_dataset'],
         )
-        
+
         if not self.distributed:
             self.train_loader = utils.init_obj(
                 torch.utils.data,
                 config['train_loader'],
-                dataset=self.train_dataset, 
+                dataset=self.train_dataset,
             )
 
             self.val_loader = utils.init_obj(
                 torch.utils.data,
                 config['val_loader'],
-                dataset=self.val_dataset, 
+                dataset=self.val_dataset,
             )
-            
+
         else:
             self.train_sampler = DistributedSampler(self.train_dataset, shuffle=True)
             self.val_sampler = DistributedSampler(self.val_dataset, shuffle=False)
+
             self.train_loader = utils.init_obj(
                 torch.utils.data,
                 config['train_loader'],
-                dataset=self.train_dataset, 
+                dataset=self.train_dataset,
                 sampler=self.train_sampler,
             )
             self.val_loader = utils.init_obj(
                 torch.utils.data,
                 config['val_loader'],
-                dataset=self.val_dataset, 
+                dataset=self.val_dataset,
                 sampler=self.val_sampler,
             )
-
-
 
     def build_model(self):
         config = self.config
 
         self.model = utils.init_obj(models, config['model'])
 
-        if config.get('load_saved_model', False) == True:
-            ckpt = torch.load(config['saved_model_path'])
+        # only load model weights, not full training state
+        if config.get('load_saved_model', False) is True:
+            ckpt = torch.load(config['saved_model_path'], map_location='cpu')
             utils.load_model(self.model, ckpt)
+            self.log(f"Loaded saved model weights from {config['saved_model_path']}")
 
         self.model = self.model.to(self.device)
+
         if self.distributed:
             self.model = DistributedDataParallel(
-                self.model, 
+                self.model,
                 device_ids=[int(self.device.split(':')[-1])],
                 find_unused_parameters=False,
             )
-
-
-
-
-
 
     def build_optimizer(self):
         opt_cfg = self.config["optimizer"]
@@ -221,21 +232,18 @@ class Trainer:
                 assigned.update(map(id, ps))
                 param_groups.append({"params": ps, **g_args})
 
-        # remaining -> optimizer global defaults (opt_cfg["args"])
+        # remaining -> optimizer global defaults
         rest = [p for _, p in named_params if id(p) not in assigned]
         if rest:
             param_groups.append({"params": rest})
 
         self.optimizer = utils.init_obj(torch.optim, opt_cfg, param_groups)
 
-
-
     def train(self):
         config = self.config
         max_epochs = config['max_epochs']
         epochs_per_val = config['epochs_per_val']
         batch_size = self.train_loader.batch_size
-        
 
         self.log(f'cell_types = {self.cell_types}')
         self.log(f'len(train_dataset) = {len(self.train_dataset)}')
@@ -249,42 +257,46 @@ class Trainer:
             sample = next(iter(self.train_loader))
             sample = utils.to_device(sample, self.device)
             self.log(torchinfo.summary(
-                self.model, 
-                input_data=[sample], 
-                verbose=0, 
+                self.model,
+                input_data=[sample],
+                verbose=0,
                 depth=5,
                 col_names=["input_size", "output_size", "num_params"],
                 row_settings=["var_names"],
             ))
 
-        self.log(f'start training ...')
+        self.log('start training ...')
 
-        self.epoch = -1
-        self.step = 0
-        self.val_epoch()
-        
-        for epoch in range(max_epochs):
+        # keep original behavior: validate once before training only when starting from scratch
+        if self.start_epoch == 0:
+            self.epoch = -1
+            self.val_epoch()
+
+        for epoch in range(self.start_epoch, max_epochs):
             self.epoch = epoch
+
             if self.distributed:
                 self.train_sampler.set_epoch(epoch)
 
-            # # val one epoch before training
-            # if (epoch == 0):
-            #     self.val_epoch()
-
             self.log(f'train on epoch {epoch}')
             self.train_epoch()
-            
-            if ((epoch+1) % epochs_per_val == 0):
+
+            if ((epoch + 1) % epochs_per_val == 0):
                 self.log(f'val on epoch {epoch}')
                 self.val_epoch()
 
                 if (self.local_rank == 0) and (self.early_stopper is not None):
                     score = self.metric_df.loc[self.epoch, 'pearson']
                     self.early_stopper.check(score)
+
                     if self.early_stopper.update_flag is True:
-                        self.save_checkpoint(self.epoch, 0, f'checkpoint_epoch={epoch}_pearson={self.early_stopper.best_score:.6f}.pth')
-                    if self.early_stopper.stop_flag == True:
+                        self.save_checkpoint(
+                            self.epoch,
+                            self.step,
+                            f'checkpoint_epoch={epoch}_pearson={self.early_stopper.best_score:.6f}.pth'
+                        )
+
+                    if self.early_stopper.stop_flag is True:
                         break
 
         self.log(f'local_rank = {self.local_rank:1}, finish training.')
@@ -292,35 +304,38 @@ class Trainer:
         if self.distributed:
             dist.destroy_process_group()
 
-
     def train_epoch(self):
         steps_per_log = self.config.get('steps_per_log', 0)
         train_steps = 0
         train_loss = 0
 
         self.model.train()
+
         for batch_idx, sample in enumerate(tqdm(self.train_loader, disable=(self.local_rank != 0))):
             sample = utils.to_device(sample, self.device)
             pred = self.model(sample)
             target = sample['target']
             loss = self.loss_func(pred, target)
+
             self.optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.optimizer.step()
-            
+
+            self.step += 1
             train_steps += 1
             train_loss += loss.item()
+
             if steps_per_log != 0 and batch_idx % steps_per_log == 0:
                 self.logger.debug(
                     f'local_rank = {self.local_rank}, epoch = {self.epoch}, '
-                    f'batch_idx = {batch_idx:3}, train_batch_loss = {loss.item():.6f}')
+                    f'batch_idx = {batch_idx:3}, step = {self.step}, train_batch_loss = {loss.item():.6f}'
+                )
 
         self.lr_scheduler.step()
 
         train_loss = train_loss / train_steps
         self.log(f'local_rank = {self.local_rank}, epoch = {self.epoch}, train_loss = {train_loss:.6f}')
-
 
     @torch.no_grad()
     def val_epoch(self):
@@ -329,21 +344,22 @@ class Trainer:
 
         self.model.eval()
         self.metrics.reset()
+
         for batch_idx, sample in enumerate(tqdm(self.val_loader, disable=(self.local_rank != 0))):
             sample = utils.to_device(sample, self.device)
             pred = self.model(sample)
             target = sample['target']
             loss = self.loss_func(pred, target)
+
             val_steps += 1
             val_loss += loss.item()
-
-            # B, C = pred.shape
             self.metrics.update(pred, target)
 
         val_loss = val_loss / val_steps
         self.log(f'local_rank = {self.local_rank}, epoch = {self.epoch}, val_loss = {val_loss:.6f}')
 
         self.results = self.metrics.compute()
+
         if self.local_rank == 0:
             for name, val in self.results.items():
                 val_mean = val.mean().item()
@@ -361,24 +377,22 @@ class Trainer:
                     else:
                         self.debug(f"local_rank = {self.local_rank}, epoch = {self.epoch}, {name} {ct} = {value_i:.6f}")
 
-
-
     def save_checkpoint(self, epoch, step, filename="checkpoint.pth"):
-        """Save model/optimizer/lr_scheduler states.
+        """
+        Save model/optimizer/lr_scheduler states.
 
         Args:
             epoch: current epoch
             step: current global step
             filename: save file name
         """
-
-        # only the main process (rank0) saves checkpoint
         if self.distributed is True and self.local_rank != 0:
             return
 
-        save_path = Path(self.config["saved_dir"]) / filename
+        save_dir = Path(self.config["saved_dir"])
+        save_dir.mkdir(parents=True, exist_ok=True)
+        save_path = save_dir / filename
 
-        # If using DDP, model is wrapped in model.module
         model_to_save = self.model.module if hasattr(self.model, "module") else self.model
 
         state = {
@@ -389,33 +403,29 @@ class Trainer:
             "lr_scheduler": self.lr_scheduler.state_dict() if hasattr(self, "lr_scheduler") else None,
             "config": self.config,
         }
-        self.log(f"Checkpoint saved to {save_path}")
+
         torch.save(state, save_path)
-
-
-
+        self.log(f"Checkpoint saved to {save_path}")
 
     def load_checkpoint(self, chechpoint_path="checkpoint.pth", load_optimizer=True, load_lr_scheduler=True):
         """
         Load model/optimizer/lr_scheduler states.
 
         Args:
-            chechpoint_path (str): checkpoint file name.
+            chechpoint_path (str): checkpoint file path.
             load_optimizer (bool): whether to load optimizer state.
             load_lr_scheduler (bool): whether to load lr scheduler state.
 
         Returns:
             epoch (int), step (int)
         """
-
         checkpoint = torch.load(chechpoint_path, map_location=self.device)
 
         if "model" in checkpoint:
             model_state_dict = checkpoint["model"]
         else:
             model_state_dict = checkpoint
-            
-        # 如果是 DDP，则参数实际在 model.module 中
+
         model_to_load = self.model.module if hasattr(self.model, "module") else self.model
         model_to_load.load_state_dict(model_state_dict)
 
@@ -430,5 +440,4 @@ class Trainer:
         step = checkpoint.get("step", 0)
 
         self.log(f"Checkpoint loaded from {chechpoint_path} (epoch={epoch}, step={step})")
-
         return epoch, step

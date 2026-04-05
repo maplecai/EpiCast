@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-import math
 
 from .conv_block import ConvBlock, ResConvBlock
-from .linear_block import LinearBlock, MLPBlock
+from .linear_block import LinearBlock
 from .trans_block import TransBlock
 from .film import FiLM
 from .crop import CenterCrop1d

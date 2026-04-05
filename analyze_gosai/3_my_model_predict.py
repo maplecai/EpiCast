@@ -64,7 +64,7 @@ def main(args):
     saved_model_path = max(ckpts, key=lambda p: int(ckpt_pattern.fullmatch(p.name).group(1)))
     print(f'use saved model: {saved_model_path}')
 
-    state_dict = torch.load(str(saved_model_path))
+    state_dict = torch.load(str(saved_model_path), weights_only=False)
     if 'model' in state_dict:
         state_dict = state_dict['model']
     model.load_state_dict(state_dict)

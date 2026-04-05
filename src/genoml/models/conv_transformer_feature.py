@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from .conv_block import ConvBlock, ResConvBlock
-from .linear_block import LinearBlock, SqueezeLayer
+from .linear_block import LinearBlock
 from .trans_block import TransBlock
 from .film import FiLM
 
@@ -55,6 +55,8 @@ class ConvTransformerFeature(nn.Module):
         self.trans_add_cls      = trans_add_cls
         self.cls_token = nn.Parameter(torch.zeros(1, 1, trans_d_embed))
         self.cls_token_len = int(self.trans_add_cls)
+        self.seq_token_len = 0
+        self.epi_token_len = 0
 
         self.conv_layers = nn.Sequential()
         for i in range(num_conv_blocks):

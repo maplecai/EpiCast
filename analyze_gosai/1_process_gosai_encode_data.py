@@ -48,6 +48,51 @@ def map_data_project(ol):
 
 
 
+
+
+# 暂时忽略相同ID不同序列的情况
+def expand_dic(multi_key_dict):
+    expanded_dic = {}
+    for compound_key, seq in multi_key_dict.items():
+        # 去除外层括号（如果存在）
+        if compound_key.startswith("(") and compound_key.endswith(")"):
+            compound_key = compound_key[1:-1]
+        # 用 ; 拆分
+        keys = compound_key.split(";")
+        for key in keys:
+            if key in expanded_dic:
+                if expanded_dic[key] != seq:
+                    print(f"expanded conflict key {key}")
+                    expanded_dic[key] = None
+                else: #已存在且值一致，跳过
+                    print(f"expanded conflict key {key}, has same values! skip")
+                    continue
+            else:
+                expanded_dic[key] = seq
+    return expanded_dic
+
+
+
+total_dict = {}
+ref_accessions = list(set(metadata_df['ref_accession']))
+for ref_accession in ref_accessions:
+    if ref_accession == 'ENCFF443RYE;ENCFF728XQT': # 已经有了两个分别的
+        continue
+    dic = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/{ref_accession}.fasta.gz")
+    dic = expand_dic(dic)
+    for key in dic:
+        if key in total_dict:
+            if total_dict[key] != dic[key]:
+                print(f"merge conflict key '{key}' has different values!")
+                total_dict[key] = None
+        else:
+            total_dict[key] = dic[key]
+seq_dict = total_dict
+
+
+
+
+
 # # 先把每个 ref_accession 对应的 dic 都读出来（并 expand），存到一个 list 里
 # dics = []
 # ref_accessions = list(set(metadata_df['ref_accession']))
@@ -59,6 +104,8 @@ def map_data_project(ol):
 #     dic = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/{ref_accession}.fasta.gz")
 #     # dic = expand_dic(dic)
 #     dics.append(dic)
+
+
 
 # # 一次性合并：如果遇到“相同 ID 但序列不同”，则丢弃该 ID（最终不保留任何值）
 # merged = {}
@@ -91,13 +138,13 @@ for cell_type in cell_types:
     dfs = []
     for i, row in metadata_df.iterrows():
         if row['cell_type'] == cell_type:
-            ref_accession = row['ref_accession']
-            if ref_accession == 'ENCFF443RYE;ENCFF728XQT':
-                dict1 = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/ENCFF443RYE.fasta.gz")
-                dict2 = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/ENCFF728XQT.fasta.gz")
-                seq_dict = (dict1 | dict2)
-            else:
-                seq_dict = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/{ref_accession}.fasta.gz")
+            # ref_accession = row['ref_accession']
+            # if ref_accession == 'ENCFF443RYE;ENCFF728XQT':
+            #     dict1 = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/ENCFF443RYE.fasta.gz")
+            #     dict2 = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/ENCFF728XQT.fasta.gz")
+            #     seq_dict = (dict1 | dict2)
+            # else:
+            #     seq_dict = read_fasta_gz_to_dict(f"data/Gosai_MPRA/raw/{ref_accession}.fasta.gz")
 
             file_accession = row['file_accession']
             print(file_accession)
@@ -234,18 +281,18 @@ merged_df = merged_df[['seq', 'id', 'chr', 'pos', 'ref_allele', 'alt_allele', 'a
 merged_df['chr'] = 'chr' + merged_df['chr'].astype(str)
 merged_df['pos'] = pd.to_numeric(merged_df['pos'], errors='coerce').astype('Int64')
 print(merged_df.shape)
-merged_df.to_csv('data/Gosai_MPRA/Gosai_MPRA_reprocessed_0203.tsv', sep='\t', index=False)
+# merged_df.to_csv('data/Gosai_MPRA/Gosai_MPRA_reprocessed_0203.tsv', sep='\t', index=False)
 
 
 merged_df = merged_df[merged_df['seq'].str.len() == 200].reset_index(drop=True)
 print(f'after filter len == 200, merged_df.shape = {merged_df.shape}')
 
-# merged_df = merged_df[(merged_df[['K562', 'HepG2', 'SK-N-SH']].notna().all(axis=1))].reset_index(drop=True)
-# print(f'after filter K562, HepG2, SK-N-SH not nan, merged_df.shape = {merged_df.shape}')
+merged_df = merged_df[(merged_df[['K562', 'HepG2', 'SK-N-SH']].notna().all(axis=1))].reset_index(drop=True)
+print(f'after filter K562, HepG2, SK-N-SH not nan, merged_df.shape = {merged_df.shape}')
 
 merged_df = merged_df.sort_values(by=['chr', 'pos']).reset_index(drop=True)
 
-merged_df.to_csv('data/Gosai_MPRA/Gosai_MPRA_reprocessed_0305_len200.tsv', sep='\t', index=False)
+merged_df.to_csv('data/gosai_mpra/gosai_mpra_0404.tsv', sep='\t', index=False)
 # 如果合并dict且不考虑重复，760679
 # 如果合并dict 756354
 # 如果分开dict 756344

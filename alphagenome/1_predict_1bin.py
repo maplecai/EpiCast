@@ -39,6 +39,14 @@ if __name__ == "__main__":
     # valid_len = 200
     valid_len = 145
     padded_len = 2048
+
+    left_bin_center = padded_len // 2 - 64
+    left_pad_len = left_bin_center - valid_len // 2
+    right_pad_len = padded_len - left_pad_len - valid_len
+
+    start = left_pad_len
+    end = left_pad_len + valid_len
+
     batch_size = 4
     chunk_size = 1024
     write_per_batches = chunk_size // batch_size
@@ -66,6 +74,7 @@ if __name__ == "__main__":
         seq_column="seq",
         pad=True,
         pad_mode="N",
+        pad_position=left_pad_len,
         # N_fill_value=0.25,
         N_fill_value=0,
         padded_len=padded_len,
@@ -102,19 +111,21 @@ if __name__ == "__main__":
         outputs = model.predict(seqs, organism_index=0)
 
         # DNase, ATAC: 1bp resolution
-        start = (padded_len - valid_len) // 2
-        end = start + valid_len
-
+        # start = (padded_len - valid_len) // 2
+        # end = start + valid_len
         dnase_1 = outputs["dnase"][1][:, start:end, :].mean(1).detach().cpu().numpy()
         atac_1 = outputs["atac"][1][:, start:end, :].mean(1).detach().cpu().numpy()
 
         # DNase, TF, Histone: 128bp resolution
-        start = start // 128
-        end = np.ceil(end / 128)
-        dnase_128 = outputs["dnase"][128][:, start:end, :].mean(1).detach().cpu().numpy()
-        atac_128 = outputs["atac"][128][:, start:end, :].mean(1).detach().cpu().numpy()
-        chip_tf = outputs["chip_tf"][128][:, start:end, :].mean(1).detach().cpu().numpy()
-        chip_histone = outputs["chip_histone"][128][:, start:end, :].mean(1).detach().cpu().numpy()
+        # start = start // 128
+        # end = np.ceil(end / 128)
+        center_left_bin = padded_len // 128 // 2 - 1   # 7 for 2048
+        start_128 = center_left_bin
+        end_128 = start_128 + 1
+        dnase_128 = outputs["dnase"][128][:, start_128:end_128, :].mean(1).detach().cpu().numpy()
+        atac_128 = outputs["atac"][128][:, start_128:end_128, :].mean(1).detach().cpu().numpy()
+        chip_tf = outputs["chip_tf"][128][:, start_128:end_128, :].mean(1).detach().cpu().numpy()
+        chip_histone = outputs["chip_histone"][128][:, start_128:end_128, :].mean(1).detach().cpu().numpy()
 
         writer.write(
             {

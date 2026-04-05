@@ -201,8 +201,8 @@ def pad_seq(
     elif pad_position == 'right':
         left_len = 0
         right_len = padding_len
-    elif pad_position.isdigit():
-        left_len = int(pad_position)
+    elif isinstance(pad_position, int):
+        left_len = pad_position
         right_len = padding_len - left_len
     elif pad_position == 'random':
         left_len = np.random.randint(0, padding_len)
@@ -236,24 +236,6 @@ def pad_seq(
             repeats_needed = right_len // len(seq) + 1
             repeated_seq = seq * repeats_needed
             right_seq = repeated_seq[:right_len]
-
-    # elif pad_mode == 'given':
-    #     if left_len <= 0:
-    #         left_seq = ''
-    #     else:
-    #         if left_len <= len(left_pad_seq):
-    #             left_seq = left_pad_seq[-left_len:]
-    #         else:
-    #             left_seq = 'N' * (left_len - len(left_pad_seq)) + left_pad_seq
-        
-    #     if right_len <= 0:
-    #         right_seq = ''
-    #     else:
-    #         if right_len <= len(right_pad_seq):
-    #             right_seq = right_pad_seq[:right_len]
-    #         else:
-    #             right_seq = right_pad_seq + 'N' * (right_len - len(right_pad_seq))
-
     elif pad_mode == 'given':
         if left_len == 0:
             left_seq = ''
@@ -273,6 +255,22 @@ def pad_seq(
     
     padded_seq = ''.join([left_seq, seq, right_seq])
     return padded_seq
+
+
+
+def crop_or_pad_seq(
+        seq: str, 
+        target_len: int, 
+        **kwargs,
+    ):
+    if len(seq) == target_len:
+        return seq
+    elif len(seq) < target_len:
+        return pad_seq(seq, target_len, **kwargs)
+    else:
+        return crop_seq(seq, target_len, **kwargs)
+
+
 
 
 
