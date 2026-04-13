@@ -49,8 +49,6 @@ if __name__ == "__main__":
     start_128 = start_1 // 128
     end_128 = (end_1 + 127) // 128
 
-
-    # write_per_batches = chunk_size // batch_size
     datasets_shape = {
         "dnase_1": (384,),
         "dnase_128": (384,),
@@ -79,7 +77,7 @@ if __name__ == "__main__":
         # N_fill_value=0.25,
         N_fill_value=0,
         padded_len=padded_len,
-        slice_range=(0, 300000),
+        slice_range=(-1, None),
     )
 
     writer = utils.H5Writer(

@@ -79,7 +79,7 @@ if __name__ == "__main__":
         # N_fill_value=0.25,
         N_fill_value=0,
         padded_len=padded_len,
-        slice_range=(0, 300000),
+        slice_range=(300000, 500000),
     )
 
     writer = utils.H5Writer(

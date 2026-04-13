@@ -36,13 +36,11 @@ def get_preds(model, dataloader, device='cuda', reverse_comp=False):
 def main(args):
     model_path = args.model_path
     data_path = args.data_path
+    out_path = args.out_path
     device = utils.get_free_gpus()[0]
-    
-    model = boda.common.utils.model_fn(model_path)
-    torchinfo.summary(model, (1, 4, 600))
-    
-    # # Malinois original dataset process, same results with malinois official tutorial
 
+    
+    # # Malinois official tutorial
     # mpra_df = pd.read_csv('data/Gosai_MPRA/41586_2024_8070_MOESM4_ESM.txt', sep='\t', low_memory=False)
     # mpra_df = mpra_df[(mpra_df[['K562_lfcSE', 'HepG2_lfcSE', 'SKNSH_lfcSE']].max(axis=1) < 1.0)]
     # mpra_df = mpra_df[(mpra_df['sequence'].str.len() == 200)]
@@ -54,16 +52,9 @@ def main(args):
     # print(mpra_df.columns)
     
 
-    # our processed dataset
     mpra_df = pd.read_csv(data_path, sep='\t')
     print(mpra_df.shape)
     print(mpra_df.columns)
-
-    splits = {}
-    splits['total'] = np.ones(len(mpra_df), dtype=bool)
-    splits['train'] = ~mpra_df['chr'].isin(['chr7', 'chr13', 'chr19', 'chr21', 'chrX'])
-    splits['val'] = mpra_df['chr'].isin(['chr19', 'chr21', 'chrX'])
-    splits['test']  = mpra_df['chr'].isin(['chr7', 'chr13'])
 
     left_pad_seq = boda.common.constants.MPRA_UPSTREAM
     right_pad_seq = boda.common.constants.MPRA_DOWNSTREAM
@@ -79,38 +70,37 @@ def main(args):
     )
     dataloader = DataLoader(dataset, batch_size=64, shuffle=False)
 
+
+
+
+    checkpoint = torch.load(os.path.join(model_path,'torch_checkpoint.pt'), weights_only=False)
+    model_module = getattr(boda.model, checkpoint['model_module'])
+    model        = model_module(**vars(checkpoint['model_hparams']))
+    model.load_state_dict(checkpoint['model_state_dict'])
+    print(f'Loaded model from {checkpoint["timestamp"]} in eval mode')
+    model.eval()
+    # model = boda.common.utils.model_fn(model_path)
+
+    torchinfo.summary(model, (1, 4, 600))
+
+
     preds = get_preds(model, dataloader, device, reverse_comp=True)
-    np.save('outputs/predictions/malinois_original_pred.npy', preds)
-    # preds_df  = pd.DataFrame(preds, columns=['K562_pred', 'HepG2_pred', 'SK-N-SH_pred'] )
+    np.save(out_path, preds)
 
-    # for split in ['train', 'val', 'test']:
-    #     print(split)
-    #     for cell in ['K562', 'HepG2', 'SK-N-SH']:
-    #         mask= splits[split]
-    #         pred = preds_df.loc[mask, f'{cell}_pred']
-    #         true = mpra_df.loc[mask, f'{cell}']
-    #         r, p = metrics.pearson(pred, true)
-    #         print(f'{cell}, pearsonr: {r:.4f}')
-    #         # r, p = metrics.spearman(pred, true)
-    #         # print(f'{cell}, spearmanr: {r:.4f}')
-
-
-
-    # model_path = 'pretrained_models/malinois/HCT116/artifacts'
-    # model = boda.common.utils.model_fn(model_path)
-    # preds = get_preds(model, dataloader, device)
-    # np.save('outputs/predictions/malinois_hct116_pred.npy', preds)
-
-    # model_path = 'pretrained_models/malinois/A549/artifacts'
-    # model = boda.common.utils.model_fn(model_path)
-    # preds = get_preds(model, dataloader, device)
-    # np.save('outputs/predictions/malinois_a549_pred.npy', preds)
 
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, default='pretrained_models/malinois/original/artifacts')
-    parser.add_argument("--data_path", type=str, default='data/Gosai_MPRA/Gosai_MPRA_760679.tsv')
+    parser.add_argument("--data_path", type=str, default='data/gosai_mpra/gosai_mpra_760679_zs.tsv')
+    parser.add_argument("--out_path", type=str, default='outputs/predictions/malinois_original_pred.npy')
     args = parser.parse_args()
     main(args)
+
+
+    # model_path = 'pretrained_models/malinois/HCT116/artifacts'
+    # np.save('outputs/predictions/malinois_hct116_pred.npy', preds)
+
+    # model_path = 'pretrained_models/malinois/A549/artifacts'
+    # np.save('outputs/predictions/malinois_a549_pred.npy', preds)

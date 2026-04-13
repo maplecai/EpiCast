@@ -90,16 +90,14 @@ def compute_metric(
         columns=[f"{c}_pred" for c in cell_types],
         dtype=float
     )
-
     for c1 in cell_types:
         mask = get_mask(split, masks, cell_type=c1)
         for c2 in cell_types:
             x = true_df.loc[mask, c1]
             y = pred_df.loc[mask, f'{c2}_pred']
-
             metric_df.loc[c1, f'{c2}_pred'] = metric_fn(x, y)
-
     return metric_df
+
 
 def append_summary_from_metric_df(
     summary_df: pd.DataFrame,
@@ -115,7 +113,8 @@ def append_summary_from_metric_df(
 
 def main():
     # mpra_df = pd.read_csv('data/Gosai_MPRA/Gosai_MPRA_760679.tsv', sep='\t')
-    mpra_df = pd.read_csv('data/Gosai_MPRA/Gosai_MPRA_760679_norm_0209.tsv', sep='\t')
+    # mpra_df = pd.read_csv('data/Gosai_MPRA/Gosai_MPRA_760679_norm_0209.tsv', sep='\t')
+    mpra_df = pd.read_csv('data/gosai_mpra/gosai_mpra_760679_zs.tsv', sep='\t')
 
     print(mpra_df.shape)
     print(mpra_df.describe())
@@ -126,15 +125,75 @@ def main():
     masks = define_masks(mpra_df, cell_types)
     print(masks.keys())
 
-
     for split in ['test', 'test+specific']:
         for metric_fn in [metrics.pearson, metrics.spearman]:
 
             summary_df = pd.DataFrame(columns=cell_types)
+            true_df = mpra_df[cell_types].copy()
+
+            model_name = 'Sei DNase'
+            vef_df = pd.read_csv('data/gosai_mpra/gosai_mpra_sei_vef_logit.tsv', sep='\t')
+            pred = vef_df[[f'{ct}_DNase'for ct in cell_types]].values
+            pred_df = pd.DataFrame(pred, columns=pred_cols)
+            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            summary_df.loc[model_name] = {ct: metric_df.loc[ct, f"{ct}_pred"]for ct in cell_types}
+
+            true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
+            pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
+            metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            append_summary_from_metric_df(summary_df, f'{model_name} residual', metric_df, cell_types)
+
+
+
+            model_name = 'Enformer DNase'
+            vef_df = pd.read_csv('data/gosai_mpra/gosai_mpra_enformer_vef_raw.tsv', sep='\t')
+            pred = vef_df[[f'{ct}_DNase'for ct in cell_types]].values
+            pred_df = pd.DataFrame(pred, columns=pred_cols)
+            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            summary_df.loc[model_name] = {ct: metric_df.loc[ct, f"{ct}_pred"]for ct in cell_types}
+
+            true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
+            pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
+            metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            append_summary_from_metric_df(summary_df, f'{model_name} residual', metric_df, cell_types)
+
+
+
+            model_name = 'Alphagenome DNase'
+            vef_df = pd.read_csv('data/gosai_mpra/gosai_mpra_760679_ag_vef_log1p.tsv', sep='\t')
+            pred = vef_df[[f'{ct}_DNase'for ct in cell_types]].values
+            pred_df = pd.DataFrame(pred, columns=pred_cols)
+            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            summary_df.loc[model_name] = {ct: metric_df.loc[ct, f"{ct}_pred"]for ct in cell_types}
+
+            true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
+            pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
+            metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            append_summary_from_metric_df(summary_df, f'{model_name} residual', metric_df, cell_types)
+
+
+
+
+            model_name = 'Alphagenome H3K4me3'
+            vef_df = pd.read_csv('data/gosai_mpra/gosai_mpra_760679_ag_vef_log1p.tsv', sep='\t')
+            pred = vef_df[[f'{ct}_H3K4me3'for ct in cell_types]].values
+            pred_df = pd.DataFrame(pred, columns=pred_cols)
+            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            summary_df.loc[model_name] = {ct: metric_df.loc[ct, f"{ct}_pred"]for ct in cell_types}
+
+            true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
+            pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
+            metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            append_summary_from_metric_df(summary_df, f'{model_name} residual', metric_df, cell_types)
+
+
+
+
+
 
             model_name = 'mean of 3 cell types true label'
             # print(model_name)
-            true_df = mpra_df[cell_types].copy()
+
             pred_df = pd.DataFrame(columns=pred_cols)
             true_mean = true_df[cell_types[:3]].mean(axis=1)
             for c in cell_types:
@@ -146,6 +205,13 @@ def main():
             pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
             metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
             append_summary_from_metric_df(summary_df, f'{model_name} residual', metric_df, cell_types)
+
+
+
+
+
+
+
 
             # model_name = 'mean of 3 cell types true label residual'
             # # print(model_name)
@@ -161,10 +227,66 @@ def main():
             # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
 
 
-            model_name = 'EpiCast: 0123_Gosai_ConvTransFeature_AG_VEF'
-            pred_df = pd.DataFrame(columns=pred_cols)
-            pred = np.load('saved/0123_Gosai_ConvTransFeature_AG_VEF.yaml/0123_021357/preds.npy')
-            pred_df[pred_cols] = pred
+            # model_name = 'EpiCast: 0123_Gosai_ConvTransFeature_AG_VEF'
+            # pred_df = pd.DataFrame(columns=pred_cols)
+            # pred = np.load('saved/0123_Gosai_ConvTransFeature_AG_VEF.yaml/0123_021357/preds.npy')
+            # pred_df[pred_cols] = pred
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+            # true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
+            # pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
+            # metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, f'{model_name} residual', metric_df, cell_types)
+
+
+
+            # model_name = 'EpiCast: 0206_gosai_ag_vef trans=0'
+            # pred_df = pd.DataFrame(columns=pred_cols)
+            # pred = np.load('saved/0206_gosai_ag_vef/0206_025223/preds.npy')
+            # pred_df[pred_cols] = pred
+
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+
+            # model_name = 'EpiCast: 0206_gosai_ag_vef trans=3'
+            # pred_df = pd.DataFrame(columns=pred_cols)
+            # pred = np.load('saved/0206_gosai_ag_vef/0206_025400/preds.npy')
+            # pred_df[pred_cols] = pred
+
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+
+            # model_name = 'EpiCast: 0225_gosai_ag_vef'
+            # pred_df = pd.DataFrame(columns=pred_cols)
+            # pred = np.load('saved/0225_gosai_ag_vef/0226_012050/preds.npy')
+            # pred_df[pred_cols] = pred
+
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+
+            # model_name = 'EpiCast: 0206_gosai_sei_vef'
+            # pred_df = pd.DataFrame(columns=pred_cols)
+            # pred = np.load('saved/0206_gosai_sei_vef/0206_103219/preds.npy')
+            # pred_df[pred_cols] = pred
+
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+
+
+
+
+
+
+            model_name = 'Seq only: malinois'
+            pred = np.load('outputs/predictions/malinois_train_cell_types_pred.npy')
+            pred_df = pd.DataFrame(pred, columns=pred_cols[:3])
+            pred_df['HCT116_pred'] = pred.mean(axis=1)
+            pred_df['A549_pred'] = pred.mean(axis=1)
             metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
             append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
 
@@ -175,129 +297,6 @@ def main():
 
 
 
-            model_name = 'EpiCast: 0206_gosai_ag_vef trans=0'
-            pred_df = pd.DataFrame(columns=pred_cols)
-            pred = np.load('saved/0206_gosai_ag_vef/0206_025223/preds.npy')
-            pred_df[pred_cols] = pred
-
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-            model_name = 'EpiCast: 0206_gosai_ag_vef trans=3'
-            pred_df = pd.DataFrame(columns=pred_cols)
-            pred = np.load('saved/0206_gosai_ag_vef/0206_025400/preds.npy')
-            pred_df[pred_cols] = pred
-
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-            # model_name = 'EpiCast: 0207_gosai_ag_vef trans=3 huberloss'
-            # pred_df = pd.DataFrame(columns=pred_cols)
-            # pred = np.load('saved/0207_gosai_ag_vef/0207_043226/preds.npy')
-            # pred_df[pred_cols] = pred
-
-            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-            model_name = 'EpiCast: 0225_gosai_ag_vef'
-            pred_df = pd.DataFrame(columns=pred_cols)
-            pred = np.load('saved/0225_gosai_ag_vef/0226_012050/preds.npy')
-            pred_df[pred_cols] = pred
-
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-            model_name = 'EpiCast: 0206_gosai_sei_vef'
-            pred_df = pd.DataFrame(columns=pred_cols)
-            pred = np.load('saved/0206_gosai_sei_vef/0206_103219/preds.npy')
-            pred_df[pred_cols] = pred
-
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-            model_name = 'EpiCast: 0327_gosai_ag_vef pad=0.25'
-            pred_df = pd.DataFrame(columns=pred_cols)
-            pred = np.load('saved/0327_gosai_ag_vef/0327_031759/preds.npy')
-            pred_df[pred_cols] = pred
-
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-            model_name = 'EpiCast: 0330_gosai_ag_convfilmnet/1'
-            pred_df = pd.DataFrame(columns=pred_cols)
-            pred = np.load('saved/0330_gosai_ag_convfilmnet/0330_040003/preds.npy')
-            pred_df[pred_cols] = pred
-
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-
-
-
-
-
-            # model_name = '0404_gosai_ag_vef_log1p/0403_032738/preds.npy'
-            # pred = np.load('saved/0404_gosai_ag_vef_log1p/0403_032738/preds.npy')
-            # pred_df = pd.DataFrame(pred, columns=pred_cols)
-            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-            # model_name = '0404_gosai_ag_vef_log1p2/0403_032843/preds.npy'
-            # pred = np.load('saved/0404_gosai_ag_vef_log1p2/0403_032843/preds.npy')
-            # pred_df = pd.DataFrame(pred, columns=pred_cols)
-            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-            # model_name = '0404_gosai_ag_vef_log1p/0403_032738/preds.npy residual'
-            # pred = np.load('saved/0404_gosai_ag_vef_log1p/0403_032738/preds.npy')
-            # pred_df = pd.DataFrame(pred, columns=pred_cols)
-            # true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
-            # pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
-            # metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-            # model_name = '0404_gosai_ag_vef_log1p2/0403_032843/preds.npy residual'
-            # pred = np.load('saved/0404_gosai_ag_vef_log1p2/0403_032843/preds.npy')
-            # pred_df = pd.DataFrame(pred, columns=pred_cols)
-            # true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
-            # pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
-            # metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            # # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-
-
-
-            model_name = '0404_gosai_ag_vef_int/0403_035956/preds.npy'
-            pred = np.load('saved/0404_gosai_ag_vef_int/0403_035956/preds.npy')
-            pred_df = pd.DataFrame(pred, columns=pred_cols)
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-            model_name = '0404_gosai_ag_vef_log1p/0403_032738/preds.npy'
-            pred = np.load('saved/0404_gosai_ag_vef_log1p/0403_032738/preds.npy')
-            pred_df = pd.DataFrame(pred, columns=pred_cols)
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-            model_name = '0404_gosai_ag_vef_log1p2/0403_032843/preds.npy'
-            pred = np.load('saved/0404_gosai_ag_vef_log1p2/0403_032843/preds.npy')
-            pred_df = pd.DataFrame(pred, columns=pred_cols)
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-
-
 
             model_name = 'saved/0405_gosai_ag_vef_log1p/0404_065142/preds.npy'
             pred = np.load('saved/0405_gosai_ag_vef_log1p/0404_065142/preds.npy')
@@ -305,26 +304,74 @@ def main():
             metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
             append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
 
+            true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
+            pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
+            metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            append_summary_from_metric_df(summary_df, f'{model_name} residual', metric_df, cell_types)
 
-            model_name = 'saved/0405_gosai_ag_vef_log1p_model2/0404_102739/preds.npy'
-            pred = np.load('saved/0405_gosai_ag_vef_log1p_model2/0404_102739/preds.npy')
+
+
+
+            model_name = '0407_gosai_ag_vef_log1p_convfusiontransnet/0406_141718/preds.npy'
+            pred = np.load('saved/0407_gosai_ag_vef_log1p_convfusiontransnet/0406_141718/preds.npy')
             pred_df = pd.DataFrame(pred, columns=pred_cols)
             metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
             append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
 
+            # true_res_df = true_df.subtract(true_df.mean(axis=1), axis=0)
+            # pred_res_df = pred_df.subtract(pred_df.mean(axis=1), axis=0)
+            # metric_df = compute_metric(true_res_df, pred_res_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, f'{model_name} residual', metric_df, cell_types)
 
-            model_name = 'saved/0405_gosai_ag_vef_log1p_ablation_CTCF/0404_120952/preds.npy'
-            pred = np.load('saved/0405_gosai_ag_vef_log1p_ablation_CTCF/0404_120952/preds.npy')
-            pred_df = pd.DataFrame(pred, columns=pred_cols)
+
+
+            # model_name = 'saved/0405_gosai_ag_vef_log1p_ablation_CTCF/0404_120952/preds.npy'
+            # pred = np.load('saved/0405_gosai_ag_vef_log1p_ablation_CTCF/0404_120952/preds.npy')
+            # pred_df = pd.DataFrame(pred, columns=pred_cols)
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+
+
+
+            # model_name = 'Seq only: malinois HCT116'
+            # pred = np.load('outputs/predictions/malinois_hct116_pred.npy')
+            # pred_df = pd.DataFrame(pred, columns=['K562_pred', 'HepG2_pred', 'SK-N-SH_pred', 'HCT116_pred'])
+            # pred_df['A549_pred'] = np.nan
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+
+            # model_name = 'Seq only: malinois A549'
+            # pred = np.load('outputs/predictions/malinois_a549_pred.npy')
+            # pred_df = pd.DataFrame(pred, columns=['K562_pred', 'HepG2_pred', 'SK-N-SH_pred', 'A549_pred'])
+            # pred_df['HCT116_pred'] = np.nan
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+
+
+
+            model_name = 'Seq only: ConvNet'
+            pred = np.load('saved/0406_gosai_only_seq_3/0405_112636/preds.npy')
+            pred_df = pd.DataFrame(pred, columns=pred_cols[:3])
+            pred_df['HCT116_pred'] = pred.mean(axis=1)
+            pred_df['A549_pred'] = pred.mean(axis=1)
+            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+
+            model_name = 'Seq only: ConvMultiHeadNet'
+            pred = np.load('saved/0406_gosai_only_seq_3_multihead/0405_143214/preds.npy')
+            pred_df = pd.DataFrame(pred, columns=pred_cols[:3])
+            pred_df['HCT116_pred'] = pred.mean(axis=1)
+            pred_df['A549_pred'] = pred.mean(axis=1)
             metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
             append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
 
 
 
-
-            # model_name = 'Seq only: malinois retrain rc'
-            # pred = np.load('saved/0207_gosai_malinois_600/0209_032051/preds_rc.npy')
-            # # pred = pred - pred.mean(axis=0)
+            # model_name = 'Seq only: 0206_gosai_conv_200 trans=0'
+            # pred = np.load('saved/0206_gosai_conv_200/0206_102913/preds.npy')
             # pred_df = pd.DataFrame(pred, columns=pred_cols[:3])
             # pred_df['HCT116_pred'] = pred.mean(axis=1)
             # pred_df['A549_pred'] = pred.mean(axis=1)
@@ -333,25 +380,15 @@ def main():
             # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
 
 
-            model_name = 'Seq only: 0206_gosai_conv_200 trans=0'
-            pred = np.load('saved/0206_gosai_conv_200/0206_102913/preds.npy')
-            pred_df = pd.DataFrame(pred, columns=pred_cols[:3])
-            pred_df['HCT116_pred'] = pred.mean(axis=1)
-            pred_df['A549_pred'] = pred.mean(axis=1)
+            # model_name = 'Seq only: 0206_gosai_convtrans_200 trans=3'
+            # pred = np.load('saved/0206_gosai_convtrans_200/0206_102827/preds.npy')
+            # pred_df = pd.DataFrame(pred, columns=pred_cols[:3])
+            # pred_df[pred_cols[:3]] = pred
+            # pred_df['HCT116_pred'] = pred.mean(axis=1)
+            # pred_df['A549_pred'] = pred.mean(axis=1)
 
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
-
-
-            model_name = 'Seq only: 0206_gosai_convtrans_200 trans=3'
-            pred = np.load('saved/0206_gosai_convtrans_200/0206_102827/preds.npy')
-            pred_df = pd.DataFrame(pred, columns=pred_cols[:3])
-            pred_df[pred_cols[:3]] = pred
-            pred_df['HCT116_pred'] = pred.mean(axis=1)
-            pred_df['A549_pred'] = pred.mean(axis=1)
-
-            metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
-            append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
+            # metric_df = compute_metric(true_df, pred_df, cell_types, masks, split=split, metric_fn=metric_fn)
+            # append_summary_from_metric_df(summary_df, model_name, metric_df, cell_types)
 
 
             print(f"summary_df ({split}, {metric_fn.__name__})")

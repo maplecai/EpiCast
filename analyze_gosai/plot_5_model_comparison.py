@@ -7,23 +7,58 @@ from matplotlib.lines import Line2D
 # -----------------------------
 # inputs
 # -----------------------------
-model_names = ['Sei-DNase', 'Enformer-DNase', 'Borzoi-DNase', 'EpiCast', 'EpiCast-VEF-only']
+model_names = [
+    "Sei DNase",
+    "Enformer DNase",
+    "Alphagenome DNase",
+    "Alphagenome H3K4me3",
+    "Training labels mean",
+    "Seq only model: Malinois",
+    "EpiCast (AG VEF)",
+]
+
 cell_types = ['K562', 'HepG2', 'SK-N-SH', 'HCT116', 'A549']
 train_cell_types = ['K562', 'HepG2', 'SK-N-SH']
 test_cell_types = ['HCT116', 'A549']
 
-# 例子:
+
+
+
 result_df = pd.DataFrame(
-    data=np.array(
-        [[0.586, 0.660, 0.164, 0.528, 0.472],
-         [0.486, 0.528, 0.238, 0.319, 0.453],
-         [0.354, 0.449, 0.095, 0.348, 0.332],
-         [0.636, 0.624, 0.642, 0.559, 0.750],
-         [0.507, 0.620, 0.424, 0.506, 0.553],]
-    ),
+    data=np.array([
+        [0.519, 0.607, 0.275, 0.430, 0.320],
+        [0.408, 0.443, 0.301, 0.311, 0.391],
+        [0.477, 0.494, 0.383, 0.337, 0.400],
+        [0.367, 0.501, 0.505, 0.335, 0.386],
+        [0.555, 0.723, 0.762, 0.524, 0.759],
+        [0.768, 0.803, 0.760, 0.503, 0.718],
+        [0.706, 0.764, 0.725, 0.581, 0.793],
+    ]),
     columns=cell_types,
     index=model_names,
 )
+
+
+
+# # specific residual pearson
+# result_df = pd.DataFrame(
+#     data=np.array([
+#         [0.568, 0.558, 0.129, 0.429, 0.206],
+#         [0.339, 0.264, 0.169, 0.185, 0.148],
+#         [0.457, 0.490, -0.007, 0.138, -0.160],
+#         [0.353, 0.325, 0.052, 0.204, 0.135],
+#         [-0.024, -0.007, -0.002, 0.063, 0.056],
+#         [0.825, 0.779, 0.720, 0.004, -0.021],
+#         [0.739, 0.710, 0.629, 0.284, 0.467],
+#     ]),
+#     columns=cell_types,
+#     index=model_names,
+# )
+
+
+
+
+
 
 plot_df = pd.DataFrame({
     'Train mean': result_df[train_cell_types].mean(axis=1),
@@ -45,8 +80,8 @@ test_offset = 0.10
 train_color = '#4C78A8'
 test_color = '#E45756'
 
-xmin = max(0, plot_df.min().min() - 0.05)
-xmax = min(1.0, plot_df.max().max() + 0.05)
+xmin = -0.1
+xmax = 0.9
 
 for y in y_base:
     ax.hlines(

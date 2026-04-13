@@ -221,14 +221,22 @@ if __name__ == "__main__":
 
 
 
-    # pred_path = "alphagenome/gosai_ag_pred_760k_not_compressed.h5"
-    # preds = utils.load_h5(pred_path)
-    # for key in preds:
-    #     print(key, preds[key].shape)
-    #     preds[key] = preds[key][:1000]
+    pred_path = "alphagenome/gosai_ag_pred_256bp_concat.h5"
+    preds = utils.load_h5(pred_path)
+    for key in preds:
+        print(key, preds[key].shape)
+        preds[key] = preds[key][:1000]
 
-    # print("dnase, padding 2048bp, 1bp resolution, center 200bp mean")
-    # true = mpra_df['K562']
-    # pred = preds['dnase_1'].mean((1))
-    # r = metrics.spearman(true, pred)
-    # print(r)
+    print("dnase, padding 256bp 2048bp, 1bp resolution, center 256bp mean")
+    pred = preds['dnase_1'].mean((1))
+    r = metrics.spearman(true, pred)
+    print('spearman', r)
+    r = metrics.pearson(true, pred)
+    print('pearson', r)
+
+    print("dnase, padding 256bp 2048bp, 1bp resolution, center 256bp mean")
+    pred = preds['chip_histone'].mean((1))
+    r = metrics.spearman(true, pred)
+    print('spearman', r)
+    r = metrics.pearson(true, pred)
+    print('pearson', r)
