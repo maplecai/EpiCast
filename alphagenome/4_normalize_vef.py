@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from genoml import metrics
+from epicast import metrics
 from scipy.stats import norm
 
 

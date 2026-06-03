@@ -9,8 +9,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 sys.path.append(str(ROOT_DIR))
-from genoml import models, datasets, metrics, utils
-from genoml.utils import *
+from epicast import models, datasets, metrics, utils
+from epicast.utils import *
 
 # df = pd.read_csv(ROOT_DIR/'data/Sei/Sei_tracks_info.csv')
 # df_pivot = df.pivot_table(

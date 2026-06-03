@@ -21,9 +21,16 @@ git clone https://github.com/maplecai/EpiCast.git
 conda create -n epicast python=3.10
 conda activate epicast
 ```
-3. Install the required packages
+3. Install dependencies and the `epicast` package
 ```bash
 pip install -r requirements.txt
+pip install -e .
+```
+
+After installation, you can import the library from any working directory:
+
+```python
+import epicast
 ```
 
 ## Data preparation

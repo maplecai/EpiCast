@@ -8,7 +8,7 @@ from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 
 from alphagenome_pytorch import AlphaGenome
-from genoml import datasets, utils
+from epicast import datasets, utils
 
 
 def parse_args():

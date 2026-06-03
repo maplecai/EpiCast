@@ -11,8 +11,8 @@ from omegaconf import DictConfig, OmegaConf
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 sys.path.append(str(ROOT_DIR))
-from genoml import models, datasets, metrics, utils
-from genoml.utils import resolve_paths
+from epicast import models, datasets, metrics, utils
+from epicast.utils import resolve_paths
 
 
 

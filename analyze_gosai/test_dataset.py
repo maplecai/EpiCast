@@ -8,7 +8,7 @@
 
 # print(df[df.duplicated(subset=['ID'])])
 
-from genoml import datasets
+from epicast import datasets
 
 
 val_dataset = datasets.SeqDataset(

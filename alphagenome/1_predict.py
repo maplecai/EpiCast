@@ -8,7 +8,7 @@ from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 
 from alphagenome_pytorch import AlphaGenome
-from genoml import datasets, utils
+from epicast import datasets, utils
 
 
 def parse_args():
@@ -36,11 +36,12 @@ if __name__ == "__main__":
     output_path = args.out
 
     device = utils.get_free_gpus()[0]
-    # valid_len = 200
-    # valid_len = 145
-    valid_len = 256
-
+    valid_len = 200
     padded_len = 2048
+    # valid_len = 145
+    # valid_len = 256
+
+
     batch_size = 4
     chunk_size = 1024
 

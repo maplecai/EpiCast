@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import gzip
 
-from genoml.utils import *
+from epicast.utils import *
 
 # 下面的代码试图复现malinois preprocessing
 
@@ -259,6 +259,7 @@ all_meta = pd.concat(
      for df in dfs_dict.values()],
     ignore_index=True
 )
+
 meta = all_meta.drop_duplicates('seq').set_index('seq')
 
 merged_df = pd.concat([meta] + list(prepared.values()), axis=1, join='outer')

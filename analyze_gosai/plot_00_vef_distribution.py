@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 import pandas as pd
-from genoml import models, datasets, utils, metrics
+from epicast import models, datasets, utils, metrics
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -27,5 +27,5 @@ for j, assay in enumerate(assays):
     plt.xlabel(f'Virtual {assay}')
     plt.ylabel('Density')
     plt.legend()
-    plt.savefig(f'analyze_gosai/figures/gosai_mpra_ag_{assay}_distribution.png', dpi=400)
+    # plt.savefig(f'analyze_gosai/figures/gosai_mpra_ag_{assay}_distribution.png', dpi=400)
     plt.savefig(f'analyze_gosai/figures/gosai_mpra_ag_{assay}_distribution.pdf', dpi=400)

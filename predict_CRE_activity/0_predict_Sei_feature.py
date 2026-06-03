@@ -12,8 +12,8 @@ BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 sys.path.append(str(ROOT_DIR))
 
-from genoml import models, datasets, utils
-from genoml.utils import set_seed
+from epicast import models, datasets, utils
+from epicast.utils import set_seed
 
 
 

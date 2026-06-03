@@ -4,8 +4,8 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
 sys.path.append(str(ROOT_DIR))
-from genoml import models, datasets, metrics, utils
-from genoml.utils import *
+from epicast import models, datasets, metrics, utils
+from epicast.utils import *
 
 
 # file_name = "xxxx.tsv"

@@ -8,8 +8,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import h5py
 
-import genoml
-from genoml import utils, metrics
+import epicast
+from epicast import utils, metrics
 
 if __name__ == "__main__":
 

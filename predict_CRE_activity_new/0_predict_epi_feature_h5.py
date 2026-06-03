@@ -8,8 +8,8 @@ from torch.utils.data import DataLoader
 sys.path.append("..")
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from genoml import models, datasets, metrics, utils
-from genoml.utils import *
+from epicast import models, datasets, metrics, utils
+from epicast.utils import *
 
 @torch.no_grad()
 def get_pred(model, test_data_loader, device='cuda', writer: HDF5Writer=None, flush_every=10):

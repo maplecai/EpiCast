@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import torch
 from pathlib import Path
-from genoml import utils, metrics
+from epicast import utils, metrics
 from tqdm import tqdm
 import seaborn as sns
 import matplotlib.pyplot as plt

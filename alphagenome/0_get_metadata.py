@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import h5py
 from tqdm import tqdm
-from genoml.utils import pad_seq
+from epicast.utils import pad_seq
 from alphagenome.models import dna_client, dna_output, dna_model
 from alphagenome_research.model.metadata import metadata as metadata_lib
 

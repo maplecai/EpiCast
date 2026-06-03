@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from genoml import models, datasets, metrics, utils, training
+from epicast import models, datasets, metrics, utils, training
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 

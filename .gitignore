@@ -28,6 +28,9 @@ data/
 outputs/
 saved/
 figures/
+*.egg-info/
+*legacy*
+*archive*
 
 artifacts/
 pretrained_models/
