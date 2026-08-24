@@ -5,6 +5,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pyfaidx import Fasta
 
+_COMPLEMENT_TABLE = str.maketrans('ACGTNacgtn', 'TGCANtgcan')
+
+
 def reverse(seq: str) -> str:
     '''反向'''
     return seq[::-1]
@@ -12,19 +15,7 @@ def reverse(seq: str) -> str:
 
 def complement(seq: str) -> str:
     '''互补'''
-    dic = {
-        'A': 'T', 
-        'C': 'G', 
-        'G': 'C', 
-        'T': 'A', 
-        'N': 'N',
-        'a': 't', 
-        'c': 'g', 
-        'g': 'c', 
-        't': 'a', 
-        'n': 'n',
-    }
-    return ''.join(dic[c] for c in seq)
+    return seq.translate(_COMPLEMENT_TABLE)
 
 
 def reverse_complement(seq: str | np.ndarray | torch.Tensor) -> str | np.ndarray | torch.Tensor:
@@ -39,6 +30,9 @@ def reverse_complement(seq: str | np.ndarray | torch.Tensor) -> str | np.ndarray
         raise ValueError('input must be str, np.ndarray or torch.Tensor')
 
 def rc(seq: str | np.ndarray | torch.Tensor) -> str | np.ndarray | torch.Tensor:
+    return reverse_complement(seq)
+
+def revcomp(seq: str | np.ndarray | torch.Tensor) -> str | np.ndarray | torch.Tensor:
     return reverse_complement(seq)
 
 
@@ -183,9 +177,9 @@ def pad_seq(
         padded_len: int, 
         pad_mode: str = 'N', 
         pad_position: str = 'both_sides', 
-        left_pad_seq: str = None, 
-        right_pad_seq: str = None, 
-        genome: Fasta=None
+        left_pad_seq: str = '', 
+        right_pad_seq: str = '', 
+        genome: Fasta | None = None,
     ) -> str:
 
     if pad_mode == 'nothing':
@@ -225,6 +219,8 @@ def pad_seq(
         right_seq = ''.join(bases[np.random.randint(0, 4, right_len)])
 
     elif pad_mode == 'random_genome':
+        if genome is None:
+            raise ValueError('genome is required when pad_mode is "random_genome"')
         left_seq = random_genome_seq(genome, left_len) if left_len > 0 else ''
         right_seq = random_genome_seq(genome, right_len) if right_len > 0 else ''
 
@@ -279,11 +275,6 @@ def crop_or_pad_seq(
 
 
 
-
-import torch
-import numpy as np
-import pandas as pd
-from torch.utils.data import Dataset
 from pyfaidx import Fasta
 from multiprocessing import Lock
 
@@ -297,7 +288,7 @@ class GenomicInterval():
         if lock:
             self.lock = Lock()
         else:
-            self.lock = None
+            self.lock = None # type: ignore
         self.genome_path = genome_path
         self._genome = None
 
@@ -367,15 +358,3 @@ if __name__ == "__main__":
     time_batch = t1 - t0
     print("seqs_batch shape:", outs.shape)
     print(f"seq2onehot_batch 用时: {time_batch:.4f} 秒")
-
-
-
-    # from joblib import Parallel, delayed
-    # t0 = time.perf_counter()
-    # outs = Parallel(n_jobs=8, backend="threading")(delayed(seq2onehot)(s) for s in seqs)
-    # outs = np.stack(outs, axis=0)
-    # t1 = time.perf_counter()
-    # time_batch = t1 - t0
-    # print("seqs_batch shape:", outs.shape)
-    # print(f"joblib 用时: {time_batch:.4f} 秒")
-

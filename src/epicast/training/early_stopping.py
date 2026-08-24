@@ -20,8 +20,10 @@ class EarlyStopping:
         self.saved_dir = saved_dir
         self.verbose = verbose
         self.trace_func = trace_func
-        
-        self.save_path = f'{self.saved_dir}/checkpoint.pth'
+
+        self.checkpoint_dir = f'{self.saved_dir}/checkpoints'
+        self.best_path = f'{self.checkpoint_dir}/best.pth'
+        self.last_path = f'{self.checkpoint_dir}/last.pth'
         self.counter = 0
         self.stop_flag = False
         self.update_flag = False

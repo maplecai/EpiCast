@@ -21,32 +21,7 @@ import hydra
 from omegaconf import OmegaConf, DictConfig, open_dict
 from hydra.core.hydra_config import HydraConfig
 
-def set_mpl_params():
-    mpl_params = {
-        # 字体参数
-        'font.family': 'Arial',
-        'font.size': 12,
-        # 数学文本参数
-        'mathtext.fontset': 'stix', 
-        # 图像参数
-        'figure.dpi': 100,
-        'figure.figsize': (8, 6),
-        # 保存pdf字体可编辑
-        'pdf.fonttype': 42,
-    }
-    plt.rcParams.update(mpl_params)
-set_mpl_params()
 
-sns.set_theme(context="talk", style="whitegrid")
-
-def set_print_options():
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.max_rows', 40)
-    pd.set_option('display.width', 1000)
-    pd.set_option('display.precision', 3)
-    pd.set_option('display.float_format', '{:.3f}'.format) 
-    np.set_printoptions(linewidth=1000, precision=3, formatter={'float': '{: 0.3f}'.format})
-set_print_options()
 
 def set_seed(seed:int = 42) -> None:
     '''

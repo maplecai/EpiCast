@@ -6,6 +6,9 @@ from boda.model.basset import BassetBranched
 class Malinois(BassetBranched):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.expect_input_sample = {
+            "seq": torch.zeros(1, self.input_len, 4),
+        }
     
     def get_flatten_factor(self, input_len):
         hook = input_len

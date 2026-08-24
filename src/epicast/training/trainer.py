@@ -284,19 +284,26 @@ class Trainer:
                 self.log(f'val on epoch {epoch}')
                 self.val_epoch()
 
-                if (self.local_rank == 0) and (self.early_stopper is not None):
-                    score = self.metric_df.loc[self.epoch, 'pearson']
-                    self.early_stopper.check(score)
+                if self.local_rank == 0:
+                    self.save_checkpoint(self.epoch, self.step, 'last.pth')
 
-                    if self.early_stopper.update_flag is True:
-                        self.save_checkpoint(
-                            self.epoch,
-                            self.step,
-                            f'checkpoint_epoch={epoch}_pearson={self.early_stopper.best_score:.6f}.pth'
-                        )
+                    if self.early_stopper is not None:
+                        score = self.metric_df.loc[self.epoch, 'pearson']
+                        self.early_stopper.check(score)
 
-                    if self.early_stopper.stop_flag is True:
-                        break
+                        if self.early_stopper.update_flag is True:
+                            self.save_checkpoint(
+                                self.epoch,
+                                self.step,
+                                f'checkpoint_epoch={epoch}_pearson={self.early_stopper.best_score:.6f}.pth',
+                            )
+                            self.save_checkpoint(self.epoch, self.step, 'best.pth')
+
+                        if self.early_stopper.stop_flag is True:
+                            break
+
+        if self.local_rank == 0:
+            self.save_checkpoint(self.epoch, self.step, 'last.pth')
 
         self.log(f'local_rank = {self.local_rank:1}, finish training.')
 

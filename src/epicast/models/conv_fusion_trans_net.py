@@ -48,6 +48,11 @@ class ConvFusionTransNet(nn.Module):
         self.flatten = flatten
         self.output_activation = output_activation
 
+        self.expect_input_sample = {
+            "seq": torch.zeros(1, input_seq_length, input_seq_channels),
+            "feature": torch.zeros(1, 2, input_feature_dim),
+        }
+
         if not (
             num_conv_blocks == len(conv_channels_list) == len(conv_kernel_size_list)
             == len(conv_stride_list) == len(conv_padding_list) == len(pool_kernel_size_list)
