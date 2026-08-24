@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-cd "$(dirname "$0")/../.."
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+# the -c / -dc / -o arguments below are all relative to the project root
+cd "$script_dir/../.."
 
-python_script="paper/analysis/06_infer_trained_model.py"
+python_script="$script_dir/06_infer_trained_model.py"
 dataset_config="configs/0821_castillo_dataset_N_dnase1.yaml"
 output_name="castillo_preds_pad_N.npy"
 

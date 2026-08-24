@@ -124,9 +124,11 @@ def main():
         np.save(output_dir / f"{name}_pred.npy", p)
         preds[name] = pd.DataFrame(p, columns=cell_types)
 
+    # analysis_gosai_0722_backup is the pre-rename snapshot of this bundle and keeps
+    # its old name; it holds the variant A predictions from before the CTCF fix.
     variants = {
-        "A 原始": "../analysis_gosai_0722_backup/results/vef_only/ag_vef",
-        "C 现在": "results/vef_only/ag_vef",
+        "A 原始": project_root / "analysis_gosai_0722_backup/results/vef_only/ag_vef",
+        "C 现在": results_dir / "vef_only/ag_vef",
     }
     train_mean_true = mpra_df[train_cell_types].mean(axis=1)
 
@@ -135,7 +137,7 @@ def main():
         sources = {"B2 新增": preds[name]}
         for label, folder in variants.items():
             sources[label] = pd.DataFrame(
-                np.load(Path(folder) / f"{name}_pred.npy"), columns=cell_types
+                np.load(folder / f"{name}_pred.npy"), columns=cell_types
             )
         for label, pred in sources.items():
             train_mean_pred = pred[train_cell_types].mean(axis=1)
