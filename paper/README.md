@@ -1,15 +1,17 @@
-# analysis_gosai_0722 — 论文分析包
+# paper — 论文分析包
 
 EpiCast 论文的**全部分析代码、中间结果和成图**都在这个目录。仓库全局导览见根目录 `AGENTS.md`。
 
-目录名里的 `gosai_0722` = 主数据集（Gosai MPRA）+ 这一轮分析的起始日期（7月22日）。
+这个目录原名 `analysis_gosai_0722`（主数据集 Gosai MPRA + 这一轮分析的起始日期 7月22日），2026年8月24日改名为 `paper`：日期前缀早已过期，而且外层叫 `analysis` 会和里面的 `analysis/` 子目录撞名。`config.py` 里对应的变量是 `bundle_root`。
+
+⚠️ **`analysis_gosai_0722_backup/` 没有跟着改名**，它是改名之前的旧快照，`analysis/16_eval_vef_variant_b2.py` 仍然按原名读它。
 
 ---
 
 ## 一、目录结构
 
 ```
-analysis_gosai_0722/
+paper/
 ├── config.py          全局定义：路径、细胞系、模型注册表、图例名与配色
 ├── utils.py           全局函数：VEF 提取、预测加载、mask 构造、CTS 定义、residual
 ├── analysis/          20 个分析脚本，按编号顺序构成 pipeline  → analysis/README.md
@@ -180,7 +182,7 @@ plot/*.py                      → figures/*.pdf
 
 ```bash
 conda activate torch
-python analysis_gosai_0722/analysis/07_eval_regression.py
+python paper/analysis/07_eval_regression.py
 ```
 
 ### plot/ 只读派生表，不读 saved/
@@ -346,17 +348,17 @@ conda activate torch
 cd /home/hxcai/EpiCast
 
 # 重算全部评估指标（CPU，几分钟）
-python analysis_gosai_0722/analysis/07_eval_regression.py
-python analysis_gosai_0722/analysis/08_eval_classification.py
-python analysis_gosai_0722/analysis/09_eval_retrieval.py
+python paper/analysis/07_eval_regression.py
+python paper/analysis/08_eval_classification.py
+python paper/analysis/09_eval_retrieval.py
 
 # 同步派生表，然后重画所有图
-python analysis_gosai_0722/analysis/14_export_prediction_tables.py
-python analysis_gosai_0722/analysis/15_export_figure_metrics.py
-python analysis_gosai_0722/analysis/12_eval_castillo.py
-for f in analysis_gosai_0722/plot/fig*.py; do python "$f"; done
+python paper/analysis/14_export_prediction_tables.py
+python paper/analysis/15_export_figure_metrics.py
+python paper/analysis/12_eval_castillo.py
+for f in paper/plot/fig*.py; do python "$f"; done
 
 # 换一个 VEF 预处理变体重新评估，无需改代码
 EPICAST_AG_CONFIG=0820_gosai_ag_vef_log1p128_256 \
-  python analysis_gosai_0722/analysis/07_eval_regression.py
+  python paper/analysis/07_eval_regression.py
 ```

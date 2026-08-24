@@ -3,7 +3,7 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
-python_script="analysis_gosai_0722/analysis/06_infer_trained_model.py"
+python_script="paper/analysis/06_infer_trained_model.py"
 dataset_config="configs/0821_castillo_dataset_N_dnase1.yaml"
 output_name="castillo_preds_pad_N.npy"
 

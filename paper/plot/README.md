@@ -4,7 +4,7 @@
 
 ## 通用约定
 
-- 用 `sys.path.insert` 定位 `config`，从项目根或 `analysis_gosai_0722/` 都能跑，无 CLI 参数。
+- 用 `sys.path.insert` 定位 `config`，从项目根或 `paper/` 都能跑，无 CLI 参数。
 - 统一 `from epicast.utils.plot_utils import set_mpl_params` 设 matplotlib 默认值，多数还会 `sns.set_theme(style="whitegrid", context="notebook")`。
 - 图例名和配色**只从 `config.build_styles(figure_model_names)` 取**，不在绘图脚本里硬编码，所以改配色只需改 `config.model_styles`。
 - 存图统一 `dpi=400`。
@@ -12,7 +12,7 @@
 ```bash
 conda activate torch
 cd /home/hxcai/EpiCast
-for f in analysis_gosai_0722/plot/fig*.py; do python "$f"; done
+for f in paper/plot/fig*.py; do python "$f"; done
 ```
 
 ## 输入来源分两类（重要）

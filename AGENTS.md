@@ -2,7 +2,7 @@
 
 这份文档的目的：让一个刚接手的 agent 在 5 分钟内知道**这个项目在做什么、能跑的代码在哪、结果落在哪**，以及**哪些目录是历史包袱，不要碰**。
 
-论文级别的分析细节在 `analysis_gosai_0722/README.md`，这里只讲仓库全局。
+论文级别的分析细节在 `paper/README.md`，这里只讲仓库全局。
 
 ---
 
@@ -20,7 +20,7 @@
 
 科学结论一句话：**序列决定「共享的调控潜力」，VEF 决定「细胞特异的那部分差异」**。所以在全集上 EpiCast 和纯序列模型打平，但在 CTS 子集上 EpiCast 明显更好。
 
-论文手稿：`analysis_gosai_0722/manuscript/epicast_0817-chx.docx`（标题 *Virtual epigenomic features enable prediction of cell-context-dependent episomal regulatory activity*）。**手稿正文是旧版本，代码是新版本，两者有不一致，以代码为准**（已知不一致清单见 `analysis_gosai_0722/README.md` §7.1）。
+论文手稿：`paper/manuscript/epicast_0817-chx.docx`（标题 *Virtual epigenomic features enable prediction of cell-context-dependent episomal regulatory activity*）。**手稿正文是旧版本，代码是新版本，两者有不一致，以代码为准**（已知不一致清单见 `paper/README.md` §7.1）。
 
 ---
 
@@ -43,13 +43,13 @@ python -c "import epicast"    # 应指向 /home/hxcai/EpiCast/src/epicast/__init
 
 | 路径 | 是什么 |
 |---|---|
-| `analysis_gosai_0722/` | **论文的全部分析代码和结果**。新 agent 90% 的时间在这里。详见其 `README.md` |
+| `paper/` | **论文的全部分析代码和结果**。新 agent 90% 的时间在这里。详见其 `README.md`。8月24日由 `analysis_gosai_0722/` 改名而来，8月24日之前的提交和旧文档里都是旧名 |
 | `src/epicast/` | 训练/推理的 Python 包：模型、数据集、Trainer、损失、指标、工具 |
 | `configs/` | 训练与推理的 YAML 配置（57 个活跃 + `_archive/`） |
 | `saved/` | 训练产物：checkpoint、日志、预测 `.npy` |
 | `data/` | 所有数据集。本项目只关心 `data/gosai_mpra/` 和 `data/castillo_mpra/` |
 | `scripts/train.py`, `scripts/predict.py` | 训练与推理入口 |
-| `alphagenome_vef/` | 用 AlphaGenome 跑预测的脚本，产出 `gosai_ag_pred_760k_pad_0.h5` 和 `metadata_padded.tsv` 这两个**上游 h5 与元数据**。VEF 矩阵本身由 `analysis_gosai_0722/analysis/02_extract_ag_vef.py` 从这里的 h5 提取 |
+| `alphagenome_vef/` | 用 AlphaGenome 跑预测的脚本，产出 `gosai_ag_pred_760k_pad_0.h5` 和 `metadata_padded.tsv` 这两个**上游 h5 与元数据**。VEF 矩阵本身由 `paper/analysis/02_extract_ag_vef.py` 从这里的 h5 提取 |
 | `README.md`（根目录） | 面向 GitHub 公开发布的英文 README，讲的是 `predict_CRE_activity/` 那套「给用户用」的三步预测流程，**不是论文分析流程**。内容已略微过时 |
 
 ### 3.2 支撑 / 偶尔要看
@@ -66,9 +66,9 @@ python -c "import epicast"    # 应指向 /home/hxcai/EpiCast/src/epicast/__init
 
 ### 3.3 不要碰（历史包袱 / 已废弃）
 
-- `analysis_gosai_0722_backup/`、`analyze_gosai_backup/` — 分析目录的旧快照。只有一个用途：`analysis/16_eval_vef_variant_b2.py` 会读 `analysis_gosai_0722_backup/results/vef_only/ag_vef/` 里的旧预测做变体对比。
-- `analysis_gosai_0722/castillo_final_analysis/` — 师兄 Castillo 方案（Fig 5）的原始单文件版本，**已整合进主线**（`analysis/12_eval_castillo.py` + `plot/fig5_castillo_metrics.py`），这里只作为出处保留。其中 `数据处理与分析流程.md` 是方法说明的最佳来源，值得读；但三个 CSV 和 PDF 是 8月5日旧预测算的，**数字已过期**。
-- `analysis_gosai_0722/deprecated/` — 已弃用的 analysis 与 plot 脚本，以及 `share_20250805/`（旧的一次性交接包，README 里的数值表已过期）。
+- `analysis_gosai_0722_backup/`、`analyze_gosai_backup/` — 分析目录的旧快照，名字里的 `analysis_gosai_0722` 是 `paper/` 的旧名，**这两个目录刻意没跟着改名**。只有一个用途：`paper/analysis/16_eval_vef_variant_b2.py` 会读 `analysis_gosai_0722_backup/results/vef_only/ag_vef/` 里的旧预测做变体对比。
+- `paper/castillo_final_analysis/` — 师兄 Castillo 方案（Fig 5）的原始单文件版本，**已整合进主线**（`analysis/12_eval_castillo.py` + `plot/fig5_castillo_metrics.py`），这里只作为出处保留。其中 `数据处理与分析流程.md` 是方法说明的最佳来源，值得读；但三个 CSV 和 PDF 是 8月5日旧预测算的，**数字已过期**。
+- `paper/deprecated/` — 已弃用的 analysis 与 plot 脚本，以及 `share_20250805/`（旧的一次性交接包，README 里的数值表已过期）。
 - `_analyze_castillo/`、`_analyze_epi_features/`、`_analyze_martinez_mpra/`、`_analyze_siraj_mpra/`、`_padding_effect/` — 下划线前缀 = 一次性探索，已 gitignore。
 - `predict_CRE_activity_new/`、`TFBS_based_models/`、`TFBU/`、`outputs/`、`src/_archive/genoml/`（`epicast` 包的旧名镜像）。
 
@@ -152,10 +152,10 @@ saved/<config 名>/<MMDD_HHMMSS>/
 
 ### 4.5 推理
 
-分析包里的 `analysis_gosai_0722/analysis/06_infer_trained_model.py` 是实际用的推理入口（需要 GPU），它可以用 `-dc` 换一个 dataset config 从而对别的数据集推理：
+分析包里的 `paper/analysis/06_infer_trained_model.py` 是实际用的推理入口（需要 GPU），它可以用 `-dc` 换一个 dataset config 从而对别的数据集推理：
 
 ```bash
-python analysis_gosai_0722/analysis/06_infer_trained_model.py \
+python paper/analysis/06_infer_trained_model.py \
   -c saved/0821_gosai_ag_vef_x10_log1p_dnase1_256/0820_155453/config.yaml \
   -dc configs/0821_castillo_dataset_N_dnase1.yaml \
   -o castillo_preds_pad_N.npy
@@ -200,7 +200,7 @@ python analysis_gosai_0722/analysis/06_infer_trained_model.py \
 
 ### 5.3 AlphaGenome VEF 的预处理变体（重要）
 
-权威定义在 `analysis_gosai_0722/utils.py` 的 `ag_variants` 字典里（`ag_default_variant = "b"`），两个 extract 脚本共用它，所以变体不会被改单个脚本悄悄重定义：
+权威定义在 `paper/utils.py` 的 `ag_variants` 字典里（`ag_default_variant = "b"`），两个 extract 脚本共用它，所以变体不会被改单个脚本悄悄重定义：
 
 | 变体 | CTCF 列 | DNase 读出 | 变换 |
 |---|---|---|---|

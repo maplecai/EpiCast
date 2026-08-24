@@ -6,7 +6,7 @@
 
 ## 通用约定
 
-- 所有脚本用 `sys.path.insert(0, parents[1])` 定位 `config` 和 `utils`，因此**从项目根或从 `analysis_gosai_0722/` 都能跑**。
+- 所有脚本用 `sys.path.insert(0, parents[1])` 定位 `config` 和 `utils`，因此**从项目根或从 `paper/` 都能跑**。
 - **只有三个脚本带 CLI 参数**：`06_infer_trained_model.py`（换 checkpoint / 数据集），以及两个 AlphaGenome 提取脚本的 `--variant`（`02_extract_ag_vef.py`、`02_extract_castillo_ag_vef.py`，默认 `b`）。其余脚本路径全部来自 `config.py`。
 - 唯一的环境变量是 `EPICAST_AG_CONFIG`，在 `import config` 时生效，用来切换 EpiCast-AlphaGenome 评估哪个训练 run。
 - **只有 `06` 和 `10` 需要 GPU**，其余全是 CPU。
@@ -14,7 +14,7 @@
 
 ```bash
 cd /home/hxcai/EpiCast
-python analysis_gosai_0722/analysis/07_eval_regression.py
+python paper/analysis/07_eval_regression.py
 ```
 
 ## 依赖图
@@ -82,8 +82,8 @@ python analysis_gosai_0722/analysis/07_eval_regression.py
 从 AlphaGenome 的 h5 预测里按**修正后的** track 索引提取 Gosai 的四 assay VEF。**`--variant` 默认 `b`，即论文主结果用的那份矩阵。**
 
 ```bash
-python analysis_gosai_0722/analysis/02_extract_ag_vef.py              # 变体 B（默认）
-python analysis_gosai_0722/analysis/02_extract_ag_vef.py --variant c  # 变体 C
+python paper/analysis/02_extract_ag_vef.py              # 变体 B（默认）
+python paper/analysis/02_extract_ag_vef.py --variant c  # 变体 C
 ```
 
 - **读**：`alphagenome_vef/gosai_ag_pred_760k_pad_0.h5`、`alphagenome_vef/metadata_padded.tsv`，可选读 `mpra_path` 打印相关性诊断
@@ -143,7 +143,7 @@ Sei 与 AlphaGenome 的 VEF-活性、VEF-specificity 相关矩阵，逻辑与 `p
 加载 EpiCast checkpoint 做推理，存 `.npy`。**需要 GPU。**
 
 ```bash
-python analysis_gosai_0722/analysis/06_infer_trained_model.py \
+python paper/analysis/06_infer_trained_model.py \
   -c saved/<config>/<run>/config.yaml \              # 或 -k 直接给 checkpoint
   -dc configs/0821_castillo_dataset_N_dnase1.yaml \  # 换数据集，省略则用 config 自带的
   -o preds.npy \
