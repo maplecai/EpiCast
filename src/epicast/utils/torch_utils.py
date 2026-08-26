@@ -135,7 +135,7 @@ def get_free_gpus(min_memory_mb=20480):
 
 def get_nums_trainable_params(model:nn.Module) -> int:
     '''
-    计算模型的可训练参数数量
+    Count the trainable parameters of a model.
     '''
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])

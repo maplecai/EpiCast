@@ -25,7 +25,7 @@ from hydra.core.hydra_config import HydraConfig
 
 def set_seed(seed:int = 42) -> None:
     '''
-    设置随机数种子
+    Set the random seeds.
     '''
     os.environ['PYTHONHASHSEED'] = str(seed)
     random.seed(seed)
@@ -118,7 +118,7 @@ def process_config(cfg: dict) -> dict:
     saved_root_dir = Path(cfg['saved_root_dir'])
     run_id = datetime.now().strftime(r'%m%d_%H%M%S')
     saved_dir = (saved_root_dir / config_name / run_id)
-    saved_dir.mkdir(parents=True, exist_ok=False)  # 避免同秒覆盖
+    saved_dir.mkdir(parents=True, exist_ok=False)  # never overwrite a run of the same second
     cfg["saved_dir"] = str(saved_dir)
     
     if isinstance(cfg['logger'], OmegaConf):
@@ -188,15 +188,15 @@ class H5Writer:
     ):
         """
         Args:
-            path: h5 文件路径
+            path: path of the h5 file
             datasets_shape: dict
-                例如 {"DNase": (305,), "ATAC": (167,), "TF": (1617,)}
+                e.g. {"DNase": (305,), "ATAC": (167,), "TF": (1617,)}
             total_size:
-                - int: 旧模式，预分配固定总长度
-                - None: 新模式，第一维无限增长，按需 append
-            chunk_size: chunk 的 batch 维
-            dtype: 数据类型
-            compression: 压缩方式
+                - int: old mode, preallocate a fixed length
+                - None: new mode, grow the first axis on every append
+            chunk_size: batch axis of a chunk
+            dtype: data type
+            compression: compression method
         """
         self.path = path
         self.datasets_shape = datasets_shape
@@ -217,7 +217,7 @@ class H5Writer:
     def _init_datasets(self):
         self.f = h5py.File(self.path, "a")
 
-        # 兼容旧文件：优先从属性恢复 index
+        # older files: recover the index from the attribute first
         self.index = int(self.f.attrs.get("num_written", 0))
 
         for name, sample_shape in self.datasets_shape.items():
@@ -230,7 +230,7 @@ class H5Writer:
         if name in self.f:
             ds = self.f[name]
 
-            # 校验除 batch 维外的 shape
+            # check the shape apart from the batch axis
             if ds.shape[1:] != sample_shape:
                 raise ValueError(
                     f"{name} shape mismatch: existing {ds.shape[1:]} vs expected {sample_shape}"
@@ -240,12 +240,12 @@ class H5Writer:
 
             return ds
 
-        # 旧模式：固定容量
+        # old mode: fixed capacity
         if self.total_size is not None:
             init_size = int(self.total_size)
             maxshape = (init_size, *sample_shape)
         else:
-            # 新模式：无限 append
+            # new mode: unbounded append
             init_size = 0
             maxshape = (None, *sample_shape)
 
@@ -267,21 +267,21 @@ class H5Writer:
             if end <= cur_n:
                 continue
 
-            # 固定容量模式：超了就报错，保持旧行为
+            # fixed capacity: raise on overflow, as before
             if self.total_size is not None:
                 raise ValueError(
                     f"Write exceeds total_size: trying to write up to {end}, "
                     f"but dataset capacity is {cur_n}"
                 )
 
-            # 无限 append 模式：自动扩容
+            # unbounded append: grow as needed
             ds.resize((end, *ds.shape[1:]))
 
     def write(self, data_dict, flush=True):
         """
         Args:
             data_dict: dict
-                例如 {
+                e.g. {
                     "DNase": np.ndarray(shape=(b, 305)),
                     "ATAC": np.ndarray(shape=(b, 167)),
                     "TF": np.ndarray(shape=(b, 1617)),
@@ -290,7 +290,7 @@ class H5Writer:
         if not data_dict:
             return
 
-        # key 校验
+        # check the keys
         expected_keys = set(self.datasets.keys())
         input_keys = set(data_dict.keys())
         if input_keys != expected_keys:
@@ -298,7 +298,7 @@ class H5Writer:
             extra = input_keys - expected_keys
             raise ValueError(f"Dataset keys mismatch. missing={missing}, extra={extra}")
 
-        # batch 大小一致性检查
+        # every value must share the batch size
         b = None
         for name, arr in data_dict.items():
             arr = np.asarray(arr)
@@ -396,37 +396,37 @@ def resolve_config_paths(cfg, root):
 
 def remove_nan(*arrays):
     """
-    接收任意个 1D/2D/3D numpy array，删除包含 NaN 的行（按第0维），
-    并对所有 array 的有效行取交集，返回过滤后的结果。
+    Drop the rows (along axis 0) that contain NaN in any of the given
+    1D/2D/3D arrays, keeping the intersection of the valid rows.
 
     Parameters
     ----------
     *arrays : np.ndarray
-        任意个 1D / 2D / 3D array，要求第0维长度相同。
+        Any number of 1D / 2D / 3D arrays of equal length along axis 0.
 
     Returns
     -------
     tuple of np.ndarray
-        过滤后的每个 array，顺序与输入一致。
+        The filtered arrays, in the order they were given.
 
     Raises
     ------
     ValueError
-        如果没有输入、维度不在 1~3、或第0维长度不一致。
+        If nothing is given, an array is not 1-3D, or the lengths differ.
     """
     if len(arrays) == 0:
         raise ValueError("At least one array must be provided.")
 
     arrays = [np.asarray(arr) for arr in arrays]
 
-    # 检查维度
+    # check the dimensions
     for i, arr in enumerate(arrays):
         if arr.ndim not in (1, 2, 3):
             raise ValueError(
                 f"arrays[{i}] has ndim={arr.ndim}, but only 1D/2D/3D arrays are supported."
             )
 
-    # 检查第0维长度一致
+    # check that axis 0 has the same length everywhere
     lengths = [len(arr) for arr in arrays]
     if len(set(lengths)) != 1:
         raise ValueError(f"All arrays must have the same length on axis 0, got {lengths}")

@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 def set_mpl_params():
     sns.set_theme(context="talk", style="white")
     mpl_params = {
-        # 字体
+        # fonts
         'font.family': 'Arial',
         'font.size': 12,
-        # 数学字体
+        # math font
         'mathtext.fontset': 'stix', 
-        # 边框、坐标轴和刻度线统一 1pt 黑色
+        # spines, axes and ticks are 1pt black everywhere
         'axes.edgecolor': 'black',
         'axes.linewidth': 1.0,
         'xtick.color': 'black',
@@ -20,10 +20,10 @@ def set_mpl_params():
         'ytick.major.width': 1.0,
         'xtick.minor.width': 1.0,
         'ytick.minor.width': 1.0,
-        # 图像大小和分辨率
+        # figure size and resolution
         'figure.figsize': (8, 6),
         'figure.dpi': 400,
-        # pdf字体可编辑
+        # keep the text of a pdf editable
         'pdf.fonttype': 42,
     }
     plt.rcParams.update(mpl_params)

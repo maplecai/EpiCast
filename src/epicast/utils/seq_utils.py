@@ -9,17 +9,17 @@ _COMPLEMENT_TABLE = str.maketrans('ACGTNacgtn', 'TGCANtgcan')
 
 
 def reverse(seq: str) -> str:
-    '''反向'''
+    '''reverse'''
     return seq[::-1]
 
 
 def complement(seq: str) -> str:
-    '''互补'''
+    '''complement'''
     return seq.translate(_COMPLEMENT_TABLE)
 
 
 def reverse_complement(seq: str | np.ndarray | torch.Tensor) -> str | np.ndarray | torch.Tensor:
-    '''反向互补'''
+    '''reverse complement'''
     if isinstance(seq, str):
         return reverse(complement(seq))
     elif isinstance(seq, np.ndarray):
@@ -36,15 +36,15 @@ def revcomp(seq: str | np.ndarray | torch.Tensor) -> str | np.ndarray | torch.Te
     return reverse_complement(seq)
 
 
-# 1) 构建 256 x 4 查表
+# 1) build the 256 x 4 lookup table
 _LUT_ONEHOT = np.zeros((256, 4), dtype=np.float32)
 
-# A/C/G/T 大小写
+# A/C/G/T, upper and lower case
 for i, base in enumerate(b"ACGT"):
     _LUT_ONEHOT[base, i] = 1.0
     _LUT_ONEHOT[base + 32, i] = 1.0
 
-# N/n → 默认 0.25
+# N/n, 0.25 by default
 for i, base in enumerate(b"N"):
     _LUT_ONEHOT[base, :] = 0.25
     _LUT_ONEHOT[base + 32, :] = 0.25
@@ -55,7 +55,7 @@ def seq2onehot(seq: str, N_fill_value: float = 0.25) -> np.ndarray:
     b = np.frombuffer(seq.encode('ascii'), dtype=np.uint8)
     onehot = _LUT_ONEHOT[b]
 
-    # 覆盖 N 填充值
+    # override the fill value of N
     if N_fill_value != 0.25:
         maskN = (b == 78) | (b == 110)  # N/n
         onehot[maskN] = N_fill_value
@@ -65,28 +65,28 @@ def seq2onehot(seq: str, N_fill_value: float = 0.25) -> np.ndarray:
 
 def seq2onehot_batch(seqs: list[str], N_fill_value: float = 0.25) -> np.ndarray:
     """
-    批量 seq 列表 → onehot [B, L, 4]
-    要求所有序列等长，否则请先 padding。
+    A list of sequences to a onehot array [B, L, 4].
+    All sequences must have the same length; pad them first if they do not.
     """
 
     # ---------------------------
-    # 1. 转为 bytes，并存入二维 uint8 array
+    # 1. to bytes, then into a 2D uint8 array
     # ---------------------------
     B = len(seqs)
     L = len(seqs[0])
 
-    # 将每条序列转成 uint8，堆叠成 [B, L]
+    # each sequence to uint8, stacked into [B, L]
     arr = np.empty((B, L), dtype=np.uint8)
     for i, seq in enumerate(seqs):
         arr[i] = np.frombuffer(seq.encode("ascii"), dtype=np.uint8)
 
     # ---------------------------
-    # 2. 查 LUT：结果 [B, L, 4]
+    # 2. look up the LUT, which gives [B, L, 4]
     # ---------------------------
-    onehot = _LUT_ONEHOT[arr].copy()  # 必须 copy，避免改 LUT
+    onehot = _LUT_ONEHOT[arr].copy()  # copy, so that the LUT stays untouched
 
     # ---------------------------
-    # 3. 覆盖 N 填充值
+    # 3. override the fill value of N
     # ---------------------------
     if N_fill_value != 0.25:
         maskN = (arr == 78) | (arr == 110)  # 'N' or 'n'
@@ -96,7 +96,7 @@ def seq2onehot_batch(seqs: list[str], N_fill_value: float = 0.25) -> np.ndarray:
 
 
 
-# 全局：ACGT 字节 LUT
+# global ACGT byte LUT
 _BASE_CODES_NP = np.frombuffer(b"ACGT", dtype=np.uint8)
 _N_CODE = np.uint8(ord('N'))
 
@@ -336,25 +336,25 @@ import numpy as np
 
 if __name__ == "__main__":
 
-    # 基准测试配置
+    # benchmark settings
     N = 10240
     L = 1024
 
-    # 预生成同一批序列，保证两个方法对比公平
+    # the same sequences for both methods, to keep the comparison fair
     seqs = [random_seq(L) for _ in range(N)]
 
-    # 方法 1：逐个 seq 调用 seq2onehot 再 stack
+    # method 1: seq2onehot per sequence, then stack
     t0 = time.perf_counter()
     outs = np.stack([seq2onehot(s) for s in seqs])
     t1 = time.perf_counter()
     time_single = t1 - t0
     print("seqs_single shape:", outs.shape)
-    print(f"逐个 seq2onehot + stack 用时: {time_single:.4f} 秒")
+    print(f"seq2onehot per sequence + stack took {time_single:.4f} s")
 
-    # 方法 2：直接调用 batch 版本 seq2onehot_batch
+    # method 2: the batched seq2onehot_batch
     t0 = time.perf_counter()
     outs = seq2onehot_batch(seqs)
     t1 = time.perf_counter()
     time_batch = t1 - t0
     print("seqs_batch shape:", outs.shape)
-    print(f"seq2onehot_batch 用时: {time_batch:.4f} 秒")
+    print(f"seq2onehot_batch took {time_batch:.4f} s")

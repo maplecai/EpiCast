@@ -20,7 +20,7 @@ class EnformerWebDataset(IterableDataset):
         center_crop=False,
         cropped_len=1024,
         token_size=128,
-        batch_size=None,       # dataset 内部的 batch，None 表示输出 sample
+        batch_size=None,       # batch inside the dataset; None yields single samples
         partial_batches=True,
     ):
         self.shard_pattern = shard_pattern
@@ -32,7 +32,7 @@ class EnformerWebDataset(IterableDataset):
         self.crop = crop
         self.crop_mode = crop_mode
 
-        if random_crop:  # 仅用于兼容之前的参数，现在已经废弃
+        if random_crop:  # kept for backwards compatibility, no longer used
             self.crop = True
             self.crop_mode = "random"
         elif center_crop:
@@ -50,7 +50,7 @@ class EnformerWebDataset(IterableDataset):
 
     def _crop_seq_and_target(self, seq, tgt):
         # seq.shape = (131072, 4) tgt.shape = (896, 5313)
-        # 原始长度 131072 先去掉两端 114688, 对应 896 token
+        # from the original 131072, crop both ends down to 114688, i.e. 896 tokens
         seq = seq[8192:-8192]
 
         seq_len = seq.shape[0]
