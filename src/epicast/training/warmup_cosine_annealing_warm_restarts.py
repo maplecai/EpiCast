@@ -7,11 +7,11 @@ from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
 # class WarmupCosineAnnealing(_LRScheduler):
 #     """
-#     先线性 warmup，再 cosine annealing，不带 restart。
+#     Linear warmup, then cosine annealing without restarts.
 
-#     注意：
-#     - 按 epoch 调用 scheduler.step()
-#     - last_epoch 从 -1 开始，符合 PyTorch scheduler 习惯
+#     Notes:
+#     - call scheduler.step() once per epoch
+#     - last_epoch starts at -1, as in the PyTorch schedulers
 #     """
 
 #     def __init__(
@@ -71,11 +71,11 @@ class WarmupCosineAnnealingWarmRestarts(LRScheduler):
 
     Args:
         optimizer: torch optimizer
-        warmup_epochs (float): 线性 warmup 持续的 epoch 数
-        T_0 (float): 第一个 cosine 周期长度（不含 warmup 部分）
-        eta_min (float): 最小学习率
-        T_mult (float): 周期长度倍率，和官方 CosineAnnealingWarmRestarts 一致
-        last_epoch (int or float): 起始 epoch
+        warmup_epochs (float): epochs of linear warmup
+        T_0 (float): length of the first cosine period, warmup excluded
+        eta_min (float): minimum learning rate
+        T_mult (float): period growth factor, as in CosineAnnealingWarmRestarts
+        last_epoch (int or float): starting epoch
     """
     def __init__(
         self,
@@ -98,7 +98,7 @@ class WarmupCosineAnnealingWarmRestarts(LRScheduler):
 
         super().__init__(optimizer, last_epoch)
 
-    # PyTorch 会在 step() 之后调用这个函数来拿当前 lr
+    # PyTorch calls this after step() to read the current lr
     def get_lr(self):
         epoch = float(self.last_epoch)
         return self._compute_lr(epoch)
@@ -118,14 +118,14 @@ class WarmupCosineAnnealingWarmRestarts(LRScheduler):
         if self.T_mult == 1.0:
             t_i = t % T_i
         else:
-            # 周期递增：T_i, T_i*T_mult, T_i*T_mult^2, ...
+            # the periods grow as T_i, T_i*T_mult, T_i*T_mult^2, ...
             t_i = t
             while t_i >= T_i:
                 t_i -= T_i
                 T_i *= self.T_mult
 
-        # 现在 t_i ∈ [0, T_i)
-        # 标准 cosine 退火公式：从 base_lr → eta_min 再回到 eta_min
+        # t_i is now in [0, T_i)
+        # the usual cosine annealing, from base_lr down to eta_min
         cos_inner = math.pi * t_i / T_i
 
         return [

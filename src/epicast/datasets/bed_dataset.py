@@ -116,7 +116,7 @@ class BedDataset(Dataset):
         row = self.df.iloc[index]
         chr, start, end = row[['chr', 'start', 'end']]
 
-        # if self.shift: # 感觉不太对，shift的应该是这条序列在输入序列位置，而不是序列内容
+        # if self.shift:  # looks wrong: a shift should move the window, not the sequence itself
         #     start += self.shift_size
         #     end += self.shift_size
 

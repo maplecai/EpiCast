@@ -67,18 +67,18 @@ class WeightedMaskedMSELoss(nn.Module):
     """
     Weighted masked MSE loss.
 
-    thresholds 和 weights 定义分段权重：
+    thresholds and weights define a piecewise weight:
     - len(weights) == len(thresholds) + 1
-    - 对于升序 thresholds = [t1, t2, ..., tk]
-      权重区间为：
+    - for ascending thresholds = [t1, t2, ..., tk]
+      the weight intervals are:
         target <= t1                  -> weights[0]
         t1 < target <= t2             -> weights[1]
         ...
         target > tk                   -> weights[k]
 
-    例子:
+    example:
         thresholds=[1.0], weights=[1.0, 2.0]
-        表示 target <= 1 权重1, target > 1 权重2
+        weight 1 for target <= 1, weight 2 for target > 1
     """
 
     def __init__(
@@ -103,14 +103,14 @@ class WeightedMaskedMSELoss(nn.Module):
 
         self.reduction = reduction
 
-        # 注册为 buffer，保证 to(device) 时自动迁移
+        # a buffer, so that to(device) moves it along
         self.register_buffer("thresholds", torch.tensor(thresholds, dtype=torch.float32))
         self.register_buffer("weights", torch.tensor(weights, dtype=torch.float32))
 
     def _get_weight_map(self, target: Tensor) -> Tensor:
         """
-        根据 target 生成逐元素权重。
-        bucketize 规则:
+        Per-element weight derived from target.
+        bucketize rule:
             thresholds=[1.0, 3.0]
             idx:
               target <= 1.0   -> 0
@@ -142,7 +142,7 @@ class WeightedMaskedMSELoss(nn.Module):
         if self.reduction == "sum":
             return weighted_loss.sum()
 
-        # weighted mean：除以有效位置的权重和
+        # weighted mean: divide by the weight sum of the valid positions
         valid_weights = torch.where(mask, weight_map, torch.zeros_like(weight_map))
         denom = valid_weights.sum().clamp_min(1.0)
         return weighted_loss.sum() / denom

@@ -18,7 +18,7 @@ def metrics_each_channel(
 ) -> dict:
     """
     x, y: (..., C)
-    返回 dict: {"pearson": (C,), "mse": (C,), "r2": (C,)}
+    Returns a dict: {"pearson": (C,), "mse": (C,), "r2": (C,)}
     """
     x = np.asarray(x, dtype=np.float32)
     y = np.asarray(y, dtype=np.float32)

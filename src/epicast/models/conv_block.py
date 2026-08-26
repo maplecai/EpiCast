@@ -102,7 +102,7 @@ class ResConvBlock(nn.Module):
             z = self.conv1(self.act1(self.bn1(x)))
             z = self.conv2(self.act2(self.bn2(z)))
             out = z + self.shortcut(x)
-        elif self.layer_order == 'conv_relu_bn_add': # 之前没人提过，但是我实验的效果最好
+        elif self.layer_order == 'conv_relu_bn_add':  # not seen elsewhere, but the best in my experiments
             z = self.bn1(self.act1(self.conv1(x)))
             z = self.bn2(self.act2(self.conv2(z)))
             out = z + self.shortcut(x)

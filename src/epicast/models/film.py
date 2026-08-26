@@ -7,23 +7,23 @@ class FiLM(nn.Module):
     FiLM: Feature-wise Linear Modulation
     y = gamma(c) * x + beta(c)
 
-    支持输入 x 形状：
+    Accepted shapes of x:
       - [B, C]
       - [B, C, L]
       - [B, C, H, W]
-      - [B, ..., C] （可选：通过 modulated_dim 指定 C 在哪个维度）
+      - [B, ..., C] (modulated_dim says which axis carries C)
 
-    条件 c 形状：
+    Shape of the condition c:
       - [B, cond_dim]
     """
     def __init__(
         self,
         num_features: int,     # C
-        cond_dim: int,         # mask 的维度
-        hidden_dim: int = 128, # MLP 中间层（可改小/改大/设为 0 表示线性）
-        modulated_dim: int = 1,  # x 的通道维度位置，默认 [B, C, ...] => 1
-        affine: bool = True,   # 是否乘 gamma；若 False 则只加 beta
-        init_identity: bool = True,  # 是否初始化为接近 identity（训练更稳）
+        cond_dim: int,         # dimension of the mask
+        hidden_dim: int = 128, # hidden layer of the MLP; 0 makes it linear
+        modulated_dim: int = 1,  # channel axis of x; 1 for [B, C, ...]
+        affine: bool = True,   # multiply by gamma; if False only beta is added
+        init_identity: bool = True,  # start close to identity, which trains more stably
     ):
         super().__init__()
         self.num_features = num_features
@@ -43,7 +43,7 @@ class FiLM(nn.Module):
             self.net = nn.Linear(cond_dim, out_dim)
 
         if init_identity:
-            # 让初始输出接近：gamma=1, beta=0（或 beta=0）
+            # start out at gamma=1, beta=0
             nn.init.zeros_(self.net[-1].weight if isinstance(self.net, nn.Sequential) else self.net.weight)
             if isinstance(self.net, nn.Sequential):
                 nn.init.zeros_(self.net[-1].bias)
@@ -52,22 +52,22 @@ class FiLM(nn.Module):
 
     def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
         """
-        x: 输入特征
-        c: mask 向量 [B, cond_dim]
+        x: input features
+        c: mask vector [B, cond_dim]
         """
         B = x.shape[0]
         params = self.net(c)  # [B, out_dim]
 
         if self.affine:
             gamma, beta = params.chunk(2, dim=-1)  # [B, C], [B, C]
-            # 常见做法：gamma = 1 + delta，避免训练初期破坏特征尺度
+            # gamma = 1 + delta keeps the feature scale intact early in training
             gamma = 1.0 + gamma
         else:
             beta = params
             gamma = None
 
-        # 把 [B, C] reshape 成能广播到 x 的形状
-        # 目标：在 modulated_dim 位置放 C，其余维度为 1
+        # reshape [B, C] so that it broadcasts against x
+        # C goes to modulated_dim, every other axis is 1
         shape = [B] + [1] * (x.dim() - 1)
         shape[self.modulated_dim] = self.num_features
 

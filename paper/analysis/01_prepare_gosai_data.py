@@ -13,7 +13,7 @@ from utils import build_basic_masks
 gosai_raw_dir = project_root / "data/Gosai_MPRA"
 gosai_raw_data_dir = gosai_raw_dir / "raw"
 
-# 下面的代码试图复现malinois preprocessing
+# The code below reproduces the Malinois preprocessing
 
 
 metadata_df = pd.read_csv(gosai_raw_dir / "metadata.csv", comment="#")
@@ -22,7 +22,7 @@ print(f"[load] {gosai_raw_dir / 'metadata.csv'} {metadata_df.shape}")
 
 def read_fasta_gz_to_dict(fasta_gz_path):
     """
-    从 .fasta.gz 文件读取并转换为 {id: sequence} 字典。
+    Read a .fasta.gz file into a {id: sequence} dict.
     """
     seq_dict = {}
     with gzip.open(fasta_gz_path, "rt") as f:
@@ -33,11 +33,11 @@ def read_fasta_gz_to_dict(fasta_gz_path):
             if line.startswith(">"):
                 if seq_id is not None:
                     seq_dict[seq_id] = "".join(seq_lines)
-                seq_id = line[1:]  # 去掉 '>'
+                seq_id = line[1:]  # drop the '>'
                 seq_lines = []
             else:
                 seq_lines.append(line)
-        # 处理最后一条序列
+        # the last sequence
         if seq_id is not None:
             seq_dict[seq_id] = "".join(seq_lines)
     return seq_dict
@@ -60,21 +60,21 @@ def map_data_project(ol):
 
 
 
-# 暂时忽略相同ID不同序列的情况
+# the same id carrying different sequences is ignored for now
 def expand_dic(multi_key_dict):
     expanded_dic = {}
     for compound_key, seq in multi_key_dict.items():
-        # 去除外层括号（如果存在）
+        # strip the outer brackets if present
         if compound_key.startswith("(") and compound_key.endswith(")"):
             compound_key = compound_key[1:-1]
-        # 用 ; 拆分
+        # split on ;
         keys = compound_key.split(";")
         for key in keys:
             if key in expanded_dic:
                 if expanded_dic[key] != seq:
                     print(f"expanded conflict key {key}")
                     expanded_dic[key] = None
-                else: #已存在且值一致，跳过
+                else:  # already present with the same value, skip
                     print(f"expanded conflict key {key}, has same values! skip")
                     continue
             else:
@@ -86,7 +86,7 @@ def expand_dic(multi_key_dict):
 total_dict = {}
 ref_accessions = list(set(metadata_df['ref_accession']))
 for ref_accession in ref_accessions:
-    if ref_accession == 'ENCFF443RYE;ENCFF728XQT': # 已经有了两个分别的
+    if ref_accession == 'ENCFF443RYE;ENCFF728XQT':  # both are already listed on their own
         continue
     dic = read_fasta_gz_to_dict(gosai_raw_data_dir / f"{ref_accession}.fasta.gz")
     dic = expand_dic(dic)
@@ -152,15 +152,15 @@ def filter_log2fc_6std(df):
 
 
 def merge_ukbb_gtex_ol15(df):
-    # 定义优先级映射
+    # priority of each source project
     priority_map = {'UKBB': 3, 'GTEx': 2, 'OL15': 1}
-    # 给 dataframe 新增一列 priority 便于后续比较
+    # a priority column makes the comparison below easier
     df['priority'] = df['data_project'].map(priority_map)
     if df['priority'].isna().any():
-        print('存在 priority 为空的行!!')
+        print('rows with an empty priority!!')
     
-    # 构造聚合字典：log2FoldChange 做 mean，其余列都用 'first'
-    # 如果你的表有很多列，只关心部分字段，也可以只在聚合字典中声明关心的列。
+    # aggregate log2FoldChange by mean, every other column by 'first'
+    # only the columns of interest have to be listed here
     agg_dict = {}
     for col in df.columns:
         if col == 'log2FoldChange':
@@ -168,19 +168,19 @@ def merge_ukbb_gtex_ol15(df):
         elif col == 'lfcSE':
             agg_dict[col] = 'max'
         else:
-            # 取第一行，如果同一个 (ID, data_project) 下这些列确实没有冲突
+            # the first row, as these columns do not conflict within one (ID, data_project)
             agg_dict[col] = 'first'
 
-    # 一次分组：对 seq + data_project 分组
+    # group by seq + data_project
     df_agg = df.groupby(['seq', 'data_project'], as_index=False).agg(agg_dict)
 
-    # 对聚合完的数据按优先级降序排；同一个 ID 下，UKBB(3) > GTEx(2) > OL15(1)
+    # sort by descending priority: within one ID, UKBB(3) > GTEx(2) > OL15(1)
     df_agg.sort_values(['seq', 'priority'], ascending=[True, False], inplace=True)
 
-    # 同一个 ID 只保留优先级最高的项目那条记录
+    # keep only the highest-priority project of each ID
     df_final = df_agg.drop_duplicates(subset='seq', keep='first').copy()
 
-    # 不需要 priority 列了，可以删除
+    # priority is no longer needed
     df_final.drop(columns='priority', inplace=True)
     
     return df_final
@@ -253,9 +253,9 @@ merged_df = merged_df.sort_values(by=['chr', 'pos']).reset_index(drop=True)
 
 merged_df.to_csv(mpra_raw_path, sep='\t', index=False)
 print(f"[save] {mpra_raw_path} {merged_df.shape}")
-# 如果合并dict且不考虑重复，760679
-# 如果合并dict 756354
-# 如果分开dict 756344
+# merging the dicts and ignoring duplicates: 760679
+# merging the dicts: 756354
+# keeping the dicts separate: 756344
 
 
 # z-score every cell type using train-chromosome statistics only
