@@ -1,6 +1,6 @@
 """Extract Sei VEF matrix from raw Sei predictions.
 
-Compared with predict_CRE_activity/1.1_Gosai_Sei_pred_VEF.ipynb:
+Compared with the earlier notebook implementation (deleted, see git history):
 - Same core transform: mean(logit(tracks)) over selected Sei tracks.
 - Same cell-type name mapping and AUROC>0.95 track filter.
 - SK-N-SH merges Neuroblastoma + RA Neuron tracks.
@@ -25,7 +25,7 @@ from epicast.utils import logit
 
 from config import assays, cell_types, data_dir, mpra_path, project_root
 
-pred_path = project_root / "predict_CRE_activity/outputs/Gosai_MPRA_Sei_pred.h5"
+pred_path = project_root / "data/Sei/Gosai_MPRA_Sei_pred.h5"
 tracks_info_path = project_root / "data/Sei/Sei_tracks_info.csv"
 metadata_pivot_path = project_root / "data/Sei/metadata_pivot_vef.csv"
 out_logit_path = data_dir / "gosai_mpra_760679_sei_vef_logit_raw.tsv"

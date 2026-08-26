@@ -117,7 +117,7 @@ python paper/analysis/02_extract_ag_vef.py --variant c  # 变体 C
 ### `02_extract_sei_vef.py`
 从 Sei 的 h5 预测提取 logit VEF 及逐列 z-score 版本。
 
-- **读**：`predict_CRE_activity/outputs/Gosai_MPRA_Sei_pred.h5`、`data/Sei/Sei_tracks_info.csv`
+- **读**：`data/Sei/Gosai_MPRA_Sei_pred.h5`（2026-08-26 从 `predict_CRE_activity/outputs/` 挪过来的，那个目录不进发布分支）、`data/Sei/Sei_tracks_info.csv`
 - **写**：`data/Sei/metadata_pivot_vef.csv`、`data/gosai_mpra/gosai_mpra_760679_sei_vef_logit_raw.tsv`、`..._logit_zscore.tsv`
 - Sei 输出的是概率，先转 logit，再在匹配到的 profile（AUROC > 0.95 者）上平均
 - ⚠️ **不覆盖** `config.vef_paths["sei"]` 指向的 `gosai_mpra_760679_sei_vef_logit.tsv`（那是更早的 notebook 产物）
