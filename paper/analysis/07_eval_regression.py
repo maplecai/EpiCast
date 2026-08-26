@@ -25,6 +25,7 @@ from utils import (
     load_residual_eval_dfs,
     load_true_df,
     safe_metric,
+    valid_pairs,
 )
 
 pd.set_option("display.width", 200)
@@ -62,7 +63,7 @@ def evaluate_model(model_name, pred_df, true_df, masks, eval_cell_types, splits,
                         "split": split,
                         "cell_type": cell_type,
                         "metric": metric_name,
-                        "n_eval": int(eval_mask.sum()),
+                        "n_eval": int(valid_pairs(x, y).sum()),
                         "value": value,
                     }
                 )

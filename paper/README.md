@@ -15,15 +15,14 @@ paper/
 ├── config.py          全局定义：路径、细胞系、模型注册表、图例名与配色
 ├── utils.py           全局函数：VEF 提取、预测加载、mask 构造、CTS 定义、residual
 ├── analysis/          20 个分析脚本，按编号顺序构成 pipeline  → analysis/README.md
-├── plot/              12 个绘图脚本，一个脚本一组图 panel     → plot/README.md
+├── plot/              绘图脚本，一个脚本一组图 panel           → plot/README.md
 ├── results/           analysis/ 的全部产物（csv/npy/tsv），gitignore
 │   ├── predictions/       ★ 逐序列自描述表：实测值 + 各模型预测值，由 analysis/14 写
 │   ├── figure_metrics/    ★ 逐图 panel 的汇总指标表，由 analysis/15 写，plot/ 读这里
 │   └── <其余按分析主题分目录>：correlation/ classification/ retrieval/ castillo/ …
 ├── figures/           plot/ 的产物（pdf），gitignore
-├── manuscript/        论文 docx（旧版本，与代码不一致）
-├── deprecated/        已弃用脚本，以及 share_20250805/（旧的一次性交接包）
-└── castillo_final_analysis/   师兄 Castillo 方案的原始版本，已整合进主线，见 §7.3
+├── manuscript/        论文 docx（旧版本，与代码不一致）、逆向生成的画图描述、Castillo 方法说明
+└── deprecated/        已弃用脚本，以及 share_20250805/（旧的一次性交接包）
 ```
 
 **读代码的推荐顺序**：`config.py`（搞清有哪些模型和路径）→ `utils.py`（搞清 CTS/residual 怎么算）→ 具体的 analysis 脚本。
@@ -34,8 +33,8 @@ paper/
 
 | 目录 | 粒度 | 写者 | 读者 |
 |---|---|---|---|
-| `results/predictions/` | 逐序列一行，一个模型一张表，实测值和预测值并排 | `analysis/14` | `plot/fig2b`、`plot/fig3g`、`analysis/12` |
-| `results/figure_metrics/` | 逐 (模型, 细胞系) 聚合，一个图 panel 一张表 | `analysis/15` | `plot/` 的 fig2/fig3 系列 |
+| `results/predictions/` | 逐序列一行，一个模型一张表，实测值和预测值并排 | `analysis/14` | `plot/fig2a`、`plot/fig3fg`、`analysis/12` |
+| `results/figure_metrics/` | 逐 (模型, 细胞系) 聚合，一次评估一张表 | `analysis/15` | `plot/` 的 fig2/fig3 系列 |
 
 命名说明：这两个目录**不叫 `data/` 和 `metrics/`**，不是为了避开根目录 `data/`，而是因为 `predictions` 和 `figure_metrics` 本身更准确——根目录 `data/` 放的是原始与外部数据集，这里放的是本分析派生出来的预测表和指标表。同时 `figure_metrics` 与同级的 `correlation/`、`classification/` 区分得开：后者是评估脚本的完整长表，前者是专供绘图的窄表。
 
@@ -108,23 +107,23 @@ get_mask("test&cts_1_99", masks, cell_type="HCT116")
 
 ## 三、被比较的模型
 
-全部注册在 `config.model_registry`，`config.figure_model_names` 是主图里的 13 个，按图例顺序：
+全部注册在 `config.model_registry`。`config.eval_model_names` 是被 `analysis/07`、`08`、`09` 打分的 14 个模型；主图只用其中 11 个，由 `config.figure_model_blocks` 按 VEF 源分块给出，柱图就按这个顺序画、块之间留间隔：
 
-| 注册名 | 图例 | 类型 | 预测来源 |
-|---|---|---|---|
-| `linear_sei_dnase` | Sei DNase Linear | VEF-only | `results/vef_only/sei_dnase/linear_pred.npy` |
-| `linear_enformer_dnase` | Enformer DNase Linear | VEF-only | `results/vef_only/enformer_dnase/` |
-| `linear_borzoi_dnase` | Borzoi DNase Linear | VEF-only | `results/vef_only/borzoi_dnase/` |
-| `linear_ag_dnase` | AlphaGenome DNase Linear | VEF-only | `results/vef_only/ag_dnase/` |
-| `linear_sei_vef` / `mlp_sei_vef` / `xgb_sei_vef` | Sei Linear / MLP / XGBoost | VEF-only（4 维） | `results/vef_only/sei_vef/` |
-| `linear_ag_vef` / `mlp_ag_vef` / `xgb_ag_vef` | AlphaGenome Linear / MLP / XGBoost | VEF-only（4 维） | `results/vef_only/ag_vef/` |
-| `seq_only_3` | Seq-only model | 纯序列 | `saved/0722_gosai_seq_only_256/0722_160527/preds.npy` |
-| `epicast_sei_vef` | EpiCast (Sei) | 序列+VEF | `saved/0722_gosai_sei_vef_log1p_256/0723_031345/preds.npy` |
-| `epicast_ag_vef` | EpiCast (AlphaGenome) | 序列+VEF | `config.epicast_ag_run`（见下） |
+| 块 | 注册名 | 图例 | 类型 | 预测来源 |
+|---|---|---|---|---|
+| Sei | `linear_sei_dnase` | DNase | VEF-only（1 维） | `results/vef_only/sei_dnase/linear_pred.npy` |
+| Sei | `linear_sei_vef` / `mlp_sei_vef` / `xgb_sei_vef` | VEF-only (linear / MLP / XGBoost) | VEF-only（4 维） | `results/vef_only/sei_vef/` |
+| Sei | `epicast_sei_vef` | EpiCast | 序列+VEF | `saved/0722_gosai_sei_vef_log1p_256/0723_031345/preds.npy` |
+| AlphaGenome | `linear_ag_dnase` | DNase | VEF-only（1 维） | `results/vef_only/ag_dnase/` |
+| AlphaGenome | `linear_ag_vef` / `mlp_ag_vef` / `xgb_ag_vef` | VEF-only (linear / MLP / XGBoost) | VEF-only（4 维） | `results/vef_only/ag_vef/` |
+| AlphaGenome | `epicast_ag_vef` | EpiCast | 序列+VEF | `config.epicast_ag_run`（见下） |
+| — | `seq_only_3` | Sequence-only | 纯序列 | `saved/0722_gosai_seq_only_256/0722_160527/preds.npy` |
 
-`eval_model_names` 比 `figure_model_names` 多一个 `seq_only_5`（纯序列但用全 5 个细胞系训练，作为上界参考，不进主图）。
+不进主图的三个：`linear_enformer_dnase`、`linear_borzoi_dnase`（Enformer / Borzoi 只出现在描述性的 Fig 1，它们在多个细胞系缺 H3K27ac track，所以 EpiCast 只用 Sei 和 AlphaGenome 构建）、`seq_only_5`（纯序列但用全 5 个细胞系训练，作为上界参考）。它们仍然被完整评估，只是被 `analysis/15` 过滤掉，不进 `results/figure_metrics/`。
 
-配色约定（`config.model_styles`）：单 assay DNase linear 是青→蓝渐变，Sei 四维是红系，AlphaGenome 四维是黄系，纯序列是灰，EpiCast 是紫。
+`config.residual_model_blocks` 是前两块共 10 个模型，Fig 3A 用它：held-out 细胞的 sequence-only 预测被定义为三个训练细胞的均值，predicted residual 恒为 0。
+
+配色约定：Fig 2/3 的柱子颜色由 `figure_model_blocks` 里的 colormap 决定（Sei 用 `YlOrRd`，AlphaGenome 用 `GnBu`，块内由浅到深，sequence-only 单独一个深灰），所以同一个模型在 Fig 2 和 Fig 3 里颜色一致。`config.model_styles` 保留每个模型的显示名和单色，供别处使用。细胞系配色在 `config.cell_colors`（Gosai）和 `config.castillo_cell_colors`：按细胞系顺序取蓝黄绿红紫（2026-08-25 C.Z. 定，Castillo 后面再接棕和青），紫比其余四个更浅、饱和度更低。旧配色的橙（HepG2）和黄（SK-N-SH）在散点尺寸下分不开，所以整条色阶换掉了。
 
 Castillo 那边是另一套（`config.castillo_model_names`）：`dhs64`、`vef_only`（= AlphaGenome MLP）、`linear_ag_dnase`、`epicast`。
 
@@ -163,7 +162,7 @@ EPICAST_AG_CONFIG=0820_gosai_ag_vef_log1p128_256 python analysis/07_eval_regress
 07_eval_regression             回归指标（activity + residual）
 08_eval_classification         CTS 分类指标 + ROC/PR 曲线
 09_eval_retrieval              top-k 检索指标（p@k, EF, NNS）
-11_ctcf_ablation               VEF 边际/偏相关 + 标准化 β
+11_vef_partial_correlation     VEF 边际/偏相关 + 标准化 β
         ▼
 14_export_prediction_tables    → results/predictions/*.tsv
         ├── 15_export_figure_metrics  → results/figure_metrics/*.tsv
@@ -174,7 +173,7 @@ plot/*.py                      → figures/*.pdf
 
 注意 `12_eval_castillo` 排在 `14` **之后**：它读的是 `results/predictions/castillo_*.tsv`，而不是 `saved/` 里的 npy。
 
-两个**旁支**（可选，无 plot 消费，不进论文主图）：`15_eval_mingap_comparison.py`（CTS 定义敏感性）、`16_eval_vef_variant_b2.py`（VEF 预处理变体敏感性）。
+四个**旁支**（可选，无 plot 消费，不进论文主图）：`15_eval_mingap_comparison.py`（Gosai 的 CTS 定义敏感性）、`16_eval_vef_variant_b2.py`（VEF 预处理变体敏感性）、`17_eval_castillo_sei.py`（Sei 侧模型的 Castillo 评估）、`18_eval_castillo_ranking_score.py`（Castillo 排序分数 gap vs residual）。
 
 除 `06` / `10` 需要 GPU 外，**其余全部是 CPU-only**。
 
@@ -189,7 +188,7 @@ python paper/analysis/07_eval_regression.py
 
 这是一个刻意的设计（`config.py` 里有注释）：绘图脚本读 `results/predictions/` 和 `results/figure_metrics/`，不直接碰 `saved/` 里的 npy。npy 没有任何 key，全靠行序和列序对齐 MPRA 表，让每个绘图脚本各自重推一遍这个对齐关系迟早出错；派生表把实测值和预测值放在同一行，读者不需要重推。
 
-后果：改了 `results/` 之后，必须重跑 `14_export_prediction_tables.py` 和 `15_export_figure_metrics.py`，图才会更新。少数几个 plot 脚本（fig1 系列、fig4ab）仍直连 `results/` 和原始 VEF 矩阵，因为它们要用逐序列的 VEF 值，不适合聚合成指标表。
+后果：改了 `results/` 之后，必须重跑 `14_export_prediction_tables.py` 和 `15_export_figure_metrics.py`，图才会更新。fig1 系列是例外，直连原始 MPRA 表和 VEF 矩阵，因为它们要用逐序列的 VEF 值，不适合聚合成指标表。
 
 ---
 
@@ -202,16 +201,22 @@ python paper/analysis/07_eval_regression.py
 | `classification/` | `08` | `all_models_classification.csv` + `test_CTS_{high,low}_{precision,recall,f1,auroc,auprc}.csv` + `curves/test_{cell}_{task}_{roc,pr}.csv` |
 | `retrieval/` | `09` | `all_models_retrieval.csv`（含 p@100/1000/10000, ef@…）+ `curves/test_{cell}_{task}_curve.csv` |
 | `vef_only/` | `05` | `{sei,enformer,borzoi,ag}_dnase/` 与 `ag_vef/`、`sei_vef/`，每个模型三件套 `*_pred.npy` / `*.joblib` / `*_params.json` |
-| `ctcf_ablation/` | `11` | `ctcf_ablation.csv`（marginal_r, partial_r_given_*, beta_given_all3） |
+| `vef_partial_correlation/` | `11_vef_partial…` | `vef_partial_correlation.csv`，80 行 = 2 个 VEF 源 × {absolute, residual} × 5 个细胞系 × 4 个 assay，列含 `marginal_r, partial_r, beta`。fig4B / fig4D / fig4E 的输入 |
+| `ctcf_ablation/` | 已无生成脚本 | `ctcf_ablation.csv`。`11_ctcf_ablation` 推广成 `11_vef_partial_correlation` 之后留下的旧产物，只有归档的 `plot/_fig4bde` 还在读 |
+| `vef_pairwise_correlation/` | `11_vef_pairwise…` | `vef_pairwise_correlation.csv`，120 行 = 2 个 VEF 源 × {absolute, residual} × 6 个 assay 对 × 5 个细胞系。fig4A / fig4C 的输入 |
 | `predictions/` | `14` | `gosai_{model}.tsv`（13 个主图模型）、`castillo_{dhs64,linear_ag_dnase,vef_only,epicast_ag_vef}.tsv`（4 张，Castillo 侧没有 EpiCast-Sei，见 §6.2 脚注）。逐序列自描述表 |
-| `figure_metrics/` | `15_export…` | 12 张 tsv：`fig2c_activity_test`、`fig2d_activity_cts`、`fig3b_residual_{test,cts}`、`fig3{c,d}_cts_{high,low}`、`fig3{c,d}_cts_{high,low}_{roc,pr}`、`fig3{e,f}_retrieval_cts_{high,low}` |
+| `figure_metrics/` | `15_export…` | 12 张 tsv，**名字不带图号**：`activity_{test,cts}`、`residual_{test,cts}`、`cts_{high,low}`、`cts_{high,low}_{roc,pr}`、`retrieval_cts_{high,low}`。与手稿 panel 的对应写在脚本 docstring 里 |
 | `castillo/` | `12` | `castillo_{regression,classification}_metrics.csv`、`castillo_cts_counts.csv`。整张 fig5 只依赖这三个文件 |
+| `castillo_sei/` | `17_eval_castillo…` | `castillo_sei_{regression,classification}_metrics.csv`。Sei 侧模型的 Castillo 评估，旁支 |
+| `castillo_ranking_score/` | `18_eval_castillo…` | `castillo_ranking_score_{metrics,summary}.csv`。同一批 CTS 标签下 gap 排序 vs residual 排序的对比，旁支 |
 | `model_track_metadata/` | `01_parse…` | `{sei,enformer,borzoi,alphagenome}_tracks_parsed.csv` |
-| `fig1c_assay_coverage/` | `plot/fig1c_…` | assay 覆盖度 count / pct / 总细胞系数（**由 plot 脚本写出，是唯一的例外**） |
+| `assay_coverage/` | `plot/_fig1c_…` | assay 覆盖度 count / pct / 总细胞系数（**由 plot 脚本写出，是唯一的例外**） |
 | `mingap/` | `15_eval_mingap…` | `mingap_vs_mean_all_models.csv` + 8 张宽表。旁支分析 |
 | `vef_variant_b2/` | `16_eval_vef…` | `{linear,xgb,mlp}_pred.npy` + `variant_comparison.csv`。旁支分析 |
 
-**已无 writer 的历史残留**（只被 `deprecated/plot/` 引用，可以忽略）：`train3test2_correlation/`、`train3test2_specific_retrieval/`、`train3test2_standardized_pred_tsv/`、`epicast/leave_one_out_pred*.npy`、`gene_therapy_promoters/`、`fig1c_assay_coverage/all_assays/`、`_castillo_percentile_cts_deprecated/`（旧 Castillo 方案的产物，见 §7.3）。
+**2026-08-25 清理**：`train3test2_correlation/`、`train3test2_specific_retrieval/`、`train3test2_standardized_pred_tsv/`、`epicast/`（leave-one-out 预测）、`gene_therapy_promoters/`、`assay_coverage/all_assays/` 共 733 MB 已删除 —— 全仓库没有任何脚本引用它们，也没有 writer 能再生成。
+
+**剩下的两处历史残留**（有 writer 或有归档 reader，先留着）：`ctcf_ablation/`（只被归档的 `plot/_fig4bde` 读，见上表）、`_castillo_percentile_cts_deprecated/`（旧 Castillo 分位数方案的产物，见 §7.3）。
 
 ---
 
@@ -261,7 +266,7 @@ Castillo 全量（8,152 条全用，无划分）的 Pearson r：
 
 CTS 标签数（gap ≥ 1，union = 3,333 / 8,152）：K562 713/84、HepG2 847/0、SK-N-SH 227/6、GM12878 538/169、WERI-Rb-1 400/11、MCF-7 95/281、HeLa-S3 203/1（CTS-high/CTS-low）。CTS-low 图只画阳性数 ≥ 2 的 5 个细胞系（排除 HepG2 的 0 个和 HeLa-S3 的 1 个），共 551 个阳性标签。
 
-> ⚠️ **`deprecated/share_20250805/README.md` §三 里的参考数值表已过期**，所有依赖 AlphaGenome VEF 的模型（EpiCast-AlphaGenome、AlphaGenome DNase Linear、AlphaGenome MLP）数字都对不上；EpiCast (Sei) 和 DHS64 完全一致。原因清楚：8月20日 VEF 矩阵切换到变体 B（修正 CTCF 列 + DNase 从 1bp 头读），预测表重新导出了，但那份 README 的表没跟着改。**模型排序和所有定性结论不受影响**（EpiCast-AG > EpiCast-Sei > AG DNase Linear > AG MLP > DHS64，与旧表一致）。这份交接包已经发给师兄，他的 `castillo_final_analysis/` 就是基于它算的，所以那里的 CSV 数字同样是旧的 —— 详见 §7.3。
+> ⚠️ **`deprecated/share_20250805/README.md` §三 里的参考数值表已过期**，所有依赖 AlphaGenome VEF 的模型（EpiCast-AlphaGenome、AlphaGenome DNase Linear、AlphaGenome MLP）数字都对不上；EpiCast (Sei) 和 DHS64 完全一致。原因清楚：8月20日 VEF 矩阵切换到变体 B（修正 CTCF 列 + DNase 从 1bp 头读），预测表重新导出了，但那份 README 的表没跟着改。**模型排序和所有定性结论不受影响**（EpiCast-AG > EpiCast-Sei > AG DNase Linear > AG MLP > DHS64，与旧表一致）。这份交接包已经发给师兄，他那版 Castillo 分析就是基于它算的，所以他给回来的 CSV 数字同样是旧的 —— 详见 §7.3。
 
 重跑了 pipeline 想验证口径是否一致，用这段对第一张表：
 
@@ -282,31 +287,39 @@ for c in ["K562", "HepG2", "SK-N-SH", "HCT116", "A549"]:
 
 ### 7.1 代码 vs 手稿
 
-**手稿 `manuscript/epicast_0817-chx.docx` 是旧版本，代码是新版本。** 最显眼的是**图编号已经重排，但代码里的文件名没跟着改**。当前推断的对应关系（**待与作者一起核对，不要当成定论**）：
+**手稿 `manuscript/epicast_0817-chx.docx` 的正文是旧版本，代码是新版本。** 图的部分已经对齐：`manuscript/epicast_figure_plot_descriptions.md` 是按手稿图片逐 panel 整理的复现说明，`plot/` 下的脚本已按它重命名并重做（映射表见 `plot/README.md`），**Fig 1–5 全部 panel 都有了活跃脚本**。Fig 4 是最后补齐的：4A/4C 出自 `analysis/11_vef_pairwise_correlation.py` + `plot/fig4ac_vef_correlation_heatmap.py`，4B/4D/4E 出自 `analysis/11_vef_partial_correlation.py` + `plot/fig4bde_vef_partial_correlation.py`（2026-08-25，把只算 CTCF 的 `11_ctcf_ablation.py` 推广到 4 个 assay 之后才画得出来）。
 
-| 代码前缀 | 内容 | 手稿 panel |
-|---|---|---|
-| `fig1c` | 4 个模型的 assay 覆盖度柱状图 | Fig 1B 附近 / 补充图 |
-| `fig1d` | VEF × 活性相关性热图 | Fig 1C |
-| `fig1e` | 全集活性-活性相关性热图 | Fig 1D |
-| `fig1f` | residual VEF × residual 活性 / VEF specificity | Fig 1E |
-| `fig1g` | CTS 集活性-活性相关性热图 | Fig 1F |
-| `fig2b` | EpiCast 预测 vs 实测散点 | Fig 2A |
-| `fig2c` | 全集回归指标柱状图 | Fig 2B |
-| `fig2d` | CTS 集回归指标柱状图 | Fig 2C |
-| `fig3aa` / `fig3b` | residual 回归指标 | Fig 3A |
-| `fig3c` / `fig3d` | CTS-high / CTS-low 分类（柱 + ROC/PR） | Fig 3B / 3C |
-| `fig3e` / `fig3f` | CTS-high / CTS-low 检索曲线 | Fig 3D / 3E |
-| `fig3g` | top-k 候选的实测活性 boxplot | Fig 3F |
-| `fig4a` / `fig4b` | CTCF 边际 vs 偏相关、符号翻转 | Fig 4（A–E 的一部分） |
-| `fig5` | Castillo 回归 + CTS 分类综合图 | **Fig 5** |
+#### 要改手稿的实质不一致
 
-手稿把 CTCF/VEF 解耦分析独立成了 Fig 4，Castillo 变成 Fig 5；代码已按手稿编号命名（`plot/fig5_castillo_metrics.py`）。另外手稿 Fig 4 描述了 VEF 两两相关性和多元回归 β（Fig 4A/4C/4E），而代码 `fig4ab_ctcf_ablation.py` 目前只出散点和符号翻转 boxplot。
+- **Castillo 的排序分数**（Methods「Evaluation of cell-type-specific CRE prioritization」段）：手稿写「按 predicted residual activity 排序，CTS-low 取负」，但 `analysis/12_eval_castillo.py` 用的是**预测值之间的 gap**（\(\hat y_c-\max_{j\ne c}\hat y_j\)，CTS-low 对称），让分数和 gap 定义的标签朝向一致。这段 Methods 是通用写法，对 Gosai 成立、对 Castillo 不成立。Fig 5 caption 的「predicted residual activity used in defining CTS CREs」勉强能读成 gap，但也该改直白。权威口径见 `manuscript/castillo_fig5_methods.md` §7。代码保持 gap 不动。
+- **Fig 5E 只剩 3 个细胞系**（2026-08-25 恢复画图，等 C.Z. 定去留）：CTS-low 的阳性数是 HepG2 0、HeLa-S3 1、SK-N-SH 6、WERI-Rb-1 11、K562 84、GM12878 169、MCF-7 281，过 `castillo_min_positives = 20` 后只有后三个进图，所以一列只有三个点。手稿 5E 的结论在这三个细胞系上仍然成立（AUROC 中位 EpiCast 0.655 > DHS64 0.569 > AG-VEF-only 0.546 > DNase-AG 0.495；2% EF 中位 1.78 / 0.59 / 1.18 / 0.53），但 caption 必须写出被排除的细胞系和各自的 n。
+- **Fig 2A 的相关系数**：手稿图片标 0.799 / 0.694，现在是 HCT116 `0.801`、A549 `0.698`（正文里没有出现这两个数，只在图上）。样本量 36,345 / 27,973 完全一致，差异只来自 VEF 变体 B 的 CTCF 列修正。
+- **VEF-only baseline 的重训范围**：手稿 Methods 说 Sei 和 AlphaGenome 各训 3 个模型（共 6 个，与 `model_registry` 一致），但 `05_train_vef_only_models.py` 现在**只重训 AlphaGenome**，`results/vef_only/sei_vef/` 是旧 run 的产物（脚本注释解释了理由：Sei VEF 矩阵没被 track 索引修正影响，拟合在固定 seed 下确定，旧预测仍然有效）。数字没问题，但复现说明要补一句。
+- **Fig 4A/4C 的两套矩阵**：手稿的 4A/4C 是一个 4×4 方块、上下三角各放一套 VEF 源，caption 没写哪个三角对应谁。两套数值挤在一格里读不出来，所以代码改成**横向两张下三角热图，左 Sei、右 AlphaGenome**（仍然一个 panel 一个 PDF）。手稿图要换掉，caption 补一句 *Left and right heatmaps show Sei and AlphaGenome VEFs, respectively.*
+- **箱线图维持最常规的画法**（2026-08-25 C.Z. 定）：手稿的 Fig 1C、4B、4D、4E、5A–5E 都是「箱线图 + 逐细胞系散点」，代码照此实现，须线和 cap 都是 matplotlib 默认的 1.5×IQR。要知道的是这些箱体只汇总 5 个（Gosai）或 7 个（Castillo）细胞系，n=5 时 Q1/Q3 恰好落在第 2、第 4 个点上，须线规则还会把细胞系判成离群点（fig1c 7/16、fig4bde 22/48、fig5 9/48 个位置触发），配上 `showfliers=False` 看起来就是「一个彩点飘在须线外面」；师兄的判断是数学定义在这里是小问题，常规画法优先。两个落选版本归档在 `plot/_figXX..._bar.py`（只有中位数横线）和 `plot/_figXX..._box.py`（有箱体无须线），输出带 `_` 前缀。caption 可写 *box, IQR with median; whiskers, 1.5 × IQR; points, individual cell types*。
+  **同时还有一个在选的 mean ± SD 版**（师兄 2026-08-25 追加的方案）：`plot/figXX..._mean.py` → `figures/figXX..._mean.pdf`，散点照旧，中位数横线换成 mean，上下各一条 1 倍样本 SD，不画箱体。mean 和 SD 在 n=5/7 时定义不退化，代价是默认分布对称。这一版和箱线图版一起发给师兄二选一，**定了之后删掉落选那份的脚本和 PDF**；在那之前改数据口径两份都要改。它的 caption 写 *bar, mean; whiskers, ± 1 s.d.; points, individual cell types*。
 
-其他不一致：
-- 手稿 Methods 说 Castillo 的 CTS 定义是「超过其他细胞系最大值至少 1」—— **代码现在就是这个口径**（`castillo_cts_gap = 1.0`），见 §7.3。Gosai 那边仍用 1%/99% 分位，两个数据集口径不同是刻意的。
-- 手稿说 VEF-only 对 Sei 和 AlphaGenome 各训 3 个模型；代码 `05_train_vef_only_models.py` 现在**只重训 AlphaGenome**，`results/vef_only/sei_vef/` 是旧 run 的产物（脚本注释解释了理由：Sei VEF 矩阵没被 track 索引修正影响，且拟合在固定 seed 下确定，所以旧预测仍然有效）。
-- 手稿提到的 `fig4e` 系列（61 细胞系热图）在 `figures/` 里是 `_fig4e_*.pdf`（下划线前缀 = 已弃用），当前没有脚本生成。
+#### 已按手稿改了代码的
+
+- **Fig 5 的过滤阈值**：caption 写「≤ 5 excluded」，代码原先是 `castillo_min_positives = 2`（排除 ≤1），先对齐成 `6`，2026-08-25 又提到 **`20`**：`>5` 只挡掉 HepG2（0）和 HeLa-S3（1），SK-N-SH 的 6 条、WERI-Rb-1 的 11 条一样支撑不起 AUROC/EF。新阈值下 CTS-high 七个细胞系全留（最薄的 MCF-7 有 95 条），所以 **fig5 的图没有变化**；CTS-low 只剩 K562 / GM12878 / MCF-7 三个，本来就不画，但 `analysis/12` 和 `analysis/18` 照旧算它的指标。caption 改成 *cell type–task combinations with fewer than 20 positive CTS CREs were excluded*。
+- **Fig 1E 的点色**：caption 写 matched 是黑点、unmatched 是灰点，代码原先用紫（`#8E7FAF`）+ 灰。已改成黑 + 灰，图已重出。
+
+#### 手稿自身的残缺（不是与代码冲突，但更该先修）
+
+- **Abstract 和 Results 多处掉字**，句子断在半截，例如 Abstract「we introduce virtual epigenomic features (VEFs), sequence- Building on VEFs, we develop EpiCast, integrates DNA sequence with  to predict episomal」。全篇多处 `cell` 后面掉了 `types`。
+- **Fig 3A 和 Fig 3B 在正文里没有任何引用段落**。正文的图引用只有 1A–1G、2A–2C、3C–3F、4A–4E、5A–5E；讲 CTS-high prioritization 的那段（`[39]`）只剩「A major goal of cell-type-specific regulatory design is」一句残句，Fig 3A 的 residual 回归也没人提。
+- **Discussion 与 Results 口径有张力**：Results 说 VEF-only 明显不如 EpiCast，Discussion 说「VEF-only models retained predictive performance comparable to EpiCast in the CTS setting for the prioritization tasks」。当前数字是两边各占一半——CTS-high AUROC 在 HCT116 上 `mlp_sei_vef` 0.723 ≈ `epicast_ag_vef` 0.722，但在 A549 上 EpiCast 0.725/0.746 明显高于 VEF-only 的 0.647 上限。Discussion 那句要限定到具体细胞系。
+
+#### 已经对齐、不用改的（核对过）
+
+- 数据集数字全对：760,679 条；HCT116 448,103（58.9%）/ A549 319,496（42.0%）；test 63,698 / val 59,460 / train 637,521；Castillo 8,152 = 1,836 + 6,316；145bp 用 27+28 个 N 补到 200bp。
+- 模型结构全对：`ConvFiLMNet` 参数量正好 **2,442,761**，conv 输出 feature map 正好 **256 × 4**，FiLM 线性层零初始化，无 cell-type embedding 无 per-cell 输出头。训练超参（AdamW 1e-3 / 1e-4、batch 4096、warmup 10 + T0 10 + Tmult 2、clip 1.0、patience 40、seed 0、按验证染色体上 3 个训练细胞系平均 PCC 选模型）逐项对上。
+- **AlphaGenome VEF 的口径就是变体 B**：Methods 写「DNase 从 1bp 分辨率输出读、histone/TF 从 128bp 输出读并除以 128」「变换为 log(1+10x)」，与 `utils.ag_variants["b"]` 完全一致。Sei VEF 也确实做了逐维零均值单位方差（实测 mean ≈ −0.01、std ≈ 0.995）。
+- **Enformer/Borzoi 被排除的理由是准确的**：实测确实只有 H3K27ac 缺，且缺的正好是 K562、HepG2、A549 三个细胞系，与 Methods 和 Fig 1 caption 的说法一字不差。
+- Castillo 的 CTS 定义（gap ≥ 1）、residual 参考系（全 7 细胞）、Fig 5A–C 只比 PCC/SCC 不比 MAE/RMSE、Fig 3F 画「target + reference cell types」共 4 条曲线、Fig 3A 排除 sequence-only（预测 residual 恒为 0）、Fig 2/3 共 11 个模型（Enformer/Borzoi 的 DNase 只出现在 Fig 1），这些手稿和代码都一致。
+- 正文的定性描述基本站得住：CTS-high 的 EF 峰值 84.5(HCT116) / 72.8(A549)，随机 NNS = 1/0.0092 ≈ 108，与「20–80 倍」「随机约 100」对得上。只有「EpiCast consistently achieved strong enrichment」偏乐观——最浅的筛查深度上 `epicast_ag_vef` 在 A549 两个任务的 EF 都是 0，且 NNS「低于 10」只在浅端成立，10% 深度会升到 20–53。
+
+无法从仓库核对的：Sei 的 AUROC > 0.95 筛选（18,889 / 21,907 profiles）、每个 cell–assay 由 3–87 个 Sei profile 贡献、DHS64 用 split 0/1/3 三个 released model。这些在早期 notebook 和 `enhancer-design/` 里，没有留下可复算的中间产物。
 
 ### 7.2 config 路径 vs extract 脚本
 
@@ -323,13 +336,13 @@ for c in ["K562", "HepG2", "SK-N-SH", "HCT116", "A549"]:
 
 ### 7.3 Castillo 分析已换成师兄的方案
 
-Castillo（fig5）现在用的是师兄 C.Z. 的方案，原始版本留在 `castillo_final_analysis/`，其中 `数据处理与分析流程.md` 是写得最细的方法说明，**值得先读**。整合方式：
+Castillo（fig5）现在用的是师兄 C.Z. 的方案。方法说明是 `manuscript/castillo_fig5_methods.md`，**动 fig5 之前先读它**：它在排序分数和 normalized AUPRC 公式这两点上比 `manuscript/epicast_figure_plot_descriptions.md` 准确（前者把排序分数写成了 residual，后者把公式列为待确认）。整合方式：
 
 - 计算部分 → `analysis/12_eval_castillo.py`，绘图部分 → `plot/fig5_castillo_metrics.py`（按本仓库「analysis 算指标、plot 只画」的惯例拆开，指标定义一字未改）。
 - 已验证：用同一份输入跑师兄原脚本和拆开后的版本，回归 84 行、分类 112 行、CTS 计数**全列 max|diff| = 0**。
 - 我原先的 Castillo 方案（分位数口径的 `12_eval_castillo_mpra.py`、`13_eval_castillo_classification.py`、`plot/fig4c_*`、`plot/fig4d_*`）已移入 `deprecated/`，产物移到 `results/_castillo_percentile_cts_deprecated/`。
 - 两套方案的关键差别：**CTS 口径**。旧方案用 gap 的 1%/99% 分位（跟 Gosai 一致），新方案用绝对差值 gap ≥ 1。Castillo 只有 8,152 条序列，分位数口径每个细胞系只挑出几十条；且它的活性从没做 z-score，绝对差值本身有意义，还正好对上手稿 Methods 的描述。
-- ⚠️ `castillo_final_analysis/` 里的三个 CSV 和那张 PDF 是师兄基于 **8月5日交接包**算的，即变体 B 修正之前的预测。DHS64 的数字和现在完全一致（它不依赖 AlphaGenome VEF），三个 AG 系模型都对不上。**`results/castillo/` 才是当前数字**，`castillo_final_analysis/` 只作为出处和方法说明保留。
+- 师兄的原始单文件目录 `castillo_final_analysis/` 已于 2026-08-24 删除：脚本在 git 历史 `a581ac5` 里，方法说明移到了 `manuscript/`，三个 CSV 和那张合并大图是 **8月5日交接包**（变体 B 修正 CTCF 列之前）算的，DHS64 与现在完全一致、三个 AG 系模型都对不上，已被 `results/castillo/` 取代。
 
 ### 7.4 其他
 

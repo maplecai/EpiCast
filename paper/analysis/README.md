@@ -26,6 +26,8 @@ python paper/analysis/07_eval_regression.py
 02_extract_sei_vef ─┐                           │
 02_extract_ag_vef ──┼─→ 03_normalize_vef ───────┤   VEF 矩阵
 02_extract_castillo_ag_vef ─┘                   │
+                                                ├─→ 11_vef_partial_correlation  → plot/fig4bde
+                                                ├─→ 11_vef_pairwise_correlation → plot/fig4ac
                                                 ▼
                               04_vef_activity_specificity（只打印）
                               05_train_vef_only_models
@@ -33,10 +35,9 @@ python paper/analysis/07_eval_regression.py
                               10_predict_castillo_mpra.sh [GPU]
                                                 │
         ┌───────────────────────────────────────┼──────────────────┐
-        ▼                    ▼                  ▼                  ▼
-07_eval_regression   08_eval_classification  09_eval_retrieval  11_ctcf_ablation
-        │                    │                  │                  │
-        │                    │                  │                  ├→ plot/fig4ab
+        ▼                    ▼                  ▼
+07_eval_regression   08_eval_classification  09_eval_retrieval
+        │                    │                  │
         └────────────────────┴──────────────────┘
                              ▼
            14_export_prediction_tables  →  results/predictions/
@@ -47,7 +48,7 @@ python paper/analysis/07_eval_regression.py
    → results/figure_metrics/             → results/castillo/
         ▼                                        ▼
    plot/fig2*, fig3*                    plot/fig5_castillo_metrics
-                                        （fig2b / fig3g 直读 predictions/）
+                                        （fig2a / fig3fg 直读 predictions/）
 
 旁支（无下游消费）：15_eval_mingap_comparison、16_eval_vef_variant_b2
 ```
@@ -102,6 +103,17 @@ python paper/analysis/02_extract_ag_vef.py --variant c  # 变体 C
   - 变体 C → `castillo_mpra_ag_vef_{raw,log1p}_128bp.tsv`
 - 两个数据集必须用**同一个变体**提取，否则 Gosai 上训出来的模型在 Castillo 上会拿到口径不同的 VEF
 
+### `02_extract_castillo_sei_vef.py`
+给 Castillo 提取 Sei VEF,补上「没有任何 Castillo 配置指向 Sei VEF」这个缺口。
+
+- **读**：`data/castillo_mpra/sei_pred.npy`(8152 × 21907)、`data/Sei/Sei_tracks_info.csv`、`data/gosai_mpra/gosai_mpra_760679_sei_vef_logit_raw.tsv`(只为取 Gosai 的逐 assay 均值/标准差)
+- **写**：`data/castillo_mpra/castillo_mpra_sei_vef_logit_raw.tsv` + 两个归一化版本 `..._logit_zscore_{self,assay}.tsv`(各 8152 × 28)
+- 口径与 `02_extract_sei_vef.py` 一致:AUROC > 0.95 筛 track → `logit()` 求均值 → 逐列 z-score。**必须 z-score**,因为训练用的 `gosai_mpra_760679_sei_vef_logit.tsv` 就是 z-score 后的版本
+- 细胞系名是手工匹配的 Sei 名(`sei_names` 字典),SK-N-SH 合并 `SK-N-SH_Neuroblastoma_cell_Brain` + `SK-N-SH_RA_Neuron_Brain`,与 Gosai 侧一致
+- **两种 z-score 参考系**:`self` = 用 Castillo 自己的逐列统计量(和 Gosai 走的是同一套流程,但用到了评估集统计量);`assay` = 用 Gosai 五个细胞系按 assay 汇总的均值/标准差(把训练尺度带过来,代价是假设一个 assay 一个尺度)。Gosai 的 20 列只覆盖 5 个细胞系,和 Castillo 的 7 个只重叠 3 个,所以没法逐列借用统计量
+- ⚠️ **Sei 在任何 AUROC 下都没有 WERI-Rb-1 的 H3K27ac track**。raw 文件里该列是 NaN,两个归一化文件里填 0,所以 WERI-Rb-1 的所有下游数字实际只有 3 个 assay
+- ⚠️ Castillo 的 Sei 预测里有 1656 个概率恰好等于 1.0(float32 饱和),`logit` 会变 inf 并污染整列均值,所以先 clip 到 `1 - 1e-6`。Gosai 那份 h5 最大只到 0.99999106,从没触发过
+
 ### `02_extract_sei_vef.py`
 从 Sei 的 h5 预测提取 logit VEF 及逐列 z-score 版本。
 
@@ -118,7 +130,7 @@ python paper/analysis/02_extract_ag_vef.py --variant c  # 变体 C
 - 需要先有 enformer/borzoi 的 raw 矩阵，那是在本目录外生成的
 
 ### `04_vef_activity_specificity.py`
-Sei 与 AlphaGenome 的 VEF-活性、VEF-specificity 相关矩阵，逻辑与 `plot/fig1f` 相同。
+Sei 与 AlphaGenome 的 VEF-活性、VEF-specificity 相关矩阵，逻辑与 `plot/fig1e` 相同。
 
 - **读**：`mpra_path`、`vef_paths["sei"]`、`vef_paths["alphagenome"]`
 - **写**：无，**只打印到 stdout**。定位是快速 sanity check
@@ -193,13 +205,25 @@ top-k 检索指标：p@k、enrichment factor、NNS，k = 100 / 1000 / 10000，�
 
 - **写**：`results/retrieval/all_models_retrieval.csv`、`test_{cell}_CTS_{high,low}_by_model.csv`、`curves/test_{cell}_{task}_curve.csv`
 
-### `11_ctcf_ablation.py`
-CTCF 的信号在控制其他 VEF 后还剩多少。
+### `11_vef_partial_correlation.py`
+每个 VEF 的信号在控制其余三个 VEF 后还剩多少 —— fig4B / fig4D / fig4E 的唯一计算入口。
 
-- **读**：`mpra_path`、`vef_paths["alphagenome"]`、`vef_paths["sei"]`
-- **写**：`results/ctcf_ablation/ctcf_ablation.csv`，12 列：`vef_source, cell_type, n` + 相关性 `marginal_r, marginal_p, partial_r_given_dnase, partial_p_given_dnase, partial_r_given_all3, partial_p_given_all3` + 标准化系数 `beta_marginal, beta_given_dnase, beta_given_all3`。「控制其余三个 VEF」的那列叫 `partial_r_given_all3`（不是 `_other3`）
+- **读**：`mpra_path`、`vef_paths["sei"]`、`vef_paths["alphagenome"]`
+- **写**：`results/vef_partial_correlation/vef_partial_correlation.csv`，80 行 = 2 个 VEF 源 × 2 种 setting × 5 个细胞系 × 4 个 assay，列 `vef_source, setting, cell_type, assay, n, marginal_r, marginal_p, partial_r, partial_p, beta`
+- `marginal_r` 是 VEF 与活性的 PCC，`partial_r` 是把**其余三个 VEF** 从两边都回归掉之后再算 PCC，`beta` 是「活性 ~ 4 个 VEF」这一个标准化 OLS 里该 assay 的系数。三者同源，所以一张表喂三个 panel（4B 取 absolute 的两列相关、4D 取 residual 的、4E 取两种 setting 的 β）
+- `setting=residual` 时活性和 VEF 都减掉**3 个训练细胞系的均值**，和这个包里其他 residual 一致
+- 逐细胞系按活性 `notna()` 过滤（HCT116 448,103 行、A549 319,496 行），VEF 侧是满的
 - 用 `statsmodels` 做标准化 OLS；这是论文「CTCF 的正相关在条件化后翻转为负」那个结论的来源
-- → `plot/fig4ab_ctcf_ablation.py`
+- **前身是 `11_ctcf_ablation.py`**（2026-08-25 原地推广到 4 个 assay 并改名）。老脚本只问 CTCF，还多算了「只控制 DNase」这一档中间结果；新表 `setting=absolute, assay=CTCF` 的三个数与老表逐位相同。老的 `results/ctcf_ablation/ctcf_ablation.csv` 留在磁盘上给归档的 `plot/_fig4bde_vef_partial_correlation.py` 用，但已经没有脚本能重新生成它
+
+### `11_vef_pairwise_correlation.py`
+四个 VEF 之间的两两相关，绝对值和 residual 各一套 —— fig4A / fig4C 的唯一计算入口。
+
+- **读**：`vef_paths["sei"]`、`vef_paths["alphagenome"]`
+- **写**：`results/vef_pairwise_correlation/vef_pairwise_correlation.csv`，120 行 = 2 个 VEF 源 × 2 种 setting × 6 个 assay 对 × 5 个细胞系，列 `vef_source, setting, cell_type, assay_a, assay_b, n, pcc`
+- 用全部 760,679 行：VEF 矩阵在 Sei 和 AlphaGenome 上都是满的，不涉及活性所以不用按 `notna()` 过滤
+- residual 的参考系是**3 个训练细胞系的均值**，和这个包里其他 residual 一致
+- 跨细胞系的 `mean ± SEM` 在 `plot/fig4ac_vef_correlation_heatmap.py` 里算（一行 groupby），本脚本只出逐细胞系的原始 PCC
 
 ---
 
@@ -219,14 +243,15 @@ CTCF 的信号在控制其他 VEF 后还剩多少。
 把 Fig 2 / 3 用到的指标表导到 `results/figure_metrics/`，**这些 plot 脚本只读这里**。
 
 - **读**：`results/{correlation,correlation_residual,classification,retrieval}/`
-- **写**：`results/figure_metrics/` 下 12 个 tsv —— `fig2c_activity_test`、`fig2d_activity_cts`、`fig3b_residual_{test,cts}`、`fig3{c,d}_cts_{high,low}`、`fig3{c,d}_cts_{high,low}_{roc,pr}`、`fig3{e,f}_retrieval_cts_{high,low}`
+- **写**：`results/figure_metrics/` 下 12 个 tsv，**名字按内容不按图号** —— `activity_{test,cts}`、`residual_{test,cts}`、`cts_{high,low}`、`cts_{high,low}_{roc,pr}`、`retrieval_cts_{high,low}`。与手稿 panel 的对应写在脚本 docstring 里
+- 只保留 `config.figure_model_names` 里的 11 个模型，Enformer / Borzoi 的 DNase baseline 和 `seq_only_5` 被过滤掉（它们仍在 `results/correlation/` 等完整长表里）
 - 表里带 `model`（注册名）和 `model_label`（图例名）两列。柱状图数据是「模型 × 细胞系」宽表，5 个细胞系都给全（主图只画 HCT116 / A549）；曲线把两个 held-out 细胞系叠在一张表里用 `cell_type` 区分
 - **改了 `results/` 就必须重跑这个脚本，图才会更新**
 - 不含 Castillo：fig5 的口径和指标集跟 Gosai 不一样，由 `12_eval_castillo` 自己写表
-- ⚠️ `results/figure_metrics/` 里还躺着 `fig4c_castillo_pearson.tsv`、`fig4d_castillo_cts_{high,low}.tsv` 三个文件，是分位数口径时代的残留，**已经没有 writer 也没有 reader**，别拿它们对数字
+- 目录里现在**只有这 12 个 tsv**：分位数口径时代残留的 `fig4c_castillo_pearson.tsv`、`fig4d_castillo_cts_{high,low}.tsv` 已删
 
 ### `12_eval_castillo.py`
-Castillo 零样本评估，**整张 fig5 的唯一计算入口**。源自师兄 C.Z. 的 `castillo_final_analysis/castillo_final_analysis.py`，指标定义一字未改，只是把绘图拆到 `plot/fig5`。
+Castillo 零样本评估，**整张 fig5 的唯一计算入口**。源自师兄 C.Z. 的单文件 `castillo_final_analysis.py`（已删，见 git 历史 `a581ac5`），指标定义一字未改，只是把绘图拆到 `plot/fig5`。方法说明在 `manuscript/castillo_fig5_methods.md`。
 
 - **读**：`results/predictions/castillo_{dhs64,linear_ag_dnase,vef_only,epicast_ag_vef}.tsv`（所以必须先跑 `14`）
 - **写**：`results/castillo/castillo_{regression,classification}_metrics.csv`、`castillo_cts_counts.csv`
@@ -236,7 +261,9 @@ Castillo 零样本评估，**整张 fig5 的唯一计算入口**。源自师兄 
 - **residual**：目标 - 全部 7 个细胞系均值。这只用于 residual 回归那一列，**跟 CTS 标签的 max/min gap 不是同一个量**
 - 每个模型用**自己预测值之间的 gap** 排序，方向和被评的标签一致
 - `normalized_auprc = (auprc - prevalence) / (1 - prevalence)`，因为各细胞系 CTS 数量差很多，原始 AUPRC 的随机基线不一样，不能放同一个 boxplot 里比
-- ⚠️ 与 `castillo_final_analysis/` 里的 CSV **数字不同**：那是 8月5日交接包（变体 B 修正前）的结果，DHS64 一致、三个 AG 系模型都变了
+- ⚠️ 排序分数是**预测值之间的 gap**，不是 predicted residual。`manuscript/epicast_figure_plot_descriptions.md` 的 Fig 5D 一节写成了 residual，那里不对，以本脚本和 `castillo_fig5_methods.md` 为准。两种分数的定量对比见旁支 `18_eval_castillo_ranking_score.py`
+- 两个 task 都照旧算，**取舍在画图层**：`plot/fig5` 只画 CTS-high，CTS-low 的逐细胞系阳性数是 HepG2 0、HeLa-S3 1、SK-N-SH 6、WERI-Rb-1 11、K562 84、GM12878 169、MCF-7 281，太薄
+- ⚠️ 师兄给回来的那三个 CSV（随 `castillo_final_analysis/` 一并删掉了）数字与此**不同**：那是 8月5日交接包（变体 B 修正前）的结果，DHS64 一致、三个 AG 系模型都变了
 
 ---
 
@@ -248,6 +275,26 @@ Castillo 零样本评估，**整张 fig5 的唯一计算入口**。源自师兄 
 - **写**：`results/mingap/mingap_vs_mean_all_models.csv` + 8 张宽表（`pcc_activity`、`pcc_specificity`、`auroc_high`、`auprc_high`、`ef_high`、`auroc_low`、`auprc_low`、`ef_low`）
 - min-gap 定义见 `utils.mingap_scores` 的 docstring：`high = A_c - max(其他参考细胞系)`，正值保证该元素确实是所比较细胞系中最活跃的
 - ⚠️ 与 `15_export_figure_metrics.py` **编号相同但无关**，且**没有 plot 脚本消费它**
+
+### `17_eval_castillo_sei.py`（旁支）
+把 EpiCast-Sei 和 Sei VEF-only 也放到 Castillo 上评一遍,和 AlphaGenome 侧并排看。**不进 fig5,不碰主线。**
+
+- **读**：`results/predictions/castillo_*.tsv`(4 个 AG 侧模型作参照)、`data/castillo_mpra/castillo_mpra_sei_vef_logit_zscore_{self,assay}.tsv`、`saved/0722_gosai_sei_vef_log1p_256/0723_031345/castillo_preds_pad_N_sei_{self,assay}.npy`、`results/vef_only/sei_{vef/mlp,dnase/linear}.joblib`
+- **写**：`results/castillo_sei/castillo_sei_{regression,classification}_metrics.csv`,另把汇总表打到 stdout
+- 指标定义**用 importlib 直接从 `12_eval_castillo.py` 导入复用**(它以数字开头不能按名 import),所以口径与 fig5 严格一致:gap ≥ 1 的绝对差值 CTS、residual 减 7 个细胞系均值、`normalized_auprc`
+- 前置步骤:先跑 `02_extract_castillo_sei_vef.py`,再用 `06_infer_trained_model.py -dc configs/0825_castillo_dataset_N_sei_{self,assay}.yaml` 出两个 npy
+- Sei VEF-only 模型是**直接复用 Gosai 上训好的 joblib**,和 AG 侧一样属于零样本
+- ⚠️ `linear_sei_dnase` 的两种 z-score 在 activity 的 Pearson 上**数值完全相同**:单特征线性模型对逐列仿射变换是等价的,而 Pearson 也对仿射不变。但 CTS 指标会不同,因为 gap 是跨细胞系比较,两种口径的逐细胞尺度不一样
+
+### `18_eval_castillo_ranking_score.py`（旁支）
+Castillo 的 CTS 标签固定不动，只换**排序分数**，量化「排序分数该不该和标签同一个量」这件事。**不进 fig5，不碰主线。**
+
+- **读**：`results/predictions/castillo_*.tsv`（同 `12`，4 个 AG 侧模型）
+- **写**：`results/castillo_ranking_score/castillo_ranking_score_{metrics,summary}.csv`，另把汇总表打到 stdout
+- 两条 arm 打同一批标签（gap ≥ 1）：`mingap` = 预测值之间的 gap（**fig5 现在用的就是这个**），`residual` = 预测值减 7 个细胞系均值（手稿 Methods 写的那个）。CTS-low 两边都取相反数，保证「越大越特异」
+- 指标定义同样用 importlib 从 `12_eval_castillo.py` 导入，所以 `mingap` arm 与 `results/castillo/castillo_classification_metrics.csv` **逐位相同**（112 行 × 7 列已核对，max abs diff = 0）
+- 汇总只对**阳性数 ≥ `config.castillo_min_positives`（现在是 20）** 的细胞系取均值：CTS-high 全部 7 个，CTS-low 只剩 K562 / GM12878 / MCF-7 三个。逐细胞系的指标两个 task 都照算，阈值只管进不进均值
+- 结论不是单向的：AUROC 和 normalized AUPRC 上 `residual` 一致略好（AUROC 差 0.02–0.13），但**筛查用的 EF 上 EpiCast 更喜欢 `mingap`**（CTS-high EF@2% +2.30，CTS-low EF@2% +0.79）。即 gap 分数把真正的 top 排得更准，residual 分数在整体排序上更平滑。两个 baseline（`dhs64`、`linear_ag_dnase`）在 CTS-low 上反过来，EF 也偏向 `residual`
 
 ### `16_eval_vef_variant_b2.py`（旁支）
 AlphaGenome VEF 预处理变体的敏感性分析。**它的 docstring 是变体 A/B/B2/C 命名的权威来源。**

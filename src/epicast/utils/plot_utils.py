@@ -11,6 +11,15 @@ def set_mpl_params():
         'font.size': 12,
         # 数学字体
         'mathtext.fontset': 'stix', 
+        # 边框、坐标轴和刻度线统一 1pt 黑色
+        'axes.edgecolor': 'black',
+        'axes.linewidth': 1.0,
+        'xtick.color': 'black',
+        'ytick.color': 'black',
+        'xtick.major.width': 1.0,
+        'ytick.major.width': 1.0,
+        'xtick.minor.width': 1.0,
+        'ytick.minor.width': 1.0,
         # 图像大小和分辨率
         'figure.figsize': (8, 6),
         'figure.dpi': 400,

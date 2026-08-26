@@ -1,4 +1,14 @@
-"""Export the fig2/fig3 metric tables: one TSV per figure panel.
+"""Export the Gosai metric tables that plot/ reads: one TSV per evaluation.
+
+Table names describe their content rather than a figure number, so renumbering a
+manuscript panel never invalidates a file name. The mapping to the current
+manuscript panels is:
+
+    activity_test / activity_cts        -> fig 2B / 2C
+    residual_cts                        -> fig 3A
+    cts_high / cts_low                  -> fig 3B / 3C
+    retrieval_cts_high / _cts_low       -> fig 3D / 3E
+    residual_test, *_roc, *_pr          -> no manuscript panel, kept for reference
 
 Castillo (fig5) is not exported here. analysis/12_eval_castillo.py writes its
 metric tables directly, because its CTS definition and its metric set differ from
@@ -135,20 +145,17 @@ def main() -> None:
     activity = pd.read_csv(results_dir / "correlation/all_models_correlation.csv")
     residual = pd.read_csv(results_dir / "correlation_residual/all_models_correlation.csv")
 
-    save(pivot_regression(activity, "test"), output_dir / "fig2c_activity_test.tsv")
-    save(pivot_regression(activity, "test&all_cts_1_99"), output_dir / "fig2d_activity_cts.tsv")
-    save(pivot_regression(residual, "test"), output_dir / "fig3b_residual_test.tsv")
-    save(
-        pivot_regression(residual, "test&all_cts_1_99"),
-        output_dir / "fig3b_residual_cts.tsv",
-    )
+    save(pivot_regression(activity, "test"), output_dir / "activity_test.tsv")
+    save(pivot_regression(activity, "test&all_cts_1_99"), output_dir / "activity_cts.tsv")
+    save(pivot_regression(residual, "test"), output_dir / "residual_test.tsv")
+    save(pivot_regression(residual, "test&all_cts_1_99"), output_dir / "residual_cts.tsv")
 
-    export_classification("CTS_high", "fig3c_cts_high")
-    export_classification("CTS_low", "fig3d_cts_low")
-    export_roc_pr("CTS_high", "fig3c_cts_high")
-    export_roc_pr("CTS_low", "fig3d_cts_low")
-    export_retrieval("CTS_high", "fig3e_retrieval_cts_high")
-    export_retrieval("CTS_low", "fig3f_retrieval_cts_low")
+    export_classification("CTS_high", "cts_high")
+    export_classification("CTS_low", "cts_low")
+    export_roc_pr("CTS_high", "cts_high")
+    export_roc_pr("CTS_low", "cts_low")
+    export_retrieval("CTS_high", "retrieval_cts_high")
+    export_retrieval("CTS_low", "retrieval_cts_low")
 
 
 if __name__ == "__main__":

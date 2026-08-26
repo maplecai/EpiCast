@@ -1,7 +1,13 @@
-"""fig5A-5E: zero-shot evaluation on the independent Castillo-Hair MPRA.
+"""fig5A-5E, mean +- SD variant: zero-shot evaluation on the independent Castillo-Hair MPRA.
 
-One PDF per manuscript panel, plus a shared cell-type legend. The panel headers, which
-also carry the n printed to stdout by this script, are added by hand.
+Identical to fig5_castillo_metrics.py except that the seven cell-type values are summarized
+by their mean with a one-SD error bar instead of by a box. The two exist side by side so
+the style can be chosen on the figure; whichever wins, the other script and its PDFs get
+deleted. This one writes `..._mean.pdf` and no legend, since the legend of the main script
+serves both.
+
+One PDF per manuscript panel. The panel headers, which also carry the n printed to stdout
+by this script, are added by hand.
 
     5A  whole CRE set, activity          1 x 2, PCC and SCC
     5B  union CTS set, activity          1 x 2
@@ -9,13 +15,10 @@ also carry the n printed to stdout by this script, are added by hand.
     5D  CTS-high prioritization          2 x 2, AUROC / normalized AUPRC / 2% EF / 5% EF
     5E  CTS-low prioritization           2 x 2, same four metrics
 
-The coloured dots are the seven evaluated cell types and the box summarizes them, the same
-summary fig1C and fig4B use. The box is the conventional one, whiskers and caps included,
-which is what C.Z. asked for on 2026-08-25; at n=7 read it as decoration rather than as
-statistics, since the 1.5 IQR rule calls a cell type an outlier in 9 of these 48 positions.
-Fliers are off, so such a point is still drawn, just as one of the coloured dots. The two
-rejected alternatives are `_fig5_castillo_metrics_bar.py` (median bar only) and
-`_fig5_castillo_metrics_box.py` (box without whiskers). Colour in this
+The coloured dots are the seven evaluated cell types, summarized by a wide bar at their
+mean and a thin vertical line one sample SD (ddof=1) in each direction, capped by two
+half-width bars, the same summary the mean variants of fig1C and fig4B use. Nothing is
+filled, so the points stay the most visible thing in the figure. Colour in this
 figure only ever means cell type. Every panel carries the model names on its x axis, so
 stacking 5A-5C leaves three copies to delete by hand; that is the cheaper mistake, since a
 panel that lands on its own has to say which column is which model.
@@ -51,7 +54,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from epicast.utils.plot_utils import set_mpl_params
-from matplotlib.lines import Line2D
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import (
@@ -65,19 +67,18 @@ from config import (
 )
 
 metrics_dir = results_dir / "castillo"
-legend_name = "fig5_legend.pdf"
 
 # (task in the classification table, output figure)
 classification_panels = [
-    ("CTS-high", "fig5d_castillo_cts_high.pdf"),
-    ("CTS-low", "fig5e_castillo_cts_low.pdf"),
+    ("CTS-high", "fig5d_castillo_cts_high_mean.pdf"),
+    ("CTS-low", "fig5e_castillo_cts_low_mean.pdf"),
 ]
 
 # (setting in the regression table, output figure)
 regression_panels = [
-    ("All activity", "fig5a_castillo_activity_whole.pdf"),
-    ("CTS-union activity", "fig5b_castillo_activity_cts.pdf"),
-    ("CTS-union residual", "fig5c_castillo_residual_cts.pdf"),
+    ("All activity", "fig5a_castillo_activity_whole_mean.pdf"),
+    ("CTS-union activity", "fig5b_castillo_activity_cts_mean.pdf"),
+    ("CTS-union residual", "fig5c_castillo_residual_cts_mean.pdf"),
 ]
 regression_rows = [("pcc", "PCC"), ("scc", "SCC")]
 
@@ -90,17 +91,8 @@ classification_cells = [
     ("ef", "5% EF", 5.0, 1.0),
 ]
 
-# a conventional box plot: IQR box, median line, 1.5 IQR whiskers with caps. Fliers are off
-# because every value is already on the figure as a coloured point. White fill rather than
-# unfilled, so the box is a real object to recolour when laying out; the median is black
-# rather than the theme's orange, which is a cell-type colour here
-box_style = {
-    "widths": 0.56,
-    "patch_artist": True,
-    "showfliers": False,
-    "boxprops": {"facecolor": "white"},
-    "medianprops": {"color": "black"},
-}
+summary_width = 0.56
+summary_linewidth = 1.5
 point_size = 22
 
 
@@ -114,6 +106,15 @@ def padded_limits(values, zero_floor=False, ceiling=None):
     return lower, upper
 
 
+def draw_summary(ax, x, values, width=summary_width):
+    """A bar at the mean and a capped line one sample SD in each direction."""
+    mean, sd = np.nanmean(values), np.nanstd(values, ddof=1)
+    ax.vlines(x, mean - sd, mean + sd, color="black", lw=1.0, zorder=3)
+    ax.hlines(mean, x - width / 2, x + width / 2, color="black", lw=summary_linewidth, zorder=3)
+    for cap in (mean - sd, mean + sd):
+        ax.hlines(cap, x - width / 4, x + width / 4, color="black", lw=1.0, zorder=3)
+
+
 def draw_points(ax, data, metric, ylim, cells, baseline):
     arrays = [
         data[data["model"] == model].set_index("cell_type").reindex(cells)[metric].to_numpy(float)
@@ -121,7 +122,7 @@ def draw_points(ax, data, metric, ylim, cells, baseline):
     ]
     positions = np.arange(len(castillo_model_names))
     for position, array in zip(positions, arrays):
-        ax.boxplot(array[np.isfinite(array)], positions=[position], **box_style)
+        draw_summary(ax, position, array)
 
     for cell_index, cell in enumerate(cells):
         values = np.array([array[cell_index] for array in arrays])
@@ -186,18 +187,6 @@ def plot_classification_panel(classification, task, save_path):
     plt.close(fig)
 
 
-def plot_legend(save_path):
-    fig, ax = plt.subplots(figsize=(2, 3), dpi=100)
-    ax.set_axis_off()
-    handles = [
-        Line2D([0], [0], marker="o", linestyle="none", color=castillo_cell_colors[cell], label=cell)
-        for cell in castillo_cell_types
-    ]
-    ax.legend(handles=handles, loc="center", frameon=False, title="Cell types")
-    fig.savefig(save_path, dpi=400, bbox_inches="tight")
-    plt.close(fig)
-
-
 def main():
     set_mpl_params()
     sns.set_theme(style="white", context="talk")
@@ -224,10 +213,6 @@ def main():
         out_path = figures_dir / fig_name
         plot_classification_panel(classification, task, out_path)
         saved.append(out_path)
-
-    legend_path = figures_dir / legend_name
-    plot_legend(legend_path)
-    saved.append(legend_path)
 
     for p in saved:
         print(f"[save] {p.resolve()}")

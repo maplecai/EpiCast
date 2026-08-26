@@ -24,7 +24,7 @@ from config import (
     castillo_mpra_path,
     castillo_vef_path,
     cell_types,
-    figure_model_names,
+    eval_model_names,
     mpra_path,
     predictions_dir,
     project_root,
@@ -38,7 +38,9 @@ output_dir = predictions_dir
 float_format = "%.5f"
 
 gosai_meta_cols = ["id", "chr", "pos"]
-gosai_export_models = figure_model_names
+# every scored model, not just the ones that reach a figure: these per-sequence
+# tables are the reusable data layer, figure membership is decided in plot/
+gosai_export_models = eval_model_names
 
 castillo_meta_cols = ["id", "category", "source", "target"]
 # column order inside the EpiCast prediction npy, which differs from the plot order

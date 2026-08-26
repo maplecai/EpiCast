@@ -17,7 +17,7 @@ selected_label_color = "#D62728"
 default_bar_color = "#B7D9D3"
 
 metadata_dir = bundle_root / "results/model_track_metadata"
-results_dir = bundle_root / "results/fig1c_assay_coverage"
+results_dir = bundle_root / "results/assay_coverage"
 
 model_files = {
     "Sei": metadata_dir / "sei_tracks_parsed.csv",

@@ -266,8 +266,19 @@ def load_residual_eval_dfs(mpra_df, pred_dfs, cell_types, train_cell_types):
     return true_df, resid_pred_dfs
 
 
+def valid_pairs(x, y):
+    """Positions where both sides have a value, i.e. what safe_metric actually scores.
+
+    Callers that report a sample size next to a metric must count with this rather
+    than with the row count of their mask: HCT116 and A549 are measured on 58.9% and
+    42.0% of the library, so on those two the two numbers differ by almost a factor
+    of two.
+    """
+    return ~(pd.isna(x) | pd.isna(y))
+
+
 def safe_metric(metric_fn, x, y):
-    valid = ~(pd.isna(x) | pd.isna(y))
+    valid = valid_pairs(x, y)
     x = x[valid]
     y = y[valid]
     if len(x) == 0:
