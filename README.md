@@ -255,7 +255,7 @@ AlphaGenome.
 
 ## Citation
 
-Under review (RECOMB 2026).
+Under review.
 
 ## License
 
