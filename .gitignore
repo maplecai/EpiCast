@@ -21,6 +21,7 @@ data/**
 !data/AlphaGenome/metadata_padded.tsv
 !data/Borzoi/targets_human.txt
 !data/Enformer/model_track_info.tsv
+!data/Gosai_MPRA/metadata.csv
 !data/Sei/Sei_tracks_info.csv
 saved/
 outputs/

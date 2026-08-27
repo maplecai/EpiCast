@@ -46,10 +46,25 @@ from <https://huggingface.co/gtca/alphagenome_pytorch> on first use.
 
 ## Data
 
-The MPRA datasets, the derived VEF matrices, the raw sequence-to-function model predictions
-they come from and the trained checkpoints are deposited at
-<https://zenodo.org/records/17669741> and are unpacked into `data/`. Sei model weights are
-available at <https://zenodo.org/records/4906997>.
+The MPRA label table, the derived VEF matrices, the DHS64 baseline predictions and the
+trained checkpoints are deposited at <https://doi.org/10.5281/zenodo.17669740> as a single
+`epicast_data.zip`. It mirrors the repository layout, so unpacking it at the repository root
+is all the setup there is:
+
+```bash
+unzip epicast_data.zip -d /path/to/EpiCast
+```
+
+That puts the five tables under `data/gosai_mpra/`, the Castillo MPRA and its VEF matrix
+under `data/castillo_mpra/`, the DHS64 baseline under `data/DHS64/` and the four runs of
+`paper/config.py` under `saved/`, each with its `config.yaml`, its `checkpoints/best.pth`
+and the held-out predictions the figures are computed from. Nothing in the archive collides
+with a version controlled file.
+
+Two things are deposited next to the archive rather than inside it. `gosai_ag_pred_760k_pad_0.h5`
+is the raw AlphaGenome output for the Gosai CREs, 12 GB, read by `analysis/18` alone; put it
+in `data/AlphaGenome/` if you need that analysis. Sei model weights live in their own record,
+<https://zenodo.org/records/4906997>, and go to `data/Sei/resources/`.
 
 The only files version controlled under `data/` are the track metadata of the four
 sequence-to-function models, because they define which output track of each model becomes
@@ -57,6 +72,7 @@ which VEF and are small:
 
 | File | Read by | Origin |
 |---|---|---|
+| `Gosai_MPRA/metadata.csv` | `analysis/01` | the ENCODE accession, cell type and MPRA library of every count table of the Gosai MPRA, with the download link of each |
 | `Sei/Sei_tracks_info.csv` | `analysis/01`, `analysis/02_extract_sei_vef` | track table of Sei, <https://github.com/FunctionLab/sei-framework> |
 | `AlphaGenome/metadata.csv` | `analysis/01` | output metadata of AlphaGenome, <https://github.com/google-deepmind/alphagenome> |
 | `AlphaGenome/metadata_padded.tsv` | `analysis/02_extract_*_ag_vef`, `analysis/18` | the same metadata including the padding rows, which is what gives the column offset of each output head |
@@ -67,7 +83,8 @@ Everything else is downloaded, and the scripts expect this layout:
 
 ```
 data/
-├── Gosai_MPRA/            raw ENCODE files, input of analysis/01_prepare_gosai_data.py
+├── Gosai_MPRA/            raw ENCODE files, input of analysis/01_prepare_gosai_data.py,
+│                          downloaded from the links in Gosai_MPRA/metadata.csv
 ├── gosai_mpra/            the 760,679-row label table and the VEF matrices derived from it
 ├── castillo_mpra/         the independent MPRA of the zero-shot evaluation, its AlphaGenome
 │                          predictions and the VEF matrix derived from them
