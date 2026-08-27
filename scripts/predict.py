@@ -89,7 +89,11 @@ def main():
     args, unknown = parse_args()
     cfg, config_path = load_config(args, unknown)
     device = resolve_device(cfg.get("device", "auto"))
-    ckpt_path = Path(args.checkpoint_path) if args.checkpoint_path else (config_path.parent / "checkpoint.pth")
+    ckpt_path = (
+        Path(args.checkpoint_path)
+        if args.checkpoint_path
+        else config_path.parent / "checkpoints" / "best.pth"
+    )
     model = load_model(cfg, ckpt_path, device)
     loader = build_loader(cfg)
 
