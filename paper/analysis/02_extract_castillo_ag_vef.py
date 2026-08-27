@@ -32,7 +32,7 @@ from utils import (
 )
 
 pred_path = castillo_dir / "castillo_mpra_ag_pred.h5"
-ag_metadata_path = project_root / "alphagenome_vef/metadata_padded.tsv"
+ag_metadata_path = project_root / "data/AlphaGenome/metadata_padded.tsv"
 track_columns_path = project_root / "data/AlphaGenome/castillo_ag_track_columns.csv"
 
 

@@ -54,8 +54,8 @@ from utils import (
     get_mask,
 )
 
-pred_path = project_root / "alphagenome_vef/gosai_ag_pred_760k_pad_0.h5"
-ag_metadata_path = project_root / "alphagenome_vef/metadata_padded.tsv"
+pred_path = project_root / "data/AlphaGenome/gosai_ag_pred_760k_pad_0.h5"
+ag_metadata_path = project_root / "data/AlphaGenome/metadata_padded.tsv"
 out_vef_path = data_dir / "gosai_mpra_760679_ag_vef_x10_log1p_128bp.tsv"
 output_dir = results_dir / "vef_variant_b2"
 bin_width = 128.0

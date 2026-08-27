@@ -55,10 +55,8 @@ castillo_epicast_pred_paths = {
 }
 vef_only_model_path = results_dir / "vef_only/ag_vef/mlp.joblib"
 dnase_linear_model_path = results_dir / "vef_only/ag_dnase/linear.joblib"
-dhs64_pred_path = project_root / "enhancer-design/castillo_dhs64_pred_merged.tsv"
-dhs64_metadata_path = (
-    project_root / "enhancer-design/data/dhs_index/dhs64_training/selected_biosample_metadata.xlsx"
-)
+dhs64_pred_path = project_root / "data/DHS64/castillo_dhs64_pred_merged.tsv"
+dhs64_metadata_path = project_root / "data/DHS64/selected_biosample_metadata.xlsx"
 castillo_to_dhs64 = {
     "GM12878": "GM12878",
     "SK-N-SH": "SKNSH",
