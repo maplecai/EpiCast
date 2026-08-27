@@ -35,8 +35,8 @@ from utils import (
     ag_variants,
 )
 
-pred_path = project_root / "alphagenome_vef/gosai_ag_pred_760k_pad_0.h5"
-ag_metadata_path = project_root / "alphagenome_vef/metadata_padded.tsv"
+pred_path = project_root / "data/AlphaGenome/gosai_ag_pred_760k_pad_0.h5"
+ag_metadata_path = project_root / "data/AlphaGenome/metadata_padded.tsv"
 track_columns_path = project_root / "data/AlphaGenome/gosai_ag_track_columns.csv"
 
 

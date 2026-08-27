@@ -64,8 +64,8 @@ from config import (
 )
 from utils import ag_bin_width, ag_head_starts, ag_padded_metadata, ag_variants, build_basic_masks, safe_metric
 
-pred_path = project_root / "alphagenome_vef/gosai_ag_pred_760k_pad_0.h5"
-ag_metadata_path = project_root / "alphagenome_vef/metadata_padded.tsv"
+pred_path = project_root / "data/AlphaGenome/gosai_ag_pred_760k_pad_0.h5"
+ag_metadata_path = project_root / "data/AlphaGenome/metadata_padded.tsv"
 output_dir = results_dir / "vef_assay_selection"
 variant = "b"
 n_random_subsets = 20

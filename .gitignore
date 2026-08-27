@@ -10,15 +10,15 @@ __pycache__/
 _*
 !__init__.py
 
-# notes stay local; the READMEs of this repository are added explicitly
+# notes stay local; the top-level README is the only documentation that is tracked
 *.md
-!README.md
+!/README.md
 
-# data, checkpoints and everything derived from them; see data/README.md
+# data, checkpoints and everything derived from them; the README explains the layout
 data/**
-!data/README.md
 !data/*/
 !data/AlphaGenome/metadata.csv
+!data/AlphaGenome/metadata_padded.tsv
 !data/Borzoi/targets_human.txt
 !data/Enformer/model_track_info.tsv
 !data/Sei/Sei_tracks_info.csv
