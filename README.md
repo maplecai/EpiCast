@@ -61,10 +61,11 @@ under `data/castillo_mpra/`, the DHS64 baseline under `data/DHS64/` and the four
 and the held-out predictions the figures are computed from. Nothing in the archive collides
 with a version controlled file.
 
-Two things are deposited next to the archive rather than inside it. `gosai_ag_pred_760k_pad_0.h5`
-is the raw AlphaGenome output for the Gosai CREs, 12 GB, read by `analysis/18` alone; put it
-in `data/AlphaGenome/` if you need that analysis. Sei model weights live in their own record,
-<https://zenodo.org/records/4906997>, and go to `data/Sei/resources/`.
+The raw track predictions the VEF matrices are derived from are not deposited, 66 GB for Sei
+and 12 GB for AlphaGenome; the scripts of the next section regenerate them. Only
+`analysis/18` reads them directly, everything else works from the VEF matrices in the
+archive. Sei model weights live in their own record, <https://zenodo.org/records/4906997>,
+and go to `data/Sei/resources/`.
 
 The only files version controlled under `data/` are the track metadata of the four
 sequence-to-function models, because they define which output track of each model becomes
@@ -96,10 +97,8 @@ data/
 └── DHS64/                 predictions and biosample metadata of the DHS64 baseline
 ```
 
-The two prediction h5 files are large, 66 GB for Sei and 12 GB for AlphaGenome, and can be
-regenerated from the sequences with the scripts of the next section instead of being
-downloaded. Trained EpiCast checkpoints go under `saved/`, which `paper/config.py` resolves
-relative to the repository root.
+Trained EpiCast checkpoints go under `saved/`, which `paper/config.py` resolves relative to
+the repository root.
 
 ## Predicting activity for your own sequences
 
