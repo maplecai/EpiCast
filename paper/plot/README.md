@@ -17,9 +17,7 @@
 
 `../figures/` 里同理：不带 `_` 的 PDF 是当前定稿产物，带 `_` 的是改名前那一版或上面几个脚本的输出。`_fig5_castillo_metrics.py` 的输出名已经全部加了 `_` 前缀，不会覆盖现行 Fig 5。
 
-`_bar` / `_box` 后缀（都带 `_` 前缀）= fig1c / fig4bde / fig5 摘要画法的两个落选版本，2026-08-25 C.Z. 定了常规箱线图之后归档；见下面「通用约定」里的那一条。
-
-`_mean` 后缀（**不带** `_` 前缀）= 同三张图的另一个在选版本：散点 + mean 横线 + 上下各一条 SD，不画箱体。现行的箱线图版和它同时存在，等 C.Z. 二选一，落选的那份脚本和 PDF 直接删掉。`_mean` 脚本不出 legend，和现行版共用 `fig1c_legend.pdf` / `fig4bde_legend.pdf` / `fig5_legend.pdf`。
+`_bar` / `_box` / `_boxplot` 后缀（都带 `_` 前缀）= fig1c / fig4bde / fig5 摘要画法的三个落选版本：中位数横线、无须箱线图、常规箱线图。手稿最终采用的是 mean ± SD 那一版，它已经改名占用了不带后缀的正式脚本名，legend 也由它输出；归档脚本的输出名全部加了 `_` 前缀，不会覆盖定稿产物。
 
 **一个 panel 一个 PDF**，figure 级的拼版在 Illustrator 里做。多 panel 的网格（如 2B 是 4 行 × 2 列）算一个 panel，出一个 PDF。图例和 colorbar 一律单独出文件。
 
@@ -62,26 +60,7 @@
 - **非数据的线一律 1pt，只有颜色区分**（2026-08-25 统一）：
   - **框线纯黑** —— 子图边框、刻度线在 `set_mpl_params()` 里由 `axes.edgecolor/linewidth`、`?tick.color`、`?tick.major.width` 统一设定（覆盖 seaborn `style="white"` 的 `.15` 深灰），所以脚本里不用再写。热图的三角外框和 colorbar 外框是手画的 patch，也写 `lw=1.0`。热图内部的格线是数据分隔不是框线，仍是 `lw=0.5` 的灰。
   - **参考线灰色虚线**（`color="gray", lw=1.0, linestyle="--"`）—— y=0、随机基线（AUROC 0.5 / prevalence / EF 1）、fig2a 的 y=x 对角线全都用这一档。fig3de legend 里的 "Random" 图例句柄要跟着改，否则和图里的线不一样粗。
-- **小样本的摘要就画最常规的箱线图**（2026-08-25 C.Z. 定）。汇总细胞系分布的三张图（fig1c / fig4bde / fig5）统一：
-
-  ```python
-  box_style = {
-      "widths": 0.5,           # fig5 是 0.56
-      "patch_artist": True,    # 实体填充，方便后期改色
-      "showfliers": False,     # 每个值已经是一个彩色散点了
-      "boxprops": {"facecolor": "white"},
-      "medianprops": {"color": "black"},
-  }
-  ax.boxplot(v[np.isfinite(v)], positions=[x], **box_style)
-  ```
-
-  whisker、cap 全部用 matplotlib 默认（1.5×IQR，黑色 1pt，正好合上面那条框线约定）。`medianprops` 必须显式给黑色 —— 主题默认的橙色中位线会被误读成某个细胞系。5 或 7 个点照旧全画在箱体上。
-
-  **这个箱线图在 n=5/7 时是装饰而不是统计**，评审真要追问就照实说：n=5 时线性插值的 Q1、Q3 正好落在第 2 和第 4 个点上，箱体就是「中间三个点」；须线端点不是极值也不是分位数，而是「1.5×IQR 之内最靠外的点」，实测 fig1c 16 个箱体里 7 个、fig4bde 48 个里 22 个、fig5（n=7）48 个里 9 个都会判出离群细胞系，而 `showfliers=False` 让它仍以彩色散点留在须线外。师兄的判断是「数学定义是小问题，常规画法优先」。
-
-  两个落选版本归档为 `_figXX..._bar.py`（只有中位数横线）和 `_figXX..._box.py`（有箱体无须线），输出名同样带 `_` 前缀和 `_bar` / `_box` 后缀，不会覆盖现行图。**改数据口径时只改现行脚本，归档那两份不用同步。**
-
-  还有一个在选版本 `figXX..._mean.py`：散点不变，中位数横线换成 mean，上下各一条 1 倍样本 SD（`ddof=1`）的短横线，中间一条竖线连起来，不画箱体。
+- **小样本的摘要画 mean ± SD**（手稿定稿采用）。汇总细胞系分布的三张图（fig1c / fig4bde / fig5）统一：散点照旧全画，横线是 mean，上下各一条 1 倍样本 SD（`ddof=1`），不画箱体：
 
   ```python
   mean, sd = np.nanmean(values), np.nanstd(values, ddof=1)
@@ -91,7 +70,9 @@
       ax.hlines(cap, x - width / 4, x + width / 4, color="black", lw=1.0, zorder=3)
   ```
 
-  mean 横线和箱线图版的箱宽一样（fig1c / fig4bde 是 0.5，fig5 是 0.56），SD 的 cap 取一半宽。它的好处是 mean 和 SD 在 n=5 和 n=500 时定义完全一样，代价是默认了五个细胞系对称散开，而这恰恰是图上看不出来的。**这一版和箱线图版同时在跑，等 C.Z. 选完删掉落选的那份**，所以改数据口径时两份都要改。
+  mean 横线宽度沿用箱线图版的箱宽（fig1c / fig4bde 是 0.5，fig5 是 0.56），SD 的 cap 取一半宽。选它而不选箱线图的理由是 mean 和 SD 在 n=5 和 n=500 时定义完全一样；n=5 时箱线图的 Q1、Q3 正好落在第 2 和第 4 个点上，1.5×IQR 还会判出一堆离群细胞系。代价是默认了细胞系对称散开，而这恰恰是图上看不出来的。图注写 *bar, mean; whiskers, ± 1 s.d.; points, individual cell types*。
+
+  三个落选画法归档为 `_figXX..._bar.py`（只有中位数横线）、`_figXX..._box.py`（有箱体无须线）、`_figXX..._boxplot.py`（常规箱线图，带须线和 cap），输出名同样带 `_` 前缀和对应后缀，不会覆盖定稿图。**改数据口径时只改现行脚本，归档那三份不用同步。**
 - **两个 VEF 源同时出现时，一律 Sei 在前、AlphaGenome 在后**（2026-08-25 统一）：左右排就是左 Sei，上下排就是上 Sei，图例和柱子分组也是这个次序。手稿没规定这个顺序，是我们自己定的，所以唯一的要求是别自相矛盾。涉及 fig1c 的 panel 顺序、fig1e 的两组、fig2bc/3a/3bc 的 block（来自 `config.figure_model_blocks`）、fig3de 的曲线、fig3fg 的 panel 顺序、fig4ac 的左右热图、fig4bde 的两组 / 两列。fig4ac 原来是 AlphaGenome 在左，这次跟着改了
 - **分类轴的刻度标签一律竖排**（`rotation=90`）：assay 名、细胞系名、模型名都是长字符串，斜排（`rotation=38, ha="right"`）在拼版缩放后更难对齐。
 - **title 的分工**（2026-08-25 起）：**子子图的身份标签写进代码**，因为它是数据信息的一部分 —— 一格代表哪个细胞系、哪个模型，`ax.set_title` 直接写上（网格版式只写最上面一行）。留给拼版时手加的只有 panel 字母（A/B/C）和 `suptitle`；需要标注的 n、断轴的斜线标记同理，脚本只把 n 打到 stdout。

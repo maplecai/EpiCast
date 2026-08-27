@@ -3,16 +3,14 @@
 Four panels side by side sharing a y axis, one per pretrained model, titled with the model
 name. The figure is twice as wide as it is tall, so each panel is roughly 1:2. Inside a
 panel the x positions are the four assays; at each position sit the five cell-type-level
-correlations as coloured points over a box. The spread shown is therefore across cell
-types, not across CREs.
+correlations as coloured points. The spread shown is therefore across cell types, not
+across CREs.
 
-The box is the conventional one, whiskers and caps included, which is what C.Z. asked for
-on 2026-08-25. Read it as decoration rather than as statistics: at n=5 the quartiles land
-exactly on the second and fourth point and the 1.5 IQR rule calls a cell type an outlier
-whenever the outer gap exceeds the middle spread, which happens in 7 of these 16 positions.
-Fliers are switched off, so such a point is still drawn, just as one of the five coloured
-dots. The two rejected alternatives are `_fig1c_vef_activity_correlation_bar.py` (median
-bar only) and `_fig1c_vef_activity_correlation_box.py` (box without whiskers).
+The summary is a wide bar at the mean and a thin vertical line one sample SD (ddof=1) in
+each direction, capped by two half-width bars. Nothing is filled, so the five points stay
+the most visible thing in the figure. Unlike the quartiles of a box, a mean and an SD are
+defined the same way at n=5 as at n=500; what they assume instead is that the five cell
+types scatter symmetrically, which is not something this figure can show.
 
 Font sizes come from seaborn's "talk" context and are never set here: every figure in this
 bundle ends up as one panel among several and gets scaled down, so the text has to start
@@ -26,7 +24,7 @@ points readable.
 
 A point is PCC(VEF of that cell and assay, measured activity of that cell), over every
 CRE where both are available. Enformer and Borzoi have no H3K27ac track for K562, HepG2
-and A549, so those points are simply absent and the box there rests on two cell types;
+and A549, so those points are simply absent and the summary there rests on two cell types;
 nothing is imputed.
 
 Reads the MPRA table and the VEF matrices directly: this figure needs the per-sequence
@@ -58,20 +56,20 @@ panel_models = [
     ("alphagenome", "AlphaGenome"),
 ]
 
-# a conventional box plot: IQR box, median line, 1.5 IQR whiskers with caps. Fliers are off
-# because every value is already on the figure as a coloured point. White fill rather than
-# unfilled, so the box is a real object to recolour when laying out; the median is black
-# rather than the theme's orange, which is a cell-type colour here
-box_style = {
-    "widths": 0.5,
-    "patch_artist": True,
-    "showfliers": False,
-    "boxprops": {"facecolor": "white"},
-    "medianprops": {"color": "black"},
-}
+summary_width = 0.5
+summary_linewidth = 1.5
 ylim = (0.0, 0.7)
 yticks = [0.0, 0.2, 0.4, 0.6]
 colors = [cell_colors[ct] for ct in cell_types]
+
+
+def draw_summary(ax, x, values, width=summary_width):
+    """A bar at the mean and a capped line one sample SD in each direction."""
+    mean, sd = np.nanmean(values), np.nanstd(values, ddof=1)
+    ax.vlines(x, mean - sd, mean + sd, color="black", lw=1.0, zorder=3)
+    ax.hlines(mean, x - width / 2, x + width / 2, color="black", lw=summary_linewidth, zorder=3)
+    for cap in (mean - sd, mean + sd):
+        ax.hlines(cap, x - width / 4, x + width / 4, color="black", lw=1.0, zorder=3)
 
 
 def correlations(vef_df, mpra_df):
@@ -92,7 +90,7 @@ def plot_panels(panels, save_path):
     for ax, (model_label, corr) in zip(axes, panels):
         for x, assay in enumerate(assays):
             values = np.array([corr[assay][ct] for ct in cell_types], dtype=float)
-            ax.boxplot(values[np.isfinite(values)], positions=[x], **box_style)
+            draw_summary(ax, x, values)
             ax.scatter(
                 np.full(len(values), x), values,
                 s=34, color=colors, edgecolor="white", linewidth=0.4, zorder=4,

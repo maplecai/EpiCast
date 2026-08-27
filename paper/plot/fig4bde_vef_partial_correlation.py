@@ -7,14 +7,12 @@ fig4B is the absolute setting, fig4D the residual one. fig4E is a 2 x 2 grid, Se
 AlphaGenome across, absolute and residual down, showing the standardized coefficients of
 the four-VEF fit that produced those partial correlations.
 
-Every point is one cell type and the box summarizes them, so colour means cell type here,
-as in fig1C. The box is the conventional one, whiskers and caps included, which is what
-C.Z. asked for on 2026-08-25; at n=5 read it as decoration rather than as statistics, since
-the quartiles land on the second and fourth point and the 1.5 IQR rule calls a cell type an
-outlier in 22 of these 48 positions. Fliers are off, so such a point is still drawn, just
-as one of the five coloured dots. The two rejected alternatives are
-`_fig4bde_vef_partial_correlation_bar.py` (median bar only) and
-`_fig4bde_vef_partial_correlation_box.py` (box without whiskers).
+Every point is one cell type, so colour means cell type here, as in fig1C. The summary is a
+wide bar at the mean and a thin vertical line one sample SD (ddof=1) in each direction,
+capped by two half-width bars. Nothing is filled, so the five points stay the most visible
+thing in the figure. Unlike the quartiles of a box, a mean and an SD are defined the same
+way at n=5 as at n=500; what they assume instead is that the five cell types scatter
+symmetrically, which is not something this figure can show.
 
 Titles are two levels and are drawn here rather than added by hand: the source spans its
 four assays in fig4B and fig4D, and in fig4E the setting sits above the source.
@@ -67,25 +65,25 @@ beta_rows = [
 beta_name = "fig4e_vef_regression_beta.pdf"
 legend_name = "fig4bde_legend.pdf"
 
-# a conventional box plot: IQR box, median line, 1.5 IQR whiskers with caps. Fliers are off
-# because every value is already on the figure as a coloured point. White fill rather than
-# unfilled, so the box is a real object to recolour when laying out; the median is black
-# rather than the theme's orange, which is a cell-type colour here
-box_style = {
-    "widths": 0.5,
-    "patch_artist": True,
-    "showfliers": False,
-    "boxprops": {"facecolor": "white"},
-    "medianprops": {"color": "black"},
-}
+summary_width = 0.5
+summary_linewidth = 1.5
 point_size = 34
 colors = [cell_colors[ct] for ct in cell_types]
 
 
+def draw_summary(ax, x, values, width=summary_width):
+    """A bar at the mean and a capped line one sample SD in each direction."""
+    mean, sd = np.nanmean(values), np.nanstd(values, ddof=1)
+    ax.vlines(x, mean - sd, mean + sd, color="black", lw=1.0, zorder=3)
+    ax.hlines(mean, x - width / 2, x + width / 2, color="black", lw=summary_linewidth, zorder=3)
+    for cap in (mean - sd, mean + sd):
+        ax.hlines(cap, x - width / 4, x + width / 4, color="black", lw=1.0, zorder=3)
+
+
 def draw_groups(ax, values, labels):
-    """The five cell-type values at each x position, boxed."""
+    """The five cell-type values at each x position, with their mean +- SD."""
     for x, column in enumerate(values):
-        ax.boxplot(column[np.isfinite(column)], positions=[x], **box_style)
+        draw_summary(ax, x, column)
         ax.scatter(
             np.full(len(column), x), column,
             s=point_size, color=colors, edgecolor="white", linewidth=0.4, zorder=4,

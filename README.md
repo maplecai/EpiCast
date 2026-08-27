@@ -214,7 +214,7 @@ keep the panel letters of an earlier draft.
 | Panel | Script |
 |---|---|
 | 1C | `plot/figs1_vef_assay_selection.py` |
-| 1D | `plot/fig1c_vef_activity_correlation_mean.py` |
+| 1D | `plot/fig1c_vef_activity_correlation.py` |
 | 1E, 1F | `plot/fig1df_activity_correlation_heatmap.py` |
 | 1G | `plot/fig1e_dnase_residual_specificity.py` |
 | 2A | `plot/fig2a_epicast_scatter.py` |
@@ -224,13 +224,12 @@ keep the panel letters of an earlier draft.
 | 3D, 3E | `plot/fig3de_topk_retrieval.py` |
 | 3F, 3G | `plot/fig3fg_topk_activity_profile.py` |
 | 4A, 4C | `plot/fig4ac_vef_correlation_heatmap.py` |
-| 4B, 4D, 4E | `plot/fig4bde_vef_partial_correlation_mean.py` |
-| 5A-5E | `plot/fig5_castillo_metrics_mean.py` |
+| 4B, 4D, 4E | `plot/fig4bde_vef_partial_correlation.py` |
+| 5A-5E | `plot/fig5_castillo_metrics.py` |
 
-Panels 1A, 1B, 1H are schematics and are not produced by code. The three `_mean` scripts draw
-each cell type as a point with the mean and SD of the cell types as published; the scripts of
-the same name without the suffix draw the same data as boxplots and additionally write the
-shared cell-type legends.
+Panels 1A, 1B, 1H are schematics and are not produced by code. In panels 1D, 4B, 4D, 4E and
+5A-5E every point is one cell type, summarized by a bar at the mean and an error bar of one
+sample SD; the spread is therefore across cell types, not across CREs.
 
 A few conventions are shared by all figure scripts, and changing one figure should not require
 touching another: font sizes come from seaborn's `talk` context and are never set per script,
