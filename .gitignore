@@ -1,29 +1,104 @@
-*.pyc
-__pycache__/
-*.egg-info/
-
-.vscode/
+# Local instructions, notes, editor state and credentials
+.local/
+.codex/
+.agents/
 .cursor/
+.vscode/
 .history/
+AGENTS.md
+AGENTS.override.md
+CLAUDE.md
+.cursorrules
+.env
+.env.*
+!.env.example
+*.pem
+*.key
 
-# a leading underscore marks a file as work in progress, and keeps it out of git
-_*
-!__init__.py
-
-# notes stay local; the top-level README is the only documentation that is tracked
+# Only explicitly listed Markdown documentation is public.
 *.md
 !/README.md
+!/paper/README.md
+!/paper/analysis/README.md
+!/paper/plot/README.md
 
-# data, checkpoints and everything derived from them; the README explains the layout
-data/**
-!data/*/
-!data/AlphaGenome/metadata.csv
-!data/AlphaGenome/metadata_padded.tsv
-!data/Borzoi/targets_human.txt
-!data/Enformer/model_track_info.tsv
-!data/Gosai_MPRA/metadata.csv
-!data/Sei/Sei_tracks_info.csv
+# Python caches and build products
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+build/
+dist/
+
+# Local research, archives and experimental scripts
+_*
+!__init__.py
+old/
+deprecated/
+legacy/
+archive/
+backup/
+*_backup/
+manuscript/
+share/
+/pretrained_models/
+/TFBS_based_models/
+/TFBU/
+/explanations/
+/analyze_epi_features/
+/process_raw_data/
+/padding_effect/
+/enhancer-design/
+/alphagenome_research/
+/alphagenome-pytorch/
+/alphagenome_vef/
+/predict_CRE_activity/
+/predict_CRE_activity_new/
+/server.py
+/scripts/0722_train.sh
+/scripts/0722_infer.sh
+
+# Paper configurations only; exploratory runs remain local.
+/configs/*
+!/configs/0722_gosai_sei_vef_log1p_256.yaml
+!/configs/0722_gosai_seq_only_256.yaml
+!/configs/0722_gosai_seq_only_256_5.yaml
+!/configs/0821_gosai_ag_vef_x10_log1p_dnase1_256.yaml
+!/configs/0821_castillo_dataset_N_dnase1.yaml
+
+# Data are distributed separately; retain the metadata needed to interpret tracks.
+/data/**
+!/data/*/
+!/data/AlphaGenome/metadata.csv
+!/data/AlphaGenome/metadata_padded.tsv
+!/data/Borzoi/targets_human.txt
+!/data/Enformer/model_track_info.tsv
+!/data/Gosai_MPRA/metadata.csv
+!/data/Sei/Sei_tracks_info.csv
 saved/
 outputs/
 results/
 figures/
+artifacts/
+*.log
+*.out
+*.npy
+*.npz
+*.pth
+*.pt
+*.joblib
+*.h5
+*.hdf5
+*.zip
+*.tar
+*.gz
+*.pdf
+*.docx
+*.png
+*.jpg
+*.svg
